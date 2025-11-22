@@ -98,7 +98,7 @@ def main():
             title="Cost Over Time",
             labels={"cost": "Cost ($)", "timestamp": "Time"},
         )
-        st.plotly_chart(fig_cost, use_container_width=True)
+        st.plotly_chart(fig_cost, width='stretch')
         
         # Cost by operation
         col1, col2 = st.columns(2)
@@ -110,7 +110,7 @@ def main():
                 names=cost_by_operation.index,
                 title="Cost by Operation",
             )
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie, width='stretch')
         
         with col2:
             cost_by_project = df_sessions.groupby("project")["cost"].sum().sort_values(ascending=False)
@@ -120,7 +120,7 @@ def main():
                 title="Cost by Project",
                 labels={"x": "Project", "y": "Cost ($)"},
             )
-            st.plotly_chart(fig_bar, use_container_width=True)
+            st.plotly_chart(fig_bar, width='stretch')
     
     # Recent sessions table
     st.header("📋 Recent Sessions")
@@ -138,7 +138,7 @@ def main():
         for s in sessions[:50]
     ])
     
-    st.dataframe(df_table, use_container_width=True)
+    st.dataframe(df_table, width='stretch')
 
 
 if __name__ == "__main__":

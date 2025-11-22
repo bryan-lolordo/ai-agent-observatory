@@ -3,8 +3,7 @@ import json
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, DateTime, JSON, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session as DBSession
+from sqlalchemy.orm import declarative_base, sessionmaker, Session as DBSession
 
 from observatory.models import Session, LLMCall, ModelProvider, AgentRole
 
@@ -29,7 +28,7 @@ class SessionDB(Base):
     error = Column(Text, nullable=True)
     
     operation_type = Column(String, nullable=True, index=True)
-    metadata = Column(JSON, default={})
+    meta_data = Column(JSON, default={})
 
 
 class LLMCallDB(Base):
@@ -59,7 +58,7 @@ class LLMCallDB(Base):
     success = Column(Boolean, default=True)
     error = Column(Text, nullable=True)
     
-    metadata = Column(JSON, default={})
+    meta_data = Column(JSON, default={})
 
 
 class Storage:
@@ -84,7 +83,7 @@ class Storage:
             success=session.success,
             error=session.error,
             operation_type=session.operation_type,
-            metadata=session.metadata,
+            meta_data=session.metadata,
         )
 
     def _from_session_db(self, session_db: SessionDB) -> Session:
@@ -100,7 +99,7 @@ class Storage:
             success=session_db.success,
             error=session_db.error,
             operation_type=session_db.operation_type,
-            metadata=session_db.metadata or {},
+            metadata=session_db.meta_data or {},
         )
 
     def _to_llm_call_db(self, llm_call: LLMCall) -> LLMCallDB:
@@ -122,7 +121,7 @@ class Storage:
             operation=llm_call.operation,
             success=llm_call.success,
             error=llm_call.error,
-            metadata=llm_call.metadata,
+            meta_data=llm_call.metadata,
         )
 
     def _from_llm_call_db(self, llm_call_db: LLMCallDB) -> LLMCall:
@@ -144,7 +143,7 @@ class Storage:
             operation=llm_call_db.operation,
             success=llm_call_db.success,
             error=llm_call_db.error,
-            metadata=llm_call_db.metadata or {},
+            metadata=llm_call_db.meta_data or {},
         )
 
     def save_session(self, session: Session):

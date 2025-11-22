@@ -1,0 +1,2 @@
+[console_scripts]
+observatory = observatory.cli:main
