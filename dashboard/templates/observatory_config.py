@@ -110,10 +110,10 @@ def start_tracking_session(operation_type: str, metadata: dict = None):
     Example:
         session = start_tracking_session("chat_message", {"user_id": "123"})
     """
-    return obs.start_session(
-        operation_type=operation_type,
-        metadata=metadata or {}
-    )
+    if metadata:
+        return obs.start_session(operation_type, **metadata)
+    else:
+        return obs.start_session(operation_type)
 
 
 def end_tracking_session(session, success: bool = True, error: str = None):
@@ -130,7 +130,14 @@ def end_tracking_session(session, success: bool = True, error: str = None):
         # or
         end_tracking_session(session, success=False, error="API timeout")
     """
-    obs.end_session(session, success=success, error=error)
+    # Update session object before ending (Observatory.end_session doesn't accept these params)
+    if session:
+        if not success:
+            session.success = False
+        if error:
+            session.error = error
+    
+    obs.end_session(session)
 
 
 def track_llm_call(
