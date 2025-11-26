@@ -199,7 +199,7 @@ def render():
     with col2:
         time_period = render_time_period_filter(key="home_time_period", label="Time Range")
     with col3:
-        if st.button("🔄 Refresh", use_container_width=True):
+        if st.button("🔄 Refresh", width='stretch'):
             st.cache_data.clear()
             st.rerun()
     
@@ -323,7 +323,7 @@ def render():
                     metric_name="Requests",
                     title="Request Volume Over Time"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No activity data available for the selected time range")
         
@@ -344,7 +344,7 @@ def render():
                     cost_breakdown,
                     title="Cost by Model"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No cost data available")
         
@@ -356,7 +356,7 @@ def render():
                     agent_costs,
                     title="Cost by Agent"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No agent data available")
     
@@ -403,7 +403,7 @@ def render():
                     min_value=0,
                     max_value=100
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No cache data available")
         

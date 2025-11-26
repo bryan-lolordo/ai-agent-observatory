@@ -3,7 +3,6 @@ AI Agent Observatory Dashboard - Main Application
 Location: dashboard/app.py
 
 Multi-page Streamlit dashboard for monitoring and optimizing AI agents.
-Integrates with all observatory optimizers and analyzers.
 """
 
 import streamlit as st
@@ -15,7 +14,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-# Import from our new utilities
+# Import from our utilities
 from dashboard.utils.data_fetcher import get_storage, get_available_projects
 
 # Page configuration
@@ -41,13 +40,6 @@ st.markdown("""
         border-radius: 10px;
         color: white;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .optimizer-card {
-        background: #f8f9fa;
-        padding: 1.5rem;
-        border-radius: 8px;
-        border-left: 4px solid #1f77b4;
-        margin: 1rem 0;
     }
     .success-box {
         background: #d4edda;
@@ -88,14 +80,12 @@ try:
         project_options = ["All Projects"] + available_projects
         
         # Project selector with custom styling
-        st.sidebar.markdown('<div class="project-selector">', unsafe_allow_html=True)
         selected_project = st.sidebar.selectbox(
             "🎯 Select Project",
             options=project_options,
             index=0,
             help="Filter metrics by project. Select 'All Projects' to see aggregated data."
         )
-        st.sidebar.markdown('</div>', unsafe_allow_html=True)
         
         # Store in session state for access across pages
         st.session_state['selected_project'] = None if selected_project == "All Projects" else selected_project
@@ -116,11 +106,11 @@ page = st.sidebar.radio(
     [
         "🏠 Home",
         "📊 Live Demo",
-        "💾 Cache Analyzer",
+        "💰 Cost Estimator",
         "🔀 Model Router",
+        "💾 Cache Analyzer",
         "⚖️ LLM Judge",
         "✨ Prompt Optimizer",
-        "💰 Cost Estimator",
         "⚙️ Settings"
     ]
 )
@@ -145,13 +135,14 @@ try:
     if available_projects:
         st.sidebar.metric("Projects Tracked", len(available_projects))
     
-    from dashboard.optimizer_state import get_optimizer_state
-    state = get_optimizer_state()
-    st.sidebar.info("📡 Optimizers Ready")
-    
 except Exception as e:
     st.sidebar.error("❌ Connection Issue")
     st.sidebar.caption(f"Error: {str(e)}")
+
+# Footer
+st.sidebar.markdown("---")
+st.sidebar.caption("AI Agent Observatory v1.0")
+st.sidebar.caption("Built with Streamlit")
 
 # Page routing
 if page == "🏠 Home":
@@ -160,21 +151,21 @@ if page == "🏠 Home":
 elif page == "📊 Live Demo":
     from dashboard.pages import live_demo
     live_demo.render()
-elif page == "💾 Cache Analyzer":
-    from dashboard.pages import cache_analyzer
-    cache_analyzer.render()
+elif page == "💰 Cost Estimator":
+    from dashboard.pages import cost_estimator
+    cost_estimator.render()
 elif page == "🔀 Model Router":
     from dashboard.pages import model_router
     model_router.render()
+elif page == "💾 Cache Analyzer":
+    from dashboard.pages import cache_analyzer
+    cache_analyzer.render()
 elif page == "⚖️ LLM Judge":
     from dashboard.pages import llm_judge
     llm_judge.render()
 elif page == "✨ Prompt Optimizer":
     from dashboard.pages import prompt_optimizer
     prompt_optimizer.render()
-elif page == "💰 Cost Estimator":
-    from dashboard.pages import cost_estimator
-    cost_estimator.render()
 elif page == "⚙️ Settings":
     from dashboard.pages import settings
     settings.render()

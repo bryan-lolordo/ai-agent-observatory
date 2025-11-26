@@ -408,7 +408,7 @@ def render():
                 metric_name="Cost ($)",
                 title="Daily Cost Trend"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("Not enough historical data for trend analysis")
     
@@ -586,7 +586,7 @@ def render():
         "Requests/Day": [f"{s['daily_requests']:,}" for s in scenarios.values()],
     })
     
-    st.dataframe(scenario_df, use_container_width=True, hide_index=True)
+    st.dataframe(scenario_df, width='stretch', hide_index=True)
     
     st.divider()
     
@@ -599,7 +599,7 @@ def render():
         cost_by_model = overview.get('cost_breakdown', {})
         if cost_by_model:
             fig = create_cost_breakdown_pie(cost_by_model, "Cost Distribution by Model")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No model cost data available")
     
@@ -608,7 +608,7 @@ def render():
         if by_agent:
             agent_costs = {agent: data['total_cost'] for agent, data in by_agent.items()}
             fig = create_cost_breakdown_pie(agent_costs, "Cost Distribution by Agent")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No agent cost data available")
     
@@ -622,7 +622,7 @@ def render():
                 y_label="Cost ($)",
                 title="Cost by Operation Type"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No operation cost data available")
     
@@ -652,7 +652,7 @@ def render():
         hotspots.sort(key=lambda x: float(x['Monthly Cost'].replace('$', '').replace(',', '')), reverse=True)
         
         hotspot_df = pd.DataFrame(hotspots)
-        st.dataframe(hotspot_df, use_container_width=True, hide_index=True)
+        st.dataframe(hotspot_df, width='stretch', hide_index=True)
     else:
         st.info("No agent data available")
     

@@ -646,7 +646,7 @@ def render():
                     hovermode='x unified'
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("Not enough temporal data for timeline")
         
@@ -681,7 +681,7 @@ def render():
         cluster_df = pd.DataFrame(cluster_table)
         
         # Display table
-        st.dataframe(cluster_df, use_container_width=True, hide_index=True)
+        st.dataframe(cluster_df, width='stretch', hide_index=True)
         
         st.divider()
         
@@ -827,7 +827,7 @@ def render():
                 })
             
             agent_df = pd.DataFrame(agent_list)
-            st.dataframe(agent_df, use_container_width=True, hide_index=True)
+            st.dataframe(agent_df, width='stretch', hide_index=True)
         
         with col2:
             st.write("**Cache Key Distribution:**")

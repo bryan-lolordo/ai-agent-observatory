@@ -662,7 +662,7 @@ def render():
                 hovermode='x unified'
             )
             
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("Not enough temporal data for trend analysis")
     
@@ -694,7 +694,7 @@ def render():
                 })
             
             df = pd.DataFrame(leaderboard_data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width='stretch', hide_index=True)
         else:
             st.info("No model leaderboard data")
     
@@ -716,7 +716,7 @@ def render():
                 })
             
             df = pd.DataFrame(leaderboard_data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width='stretch', hide_index=True)
         else:
             st.info("No agent leaderboard data")
     
@@ -732,7 +732,7 @@ def render():
         
         with col1:
             fig = create_cost_breakdown_pie(error_categories, "Error Distribution")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         
         with col2:
             fig = create_bar_chart(
@@ -741,7 +741,7 @@ def render():
                 y_label="Count",
                 title="Error Categories"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
     else:
         st.info("No error category data")
     
@@ -831,7 +831,7 @@ def render():
             })
         
         df = pd.DataFrame(event_data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width='stretch', hide_index=True)
         
         # Drilldown section
         st.divider()

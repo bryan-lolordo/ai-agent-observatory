@@ -27,10 +27,37 @@ from observatory.models import (
     QualityEvaluation,
 )
 from observatory.storage import Storage
-from observatory.analyzers.cost_analyzer import CostAnalyzer
-from observatory.analyzers.latency_analyzer import LatencyAnalyzer
-from observatory.analyzers.token_analyzer import TokenAnalyzer
-from observatory.analyzers.quality_analyzer import QualityAnalyzer
+
+
+# Simple cost calculation (replaces cost_analyzer)
+def calculate_cost(provider: ModelProvider, model_name: str, prompt_tokens: int, completion_tokens: int) -> tuple:
+    """Calculate cost for LLM call. Returns (prompt_cost, completion_cost)."""
+    # Simplified pricing (add more models as needed)
+    pricing = {
+        "gpt-4": (0.03 / 1000, 0.06 / 1000),
+        "gpt-4o": (0.0025 / 1000, 0.01 / 1000),
+        "gpt-4o-mini": (0.00015 / 1000, 0.0006 / 1000),
+        "gpt-3.5-turbo": (0.0005 / 1000, 0.0015 / 1000),
+        "claude-4": (0.015 / 1000, 0.075 / 1000),
+        "claude-sonnet-4": (0.003 / 1000, 0.015 / 1000),
+        "claude-3-5-sonnet": (0.003 / 1000, 0.015 / 1000),
+        "claude-opus-4": (0.015 / 1000, 0.075 / 1000),
+        "mistral-small": (0.0002 / 1000, 0.0006 / 1000),
+    }
+    
+    # Find pricing (case insensitive, partial match)
+    model_lower = model_name.lower()
+    prompt_price, completion_price = 0.001 / 1000, 0.002 / 1000  # Default
+    
+    for key, prices in pricing.items():
+        if key in model_lower:
+            prompt_price, completion_price = prices
+            break
+    
+    prompt_cost = prompt_tokens * prompt_price
+    completion_cost = completion_tokens * completion_price
+    
+    return prompt_cost, completion_cost
 
 
 class MetricsCollector:
@@ -49,12 +76,6 @@ class MetricsCollector:
         self.enabled = enabled
         self.storage = storage or Storage()
         self.current_session: Optional[Session] = None
-        
-        # Analyzers
-        self.cost_analyzer = CostAnalyzer()
-        self.latency_analyzer = LatencyAnalyzer()
-        self.token_analyzer = TokenAnalyzer()
-        self.quality_analyzer = QualityAnalyzer()
 
     def start_session(
         self,
@@ -225,7 +246,7 @@ class MetricsCollector:
             raise ValueError("No active session. Call start_session() first.")
         
         # Calculate cost
-        prompt_cost, completion_cost = self.cost_analyzer.calculate_cost(
+        prompt_cost, completion_cost = calculate_cost(
             provider, model_name, prompt_tokens, completion_tokens
         )
         
@@ -415,13 +436,16 @@ class MetricsCollector:
 
     def get_report(self, session: Optional[Session] = None) -> SessionReport:
         """
-        Generate a comprehensive report for a session.
+        Generate a basic report for a session.
+        
+        Note: Dashboard uses aggregators.py for detailed analysis.
+        This method provides basic session summary.
         
         Args:
             session: Session to report on (uses current if None)
         
         Returns:
-            SessionReport with all analytics
+            SessionReport with basic metrics
         """
         if not self.enabled:
             return None
@@ -434,16 +458,39 @@ class MetricsCollector:
         if not target_session.llm_calls:
             target_session = self.storage.get_session(target_session.id)
         
-        # Generate report
-        cost_breakdown = self.cost_analyzer.analyze(target_session)
-        latency_breakdown = self.latency_analyzer.analyze(target_session)
-        token_breakdown = self.token_analyzer.analyze(target_session)
-        quality_metrics = self.quality_analyzer.analyze(target_session)
+        # Calculate basic metrics from session
+        total_cost = target_session.total_cost
+        total_tokens = target_session.total_tokens
+        total_latency = target_session.total_latency_ms
+        num_calls = target_session.total_llm_calls
         
-        # Generate optimization suggestions
-        suggestions = self._generate_suggestions(
-            target_session, cost_breakdown, latency_breakdown, token_breakdown, quality_metrics
-        )
+        # Create basic breakdown dictionaries
+        cost_breakdown = {
+            'total_cost': total_cost,
+            'avg_cost_per_call': total_cost / num_calls if num_calls > 0 else 0
+        }
+        
+        latency_breakdown = {
+            'total_latency_ms': total_latency,
+            'avg_latency_ms': total_latency / num_calls if num_calls > 0 else 0
+        }
+        
+        token_breakdown = {
+            'total_tokens': total_tokens,
+            'avg_tokens_per_call': total_tokens / num_calls if num_calls > 0 else 0
+        }
+        
+        quality_metrics = {
+            'success_rate': 1.0 if target_session.success else 0.0,
+            'total_calls': num_calls
+        }
+        
+        # Basic suggestions
+        suggestions = []
+        if total_cost > 1.0:
+            suggestions.append("Consider using cheaper models for simple tasks")
+        if total_latency / num_calls > 5000 if num_calls > 0 else False:
+            suggestions.append("High average latency detected")
         
         return SessionReport(
             session=target_session,
@@ -453,66 +500,6 @@ class MetricsCollector:
             quality_metrics=quality_metrics,
             optimization_suggestions=suggestions,
         )
-
-    def _generate_suggestions(
-        self,
-        session: Session,
-        cost_breakdown,
-        latency_breakdown,
-        token_breakdown,
-        quality_metrics
-    ) -> List[str]:
-        """Generate optimization suggestions based on session metrics."""
-        suggestions = []
-        
-        # Cost optimization
-        if cost_breakdown.total_cost > 0.10:  # > $0.10 per session
-            gpt4_cost = cost_breakdown.by_model.get("gpt-4", 0)
-            if gpt4_cost > cost_breakdown.total_cost * 0.5:
-                suggestions.append(
-                    "💰 High GPT-4 usage detected. Consider using GPT-3.5-turbo for simpler tasks."
-                )
-        
-        # Latency optimization
-        if latency_breakdown.avg_latency_ms > 5000:  # > 5s average
-            suggestions.append(
-                "⚡ High average latency. Consider parallelizing independent agent calls."
-            )
-        
-        # Token optimization
-        avg_tokens = quality_metrics.avg_tokens_per_call
-        if avg_tokens > 2000:
-            suggestions.append(
-                "📦 High token usage per call. Review system prompts for compression opportunities."
-            )
-        
-        # Quality
-        if quality_metrics.success_rate < 0.95:
-            suggestions.append(
-                f"🔴 Success rate is {quality_metrics.success_rate:.1%}. Investigate error patterns."
-            )
-        
-        # Cache optimization
-        if session.total_cache_hits + session.total_cache_misses > 0:
-            hit_rate = session.total_cache_hits / (session.total_cache_hits + session.total_cache_misses)
-            if hit_rate < 0.30:
-                suggestions.append(
-                    f"💾 Low cache hit rate ({hit_rate:.1%}). Consider improving prompt normalization."
-                )
-        
-        # Routing optimization
-        if session.routing_cost_savings > 0:
-            suggestions.append(
-                f"✅ Routing saved ${session.routing_cost_savings:.4f} this session. Good job!"
-            )
-        
-        # Hallucination warning
-        if session.total_hallucinations > 0:
-            suggestions.append(
-                f"⚠️ Detected {session.total_hallucinations} hallucination(s). Review quality checks."
-            )
-        
-        return suggestions
 
     @contextmanager
     def track(

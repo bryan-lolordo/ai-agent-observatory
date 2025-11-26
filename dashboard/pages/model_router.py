@@ -532,7 +532,7 @@ def render():
                 model_distribution,
                 title="Requests by Model"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         
         with col2:
             # Bar chart version
@@ -542,7 +542,7 @@ def render():
                 y_label="Request Count",
                 title="Model Usage Breakdown"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
     else:
         st.info("No model distribution data")
     
@@ -571,7 +571,7 @@ def render():
                 y_labels=[f"Router Chose {t.title()}" for t in tiers],
                 title="Routing Decision Matrix"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             
             st.caption("""
             **How to Read:**
@@ -613,7 +613,7 @@ def render():
             y_label="Quality Score (0-10)",
             title="Cost vs Quality Tradeoff"
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         
         st.caption("""
         **Ideal Region:** Low cost, high quality (top-left quadrant)
@@ -697,6 +697,6 @@ def render():
         
         if log_data:
             df = pd.DataFrame(log_data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width='stretch', hide_index=True)
         else:
             st.info("No routing log data available")

@@ -124,7 +124,7 @@ def render_project_management():
                     })
             
             df = pd.DataFrame(project_data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width='stretch', hide_index=True)
             
         else:
             st.info("No projects found. Start using Observatory in your applications to create projects.")
@@ -189,11 +189,11 @@ def render_database_settings():
         with col2:
             st.write("**Database Actions**")
             
-            if st.button("📊 View Detailed Stats", use_container_width=True):
+            if st.button("📊 View Detailed Stats", width='stretch'):
                 with st.expander("Detailed Database Statistics", expanded=True):
                     st.json(db_stats)
             
-            if st.button("🔄 Optimize Database", use_container_width=True):
+            if st.button("🔄 Optimize Database", width='stretch'):
                 st.info("Database optimization would run here (VACUUM, ANALYZE, etc.)")
         
         st.divider()
@@ -446,20 +446,20 @@ def render_export_settings(config: Dict[str, Any]) -> Dict[str, Any]:
     with col2:
         st.write("**Export Actions**")
         
-        if st.button("📥 Export All Data", use_container_width=True):
+        if st.button("📥 Export All Data", width='stretch'):
             st.info("Full data export would be generated here")
         
-        if st.button("📥 Export Configuration", use_container_width=True):
+        if st.button("📥 Export Configuration", width='stretch'):
             config_json = json.dumps(config, indent=2)
             st.download_button(
                 "Download Config",
                 config_json,
                 f"observatory_config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                 "application/json",
-                use_container_width=True
+                width='stretch'
             )
         
-        if st.button("📤 Import Configuration", use_container_width=True):
+        if st.button("📤 Import Configuration", width='stretch'):
             st.info("Configuration import would be handled here")
     
     # Update config
@@ -597,13 +597,13 @@ def render():
     col1, col2, col3 = st.columns([1, 1, 2])
     
     with col1:
-        if st.button("💾 Save Settings", type="primary", use_container_width=True):
+        if st.button("💾 Save Settings", type="primary", width='stretch'):
             save_user_config(config)
             st.success("✅ Settings saved successfully!")
             st.rerun()
     
     with col2:
-        if st.button("🔄 Reset to Defaults", use_container_width=True):
+        if st.button("🔄 Reset to Defaults", width='stretch'):
             default_config = get_default_config()
             save_user_config(default_config)
             st.success("✅ Settings reset to defaults!")

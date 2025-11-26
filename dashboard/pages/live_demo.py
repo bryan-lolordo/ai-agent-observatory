@@ -487,7 +487,7 @@ def render():
                 model_counts,
                 title="Requests by Model"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No model data")
     

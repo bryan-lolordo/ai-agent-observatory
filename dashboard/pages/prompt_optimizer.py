@@ -560,7 +560,7 @@ def render():
     }
     
     df = pd.DataFrame(heatmap_data)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width='stretch', hide_index=True)
     
     st.divider()
     
@@ -582,7 +582,7 @@ def render():
         })
     
     comp_df = pd.DataFrame(comparison_data)
-    st.dataframe(comp_df, use_container_width=True, hide_index=True)
+    st.dataframe(comp_df, width='stretch', hide_index=True)
     
     st.divider()
     
@@ -629,7 +629,7 @@ def render():
         })
     
     model_df = pd.DataFrame(model_comparison)
-    st.dataframe(model_df, use_container_width=True, hide_index=True)
+    st.dataframe(model_df, width='stretch', hide_index=True)
     
     st.divider()
     
