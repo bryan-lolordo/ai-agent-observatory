@@ -1,3 +1,9 @@
+import sys
+print("=" * 80)
+print(f"🚀 LOADING HOME.PY FROM: {__file__}")
+print(f"🚀 Python path: {sys.executable}")
+print("=" * 80)
+
 """
 Home Page - Mission Control Dashboard
 Location: dashboard/pages/home.py
@@ -10,7 +16,13 @@ Comprehensive overview of AI agent performance with:
 - Alerts and AI-generated optimization suggestions
 """
 
+# Force reload - change this number to bust cache
+# v2.0
+
 import streamlit as st
+import os
+from observatory import Observatory
+from observatory.models import ModelProvider  
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
@@ -50,6 +62,107 @@ from dashboard.components.tables import (
     render_quality_scores_table,
 )
 from dashboard.components.filters import render_time_period_filter
+
+
+# Initialize Observatory for self-monitoring
+obs_system = Observatory(
+    project_name="Observatory-System"
+)
+
+
+def track_openai_call(agent_name: str, operation: str, model: str = "gpt-4o-mini"):
+    """
+    Decorator to automatically track OpenAI calls with Observatory.
+    Handles timing and metric recording.
+    """
+    print(f"🎯 DECORATOR CREATED for {agent_name}/{operation}")  # ADD THIS LINE
+    
+    def decorator(func):
+        print(f"🎯 WRAPPING FUNCTION: {func.__name__}")  # ADD THIS LINE
+        
+        def wrapper(*args, **kwargs):
+            import time
+            
+            print(f"🔍 WRAPPER CALLED - Starting timer...")  # This was already here
+            start_time = time.time()
+            
+            try:
+                result = func(*args, **kwargs)
+                
+                # If result is an OpenAI response object, extract metrics
+                if hasattr(result, 'usage'):
+                    latency_ms = max((time.time() - start_time) * 1000, 1.0)  # Ensure minimum 1ms
+                    print(f"🔍 Calculated latency: {latency_ms}ms") 
+                    
+                    # Record with Observatory - it calculates costs automatically
+                    obs_system.record_call(
+                        provider=ModelProvider.OPENAI,
+                        model_name=model,
+                        agent_name=agent_name,
+                        operation=operation,
+                        prompt_tokens=result.usage.prompt_tokens,
+                        completion_tokens=result.usage.completion_tokens,
+                        latency_ms=latency_ms,
+                        success=True
+                    )
+                    
+                    # Return the text content
+                    return result.choices[0].message.content
+                
+                return result
+                
+            except Exception as e:
+                latency_ms = max((time.time() - start_time) * 1000, 1.0)  # Ensure minimum 1ms
+                obs_system.record_call(
+                    provider=ModelProvider.OPENAI,
+                    model_name=model,
+                    agent_name=agent_name,
+                    operation=operation,
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    latency_ms=latency_ms,
+                    success=False,
+                    error=str(e)
+                )
+                raise
+        
+        return wrapper
+    return decorator
+
+
+@track_openai_call(agent_name="InsightGenerator", operation="generate_dashboard_insights")
+def generate_ai_insights(overview_data: Dict[str, Any]):
+    """Generate AI-powered deep analysis of metrics."""
+    from openai import OpenAI
+    
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    
+    kpis = overview_data.get('kpis', {})
+    
+    prompt = f"""Analyze these AI agent metrics and provide 3 specific, actionable insights:
+
+Total Cost: ${kpis.get('total_cost', 0):.4f}
+Total Calls: {kpis.get('total_calls', 0):,}
+Avg Cost/Call: ${kpis.get('avg_cost_per_session', 0):.4f}
+Avg Latency: {kpis.get('avg_latency_ms', 0):.0f}ms
+Success Rate: {kpis.get('success_rate', 0):.1%}
+
+Focus on:
+1. Cost optimization opportunities
+2. Performance improvements  
+3. Quality or reliability concerns
+
+Be specific and actionable. Format as numbered list."""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=300,
+        temperature=0.7
+    )
+    
+    # Return the response object - decorator will extract text and track metrics
+    return response
 
 
 def calculate_system_health(overview: Dict[str, Any]) -> list:
@@ -144,7 +257,7 @@ def detect_alerts(overview: Dict[str, Any], trends: Dict[str, Any]) -> list:
 
 
 def generate_insights(overview: Dict[str, Any]) -> list:
-    """Generate AI-powered optimization insights."""
+    """Generate rule-based optimization insights."""
     insights = []
     
     kpis = overview.get('kpis', {})
@@ -199,7 +312,7 @@ def render():
     with col2:
         time_period = render_time_period_filter(key="home_time_period", label="Time Range")
     with col3:
-        if st.button("🔄 Refresh", width='stretch'):
+        if st.button("🔄 Refresh", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
     
@@ -276,7 +389,7 @@ def render():
         metrics.append({
             "label": "Cache Hit Rate",
             "value": format_percentage(cache_metrics.get('hit_rate', 0)),
-            "help_text": f"{cache_metrics.get('cache_hits', 0)} hits, {cache_metrics.get('cache_misses', 0)} misses"
+            "help": f"{cache_metrics.get('cache_hits', 0)} hits, {cache_metrics.get('cache_misses', 0)} misses"
         })
         
         # Routing Accuracy
@@ -284,7 +397,7 @@ def render():
             metrics.append({
                 "label": "Routing Accuracy",
                 "value": format_percentage(routing_metrics.get('routing_accuracy', 0)) if routing_metrics.get('routing_accuracy') else "N/A",
-                "help_text": f"{routing_metrics.get('total_decisions', 0)} routing decisions"
+                "help": f"{routing_metrics.get('total_decisions', 0)} routing decisions"
             })
         
         # Quality Score
@@ -292,7 +405,7 @@ def render():
             metrics.append({
                 "label": "Avg Quality Score",
                 "value": format_score(quality_metrics['avg_judge_score']),
-                "help_text": f"{quality_metrics.get('total_evaluated', 0)} evaluations"
+                "help": f"{quality_metrics.get('total_evaluated', 0)} evaluations"
             })
         
         # Success Rate
@@ -323,7 +436,7 @@ def render():
                     metric_name="Requests",
                     title="Request Volume Over Time"
                 )
-                st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("No activity data available for the selected time range")
         
@@ -344,7 +457,7 @@ def render():
                     cost_breakdown,
                     title="Cost by Model"
                 )
-                st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("No cost data available")
         
@@ -356,7 +469,7 @@ def render():
                     agent_costs,
                     title="Cost by Agent"
                 )
-                st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("No agent data available")
     
@@ -403,7 +516,7 @@ def render():
                     min_value=0,
                     max_value=100
                 )
-                st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("No cache data available")
         
@@ -500,7 +613,7 @@ def render():
         
         st.divider()
         
-        # Section 9: AI-Generated Insights
+        # Section 9: Rule-Based Optimization Insights
         st.subheader("💡 Optimization Insights")
         
         insights = generate_insights(overview)
@@ -510,6 +623,32 @@ def render():
                 st.info(insight)
         else:
             st.info("No optimization insights available yet. More data needed for analysis.")
+        
+        st.divider()
+        
+        # Section 9.5: AI-Powered Deep Analysis
+        st.subheader("🤖 AI-Powered Deep Analysis")
+        
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            st.markdown("Get AI-generated recommendations using GPT-4o-mini to analyze your metrics")
+        
+        with col2:
+            if st.button("🔮 Run AI Analysis", type="primary", use_container_width=True):
+                with st.spinner("Analyzing metrics with AI..."):
+                    try:
+                        ai_insights = generate_ai_insights(overview)
+                        
+                        st.markdown("### 🎯 AI Recommendations")
+                        st.success(ai_insights)
+                        
+                        st.caption("💰 This analysis cost ~$0.0001 and is tracked in 'Observatory-System' project")
+                        
+                    except Exception as e:
+                        st.error(f"Error generating AI insights: {str(e)}")
+                        if "OPENAI_API_KEY" in str(e):
+                            st.caption("💡 Set OPENAI_API_KEY environment variable to enable this feature")
         
         st.divider()
         

@@ -14,8 +14,16 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+# Import Observatory for self-monitoring
+from observatory import Observatory
+
 # Import from our utilities
 from dashboard.utils.data_fetcher import get_storage, get_available_projects
+
+# Initialize self-monitoring for the Observatory system
+obs_system = Observatory(
+    project_name="Observatory-System",
+)
 
 # Page configuration
 st.set_page_config(
