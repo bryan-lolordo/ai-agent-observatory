@@ -1,3 +1,3 @@
 """
-Pages package initialization.
+Dashboard Pages Package
 """

@@ -1,145 +1,180 @@
+"""
+AI Agent Observatory Dashboard - Main Application
+Location: dashboard/app.py
+
+Multi-page Streamlit dashboard for monitoring and optimizing AI agents.
+Integrates with all observatory optimizers and analyzers.
+"""
+
 import streamlit as st
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
+import sys
+import os
+from pathlib import Path
 
-from observatory import Storage
-from observatory.models import ModelProvider
+# Add parent directory to path for observatory imports
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
+# Import from our new utilities
+from dashboard.utils.data_fetcher import get_storage, get_available_projects
 
+# Page configuration
 st.set_page_config(
     page_title="AI Agent Observatory",
     page_icon="🔭",
     layout="wide",
+    initial_sidebar_state="expanded"
 )
 
+# Custom CSS
+st.markdown("""
+    <style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1f77b4;
+        margin-bottom: 1rem;
+    }
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1.5rem;
+        border-radius: 10px;
+        color: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .optimizer-card {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border-left: 4px solid #1f77b4;
+        margin: 1rem 0;
+    }
+    .success-box {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+        padding: 1rem;
+        border-radius: 5px;
+        margin: 1rem 0;
+    }
+    .warning-box {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        color: #856404;
+        padding: 1rem;
+        border-radius: 5px;
+        margin: 1rem 0;
+    }
+    .project-selector {
+        background: #f0f8ff;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 2px solid #1f77b4;
+        margin-bottom: 1rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-@st.cache_resource
-def get_storage():
-    return Storage()
+# Sidebar - Project Selector
+st.sidebar.title("🔭 Observatory")
+st.sidebar.markdown("---")
 
-
-def main():
-    st.title("🔭 AI Agent Observatory")
-    st.markdown("Monitor, evaluate, and optimize your AI agents")
+# Get available projects
+try:
+    available_projects = get_available_projects()
     
+    if available_projects:
+        # Add "All Projects" option
+        project_options = ["All Projects"] + available_projects
+        
+        # Project selector with custom styling
+        st.sidebar.markdown('<div class="project-selector">', unsafe_allow_html=True)
+        selected_project = st.sidebar.selectbox(
+            "🎯 Select Project",
+            options=project_options,
+            index=0,
+            help="Filter metrics by project. Select 'All Projects' to see aggregated data."
+        )
+        st.sidebar.markdown('</div>', unsafe_allow_html=True)
+        
+        # Store in session state for access across pages
+        st.session_state['selected_project'] = None if selected_project == "All Projects" else selected_project
+        
+    else:
+        st.sidebar.warning("⚠️ No projects found in database")
+        st.session_state['selected_project'] = None
+        
+except Exception as e:
+    st.sidebar.error(f"❌ Error loading projects: {str(e)}")
+    st.session_state['selected_project'] = None
+
+st.sidebar.markdown("---")
+
+# Navigation
+page = st.sidebar.radio(
+    "Navigation",
+    [
+        "🏠 Home",
+        "📊 Live Demo",
+        "💾 Cache Analyzer",
+        "🔀 Model Router",
+        "⚖️ LLM Judge",
+        "✨ Prompt Optimizer",
+        "💰 Cost Estimator",
+        "⚙️ Settings"
+    ]
+)
+
+# System status in sidebar
+st.sidebar.markdown("---")
+st.sidebar.subheader("System Status")
+
+try:
     storage = get_storage()
     
-    # Sidebar filters
-    st.sidebar.header("Filters")
-    
-    # Project filter
-    projects = ["All Projects"]  # TODO: Get from DB
-    selected_project = st.sidebar.selectbox("Project", projects)
-    
-    # Time range filter
-    time_range = st.sidebar.selectbox(
-        "Time Range",
-        ["Last Hour", "Last 24 Hours", "Last 7 Days", "Last 30 Days", "All Time"]
-    )
-    
-    # Convert time range to datetime
-    now = datetime.utcnow()
-    time_filters = {
-        "Last Hour": now - timedelta(hours=1),
-        "Last 24 Hours": now - timedelta(days=1),
-        "Last 7 Days": now - timedelta(days=7),
-        "Last 30 Days": now - timedelta(days=30),
-        "All Time": None,
-    }
-    start_time = time_filters[time_range]
-    
-    # Load sessions
-    project_filter = None if selected_project == "All Projects" else selected_project
+    # Get sessions filtered by selected project
+    selected_project = st.session_state.get('selected_project')
     sessions = storage.get_sessions(
-        project_name=project_filter,
-        start_time=start_time,
-        limit=1000,
+        project_name=selected_project,
+        limit=1
     )
     
-    if not sessions:
-        st.warning("No data available for the selected filters.")
-        return
+    st.sidebar.success("✅ Observatory Active")
     
-    # Overview metrics
-    st.header("📊 Overview")
-    col1, col2, col3, col4 = st.columns(4)
+    # Show project count
+    if available_projects:
+        st.sidebar.metric("Projects Tracked", len(available_projects))
     
-    total_cost = sum(s.total_cost for s in sessions)
-    total_calls = sum(s.total_llm_calls for s in sessions)
-    avg_latency = sum(s.total_latency_ms for s in sessions) / len(sessions) if sessions else 0
-    success_count = sum(1 for s in sessions if s.success)
-    success_rate = success_count / len(sessions) if sessions else 0
+    from dashboard.optimizer_state import get_optimizer_state
+    state = get_optimizer_state()
+    st.sidebar.info("📡 Optimizers Ready")
     
-    col1.metric("Total Cost", f"${total_cost:.2f}")
-    col2.metric("LLM Calls", f"{total_calls:,}")
-    col3.metric("Avg Latency", f"{avg_latency:.0f}ms")
-    col4.metric("Success Rate", f"{success_rate:.1%}")
-    
-    # Cost over time
-    st.header("💰 Cost Analysis")
-    
-    df_sessions = pd.DataFrame([
-        {
-            "timestamp": s.start_time,
-            "cost": s.total_cost,
-            "project": s.project_name,
-            "operation": s.operation_type or "Unknown",
-        }
-        for s in sessions
-    ])
-    
-    if not df_sessions.empty:
-        fig_cost = px.line(
-            df_sessions.sort_values("timestamp"),
-            x="timestamp",
-            y="cost",
-            title="Cost Over Time",
-            labels={"cost": "Cost ($)", "timestamp": "Time"},
-        )
-        st.plotly_chart(fig_cost, width='stretch')
-        
-        # Cost by operation
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            cost_by_operation = df_sessions.groupby("operation")["cost"].sum().sort_values(ascending=False)
-            fig_pie = px.pie(
-                values=cost_by_operation.values,
-                names=cost_by_operation.index,
-                title="Cost by Operation",
-            )
-            st.plotly_chart(fig_pie, width='stretch')
-        
-        with col2:
-            cost_by_project = df_sessions.groupby("project")["cost"].sum().sort_values(ascending=False)
-            fig_bar = px.bar(
-                x=cost_by_project.index,
-                y=cost_by_project.values,
-                title="Cost by Project",
-                labels={"x": "Project", "y": "Cost ($)"},
-            )
-            st.plotly_chart(fig_bar, width='stretch')
-    
-    # Recent sessions table
-    st.header("📋 Recent Sessions")
-    
-    df_table = pd.DataFrame([
-        {
-            "Time": s.start_time.strftime("%Y-%m-%d %H:%M:%S"),
-            "Project": s.project_name,
-            "Operation": s.operation_type or "N/A",
-            "Calls": s.total_llm_calls,
-            "Cost": f"${s.total_cost:.4f}",
-            "Latency": f"{s.total_latency_ms:.0f}ms",
-            "Status": "✅ Success" if s.success else "❌ Failed",
-        }
-        for s in sessions[:50]
-    ])
-    
-    st.dataframe(df_table, width='stretch')
+except Exception as e:
+    st.sidebar.error("❌ Connection Issue")
+    st.sidebar.caption(f"Error: {str(e)}")
 
-
-if __name__ == "__main__":
-    main()
+# Page routing
+if page == "🏠 Home":
+    from dashboard.pages import home
+    home.render()
+elif page == "📊 Live Demo":
+    from dashboard.pages import live_demo
+    live_demo.render()
+elif page == "💾 Cache Analyzer":
+    from dashboard.pages import cache_analyzer
+    cache_analyzer.render()
+elif page == "🔀 Model Router":
+    from dashboard.pages import model_router
+    model_router.render()
+elif page == "⚖️ LLM Judge":
+    from dashboard.pages import llm_judge
+    llm_judge.render()
+elif page == "✨ Prompt Optimizer":
+    from dashboard.pages import prompt_optimizer
+    prompt_optimizer.render()
+elif page == "💰 Cost Estimator":
+    from dashboard.pages import cost_estimator
+    cost_estimator.render()
+elif page == "⚙️ Settings":
+    from dashboard.pages import settings
+    settings.render()
