@@ -20,7 +20,7 @@ from dashboard.utils.formatters import (
 
 def render_dataframe(
     df: pd.DataFrame,
-    use_container_width: bool = True,
+    width: str = 'stretch',  # Changed from use_container_width
     hide_index: bool = True,
     height: Optional[int] = None
 ):
@@ -29,7 +29,7 @@ def render_dataframe(
     
     Args:
         df: DataFrame to display
-        use_container_width: Expand to container width
+        width: Width behavior - 'stretch' (full width) or 'content' (fit content)
         hide_index: Hide row indices
         height: Optional fixed height
     """
@@ -39,7 +39,7 @@ def render_dataframe(
     
     # Build kwargs, only include height if provided
     kwargs = {
-        "use_container_width": use_container_width,
+        "width": width,  # Changed from use_container_width
         "hide_index": hide_index
     }
     if height is not None:

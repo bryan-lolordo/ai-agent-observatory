@@ -1,9 +1,3 @@
-import sys
-print("=" * 80)
-print(f"🚀 LOADING HOME.PY FROM: {__file__}")
-print(f"🚀 Python path: {sys.executable}")
-print("=" * 80)
-
 """
 Home Page - Mission Control Dashboard
 Location: dashboard/pages/home.py
@@ -15,9 +9,6 @@ Comprehensive overview of AI agent performance with:
 - Quality evaluation and routing insights
 - Alerts and AI-generated optimization suggestions
 """
-
-# Force reload - change this number to bust cache
-# v2.0
 
 import streamlit as st
 import os
@@ -69,74 +60,21 @@ obs_system = Observatory(
     project_name="Observatory-System"
 )
 
-
-def track_openai_call(agent_name: str, operation: str, model: str = "gpt-4o-mini"):
-    """
-    Decorator to automatically track OpenAI calls with Observatory.
-    Handles timing and metric recording.
-    """
-    print(f"🎯 DECORATOR CREATED for {agent_name}/{operation}")  # ADD THIS LINE
-    
-    def decorator(func):
-        print(f"🎯 WRAPPING FUNCTION: {func.__name__}")  # ADD THIS LINE
-        
-        def wrapper(*args, **kwargs):
-            import time
-            
-            print(f"🔍 WRAPPER CALLED - Starting timer...")  # This was already here
-            start_time = time.time()
-            
-            try:
-                result = func(*args, **kwargs)
-                
-                # If result is an OpenAI response object, extract metrics
-                if hasattr(result, 'usage'):
-                    latency_ms = max((time.time() - start_time) * 1000, 1.0)  # Ensure minimum 1ms
-                    print(f"🔍 Calculated latency: {latency_ms}ms") 
-                    
-                    # Record with Observatory - it calculates costs automatically
-                    obs_system.record_call(
-                        provider=ModelProvider.OPENAI,
-                        model_name=model,
-                        agent_name=agent_name,
-                        operation=operation,
-                        prompt_tokens=result.usage.prompt_tokens,
-                        completion_tokens=result.usage.completion_tokens,
-                        latency_ms=latency_ms,
-                        success=True
-                    )
-                    
-                    # Return the text content
-                    return result.choices[0].message.content
-                
-                return result
-                
-            except Exception as e:
-                latency_ms = max((time.time() - start_time) * 1000, 1.0)  # Ensure minimum 1ms
-                obs_system.record_call(
-                    provider=ModelProvider.OPENAI,
-                    model_name=model,
-                    agent_name=agent_name,
-                    operation=operation,
-                    prompt_tokens=0,
-                    completion_tokens=0,
-                    latency_ms=latency_ms,
-                    success=False,
-                    error=str(e)
-                )
-                raise
-        
-        return wrapper
-    return decorator
+# Start a session for tracking AI insights
+try:
+    obs_session = obs_system.start_session()
+    print(f"✅ Observatory session started: {obs_session.id}")
+except Exception as e:
+    print(f"⚠️ Could not start Observatory session: {e}")
+    obs_session = None
 
 
-@track_openai_call(agent_name="InsightGenerator", operation="generate_dashboard_insights")
-def generate_ai_insights(overview_data: Dict[str, Any]):
+def generate_ai_insights(overview_data: Dict[str, Any]) -> str:
     """Generate AI-powered deep analysis of metrics."""
+    import time
     from openai import OpenAI
     
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    
     kpis = overview_data.get('kpis', {})
     
     prompt = f"""Analyze these AI agent metrics and provide 3 specific, actionable insights:
@@ -154,6 +92,9 @@ Focus on:
 
 Be specific and actionable. Format as numbered list."""
 
+    # Time the call
+    start = time.time()
+    
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
@@ -161,8 +102,33 @@ Be specific and actionable. Format as numbered list."""
         temperature=0.7
     )
     
-    # Return the response object - decorator will extract text and track metrics
-    return response
+    latency_ms = max((time.time() - start) * 1000, 1.0)
+    
+    # Track it manually
+    try:
+        print(f"🔍 Attempting to track call... latency={latency_ms}ms")
+        
+        obs_system.record_call(
+            provider=ModelProvider.OPENAI,
+            model_name="gpt-4o-mini",
+            agent_name="InsightGenerator",
+            operation="generate_dashboard_insights",
+            prompt_tokens=response.usage.prompt_tokens,
+            completion_tokens=response.usage.completion_tokens,
+            latency_ms=latency_ms,
+            success=True
+        )
+        
+        print("✅ Successfully tracked AI insights call!")
+        
+    except Exception as tracking_error:
+        print("=" * 80)
+        print(f"❌ TRACKING FAILED: {type(tracking_error).__name__}: {tracking_error}")
+        import traceback
+        traceback.print_exc()
+        print("=" * 80)
+    
+    return response.choices[0].message.content
 
 
 def calculate_system_health(overview: Dict[str, Any]) -> list:
@@ -312,7 +278,7 @@ def render():
     with col2:
         time_period = render_time_period_filter(key="home_time_period", label="Time Range")
     with col3:
-        if st.button("🔄 Refresh", use_container_width=True):
+        if st.button("🔄 Refresh", width='stretch'):
             st.cache_data.clear()
             st.rerun()
     
@@ -436,7 +402,7 @@ def render():
                     metric_name="Requests",
                     title="Request Volume Over Time"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No activity data available for the selected time range")
         
@@ -457,7 +423,7 @@ def render():
                     cost_breakdown,
                     title="Cost by Model"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No cost data available")
         
@@ -469,7 +435,7 @@ def render():
                     agent_costs,
                     title="Cost by Agent"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No agent data available")
     
@@ -516,7 +482,7 @@ def render():
                     min_value=0,
                     max_value=100
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No cache data available")
         
@@ -635,7 +601,7 @@ def render():
             st.markdown("Get AI-generated recommendations using GPT-4o-mini to analyze your metrics")
         
         with col2:
-            if st.button("🔮 Run AI Analysis", type="primary", use_container_width=True):
+            if st.button("🔮 Run AI Analysis", type="primary", width='stretch'):
                 with st.spinner("Analyzing metrics with AI..."):
                     try:
                         ai_insights = generate_ai_insights(overview)

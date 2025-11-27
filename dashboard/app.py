@@ -4,7 +4,8 @@ Location: dashboard/app.py
 
 Multi-page Streamlit dashboard for monitoring and optimizing AI agents.
 """
-
+from dotenv import load_dotenv
+load_dotenv()
 import streamlit as st
 import sys
 import os
