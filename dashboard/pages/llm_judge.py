@@ -46,7 +46,7 @@ def analyze_quality_coverage(calls: List[Dict]) -> Dict[str, Any]:
     """Analyze quality evaluation coverage."""
     
     total = len(calls)
-    evaluated = [c for c in calls if c.get('quality_evaluation', {}).get('score') is not None]
+    evaluated = [c for c in calls if (c.get('quality_evaluation') or {}).get('score') is not None]
     
     # By operation
     by_operation = defaultdict(lambda: {'total': 0, 'evaluated': 0, 'scores': [], 'issues': 0})
@@ -55,7 +55,7 @@ def analyze_quality_coverage(calls: List[Dict]) -> Dict[str, Any]:
         op = call.get('operation', 'unknown')
         by_operation[op]['total'] += 1
         
-        qual = call.get('quality_evaluation', {})
+        qual = call.get('quality_evaluation') or {}
         if qual.get('score') is not None:
             by_operation[op]['evaluated'] += 1
             by_operation[op]['scores'].append(qual['score'])
@@ -104,7 +104,7 @@ def find_quality_failures(calls: List[Dict]) -> List[Dict]:
     failures = []
     
     for call in calls:
-        qual = call.get('quality_evaluation', {})
+        qual = call.get('quality_evaluation') or {}
         if not qual or qual.get('score') is None:
             continue
         
@@ -154,7 +154,7 @@ def find_hallucinations(calls: List[Dict]) -> List[Dict]:
     hallucinations = []
     
     for call in calls:
-        qual = call.get('quality_evaluation', {})
+        qual = call.get('quality_evaluation') or {}
         if qual.get('hallucination'):
             hallucinations.append({
                 'call': call,
@@ -176,7 +176,7 @@ def find_coverage_gaps(calls: List[Dict]) -> List[Dict]:
         by_operation[op]['total'] += 1
         by_operation[op]['calls'].append(call)
         
-        if call.get('quality_evaluation', {}).get('score') is not None:
+        if (call.get('quality_evaluation') or {}).get('score') is not None:
             by_operation[op]['evaluated'] += 1
     
     gaps = []
@@ -223,7 +223,7 @@ def find_coverage_gaps(calls: List[Dict]) -> List[Dict]:
 def calculate_quality_kpis(calls: List[Dict]) -> Dict[str, Any]:
     """Calculate quality KPIs."""
     
-    evaluated = [c for c in calls if c.get('quality_evaluation', {}).get('score') is not None]
+    evaluated = [c for c in calls if (c.get('quality_evaluation') or {}).get('score') is not None]
     
     if not evaluated:
         return {

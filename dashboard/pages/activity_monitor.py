@@ -1,6 +1,6 @@
 """
 Activity Monitor - Real-Time System Status
-Location: dashboard/pages/live_demo.py
+Location: dashboard/pages/activity_monitor.py
 
 Executive-focused real-time monitoring:
 - System health at a glance
@@ -170,7 +170,7 @@ def render_activity_log(calls: List[Dict], limit: int = 20):
         time_str = timestamp.strftime("%H:%M:%S") if timestamp else "—"
         
         status = "✅" if call.get('success', True) else "❌"
-        cache = "💾" if call.get('cache_metadata', {}).get('cache_hit') else ""
+        cache = "💾" if (call.get('cache_metadata') or {}).get('cache_hit') else ""
         
         table_data.append({
             "Time": time_str,

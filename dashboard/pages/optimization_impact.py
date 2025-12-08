@@ -78,12 +78,12 @@ def calculate_period_metrics(calls: List[Dict]) -> Dict[str, Any]:
     
     # Quality scores
     scores = [c['quality_evaluation']['score'] for c in calls 
-              if c.get('quality_evaluation', {}).get('score') is not None]
+              if (c.get('quality_evaluation') or {}).get('score') is not None]
     avg_quality = sum(scores) / len(scores) if scores else None
     
     # Cache metrics
     cache_calls = [c for c in calls if c.get('cache_metadata')]
-    cache_hits = sum(1 for c in cache_calls if c.get('cache_metadata', {}).get('cache_hit'))
+    cache_hits = sum(1 for c in cache_calls if (c.get('cache_metadata') or {}).get('cache_hit'))
     cache_hit_rate = cache_hits / len(cache_calls) if cache_calls else 0
     
     # Routing metrics

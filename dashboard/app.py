@@ -115,7 +115,7 @@ page = st.sidebar.radio(
     "Navigation",
     [
         "🏠 Home",
-        "📊 Live Demo",
+        "📡 Activity Monitor",
         "💰 Cost Estimator",
         "🔀 Model Router",
         "💾 Cache Analyzer",
@@ -159,9 +159,9 @@ st.sidebar.caption("Built with Streamlit")
 if page == "🏠 Home":
     from dashboard.pages import home
     home.render()
-elif page == "📊 Live Demo":
-    from dashboard.pages import live_demo
-    live_demo.render()
+elif page == "📡 Activity Monitor":
+    from dashboard.pages import activity_monitor
+    activity_monitor.render()
 elif page == "💰 Cost Estimator":
     from dashboard.pages import cost_estimator
     cost_estimator.render()

@@ -1,11 +1,17 @@
 """
-Cache Analyzer Page - Semantic Caching Analysis
+Cache Analyzer - Developer Diagnostics Dashboard
 Location: dashboard/pages/cache_analyzer.py
 
-UPDATED: Discovery mode detection - keeps all original robust functionality
+Developer-focused cache analysis:
+1. Overview - Cache opportunity summary
+2. Repeated Calls - Duplicate detection with fix suggestions
+3. High-Value - Expensive calls worth caching
+4. Cache Keys - Strategy recommendations
 
-Advanced cache performance analysis with prompt clustering, semantic similarity,
-cacheability scoring, and optimization recommendations.
+UPDATED: 
+- New 4-tab developer layout
+- Null-safe field access patterns
+- Uses correct Tier 2 CacheMetadata fields
 """
 
 import streamlit as st
@@ -20,89 +26,108 @@ from dashboard.utils.data_fetcher import (
     get_project_overview,
     get_llm_calls,
     get_available_agents,
-    get_time_series_data,
+    get_available_operations,
 )
 from dashboard.utils.formatters import (
     format_cost,
     format_latency,
     format_tokens,
     format_percentage,
+    format_model_name,
     truncate_text,
 )
 from dashboard.components.metric_cards import (
     render_metric_row,
     render_empty_state,
 )
-from dashboard.components.charts import (
-    create_time_series_chart,
-    create_bar_chart,
-    create_heatmap,
-)
-from dashboard.components.tables import (
-    render_dataframe,
-)
 
 
-def detect_cache_mode(calls: List[Dict]) -> Tuple[bool, str]:
+# =============================================================================
+# CONSTANTS
+# =============================================================================
+
+HIGH_VALUE_COST_THRESHOLD = 0.10  # $0.10 per call
+HIGH_VALUE_LATENCY_THRESHOLD = 5000  # 5 seconds
+DUPLICATE_THRESHOLD = 2  # Minimum occurrences to be considered duplicate
+
+
+# =============================================================================
+# CACHE DETECTION
+# =============================================================================
+
+def detect_cache_mode(calls: List[Dict]) -> Tuple[bool, str, Dict]:
     """
-    Detect if real caching is active or not implemented.
-    UPDATED: Now detects None cache_metadata (discovery mode)
+    Detect if real caching is active or in discovery mode.
     
     Returns:
-        Tuple of (has_real_cache, mode_description)
+        Tuple of (has_real_cache, mode_description, stats)
     """
     if not calls:
-        return False, "No data"
+        return False, "No data", {}
     
-    # UPDATED: Check if cache_metadata is None (discovery mode)
-    calls_with_cache_metadata = [
+    # Check for calls with cache_metadata
+    calls_with_cache = [
         c for c in calls 
         if c.get('cache_metadata') is not None
     ]
     
-    if len(calls_with_cache_metadata) == 0:
-        return False, "Discovery mode - cache not implemented yet"
+    stats = {
+        'total_calls': len(calls),
+        'calls_with_cache': len(calls_with_cache),
+        'cache_hits': 0,
+        'cache_misses': 0,
+    }
     
-    # Check for actual cache hits
-    cache_hits = sum(
-        1 for c in calls_with_cache_metadata
-        if c.get('cache_metadata', {}).get('cache_hit', False)
-    )
+    if len(calls_with_cache) == 0:
+        return False, "Discovery Mode — Cache not implemented yet", stats
     
-    if cache_hits > 0:
-        return True, f"Cache active - {cache_hits} hits detected"
+    # Count actual cache hits (null-safe)
+    for c in calls_with_cache:
+        cache_meta = c.get('cache_metadata') or {}
+        if cache_meta.get('cache_hit'):
+            stats['cache_hits'] += 1
+        else:
+            stats['cache_misses'] += 1
+    
+    if stats['cache_hits'] > 0:
+        hit_rate = stats['cache_hits'] / len(calls_with_cache)
+        return True, f"Cache Active — {format_percentage(hit_rate)} hit rate", stats
     else:
-        return True, "Cache enabled - waiting for hits"
+        return True, "Cache Enabled — Waiting for hits", stats
 
+
+# =============================================================================
+# PROMPT ANALYSIS
+# =============================================================================
 
 def normalize_prompt(prompt: str) -> str:
-    """
-    Normalize prompt for clustering by removing dynamic content.
-    """
+    """Normalize prompt for comparison by removing dynamic content."""
     if not prompt:
         return ""
     
+    normalized = prompt
+    
     # Remove timestamps
-    normalized = re.sub(r'\d{4}-\d{2}-\d{2}', '[DATE]', prompt)
+    normalized = re.sub(r'\d{4}-\d{2}-\d{2}', '[DATE]', normalized)
     normalized = re.sub(r'\d{2}:\d{2}:\d{2}', '[TIME]', normalized)
     
-    # Remove numbers
-    normalized = re.sub(r'\b\d+\b', '[NUM]', normalized)
+    # Remove UUIDs
+    normalized = re.sub(r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}', '[UUID]', normalized, flags=re.I)
     
-    # Remove extra whitespace
+    # Remove session IDs
+    normalized = re.sub(r'sess_[a-zA-Z0-9]+', '[SESSION]', normalized)
+    
+    # Remove numbers (but keep some context)
+    normalized = re.sub(r'\b\d{5,}\b', '[ID]', normalized)
+    
+    # Normalize whitespace
     normalized = ' '.join(normalized.split())
     
-    # Lowercase
-    normalized = normalized.lower()
-    
-    return normalized
+    return normalized.lower()
 
 
 def calculate_similarity(text1: str, text2: str) -> float:
-    """
-    Calculate simple similarity score between two texts.
-    Uses Jaccard similarity of word sets.
-    """
+    """Calculate Jaccard similarity between two texts."""
     if not text1 or not text2:
         return 0.0
     
@@ -112,376 +137,691 @@ def calculate_similarity(text1: str, text2: str) -> float:
     intersection = words1.intersection(words2)
     union = words1.union(words2)
     
-    if not union:
-        return 0.0
-    
-    return len(intersection) / len(union)
+    return len(intersection) / len(union) if union else 0.0
 
 
-def cluster_prompts(calls: List[Dict], similarity_threshold: float = 0.7) -> List[Dict]:
-    """
-    Cluster similar prompts together.
+def extract_prompt_components(call: Dict) -> Dict[str, Any]:
+    """Extract stable vs dynamic parts of a prompt."""
+    prompt = call.get('prompt') or ''
     
-    Returns list of clusters with metadata.
-    """
-    if not calls:
-        return []
+    # Check for prompt_breakdown from Tier 2
+    breakdown = call.get('prompt_breakdown') or {}
     
-    # Extract prompts
-    prompts_data = []
-    for call in calls:
-        prompt = call.get('prompt', '')
-        if prompt:
-            prompts_data.append({
-                'original': prompt,
-                'normalized': normalize_prompt(prompt),
-                'call': call
-            })
-    
-    if not prompts_data:
-        return []
-    
-    # Cluster by similarity
-    clusters = []
-    used_indices = set()
-    
-    for i, prompt_data in enumerate(prompts_data):
-        if i in used_indices:
-            continue
-        
-        # Start new cluster
-        cluster = {
-            'representative': prompt_data['original'],
-            'normalized': prompt_data['normalized'],
-            'variants': [prompt_data['original']],
-            'calls': [prompt_data['call']],
-            'agents': set([prompt_data['call'].get('agent_name', 'Unknown')]),
-        }
-        used_indices.add(i)
-        
-        # Find similar prompts
-        for j, other_data in enumerate(prompts_data):
-            if j in used_indices:
-                continue
-            
-            similarity = calculate_similarity(
-                prompt_data['normalized'],
-                other_data['normalized']
-            )
-            
-            if similarity >= similarity_threshold:
-                cluster['variants'].append(other_data['original'])
-                cluster['calls'].append(other_data['call'])
-                cluster['agents'].add(other_data['call'].get('agent_name', 'Unknown'))
-                used_indices.add(j)
-        
-        clusters.append(cluster)
-    
-    # Calculate cluster stats
-    for cluster in clusters:
-        # Cache stats
-        cache_hits = sum(
-            1 for c in cluster['calls']
-            if c.get('cache_metadata', {}).get('cache_hit', False)
-        )
-        cache_misses = len(cluster['calls']) - cache_hits
-        
-        # Cost and token savings
-        total_tokens = sum(c.get('total_tokens', 0) for c in cluster['calls'])
-        total_cost = sum(c.get('total_cost', 0) for c in cluster['calls'])
-        
-        # If we had cached all hits, tokens/cost saved
-        tokens_saved = cache_hits * (total_tokens / len(cluster['calls'])) if cluster['calls'] else 0
-        cost_saved = cache_hits * (total_cost / len(cluster['calls'])) if cluster['calls'] else 0
-        
-        # Generate cluster name (first few words)
-        words = cluster['normalized'].split()[:5]
-        cluster_name = ' '.join(words) + ('...' if len(words) == 5 else '')
-        
-        # Generate cache key
-        cache_key = hashlib.md5(cluster['normalized'].encode()).hexdigest()[:8]
-        
-        cluster.update({
-            'name': cluster_name,
-            'variant_count': len(cluster['variants']),
-            'cache_hits': cache_hits,
-            'cache_misses': cache_misses,
-            'tokens_saved': tokens_saved,
-            'cost_saved': cost_saved,
-            'cache_key': cache_key,
-            'agent_list': list(cluster['agents'])
-        })
-    
-    # Sort by frequency (most common first)
-    clusters.sort(key=lambda x: len(x['calls']), reverse=True)
-    
-    return clusters
-
-
-def calculate_cacheability_score(cluster: Dict) -> Tuple[float, List[str]]:
-    """
-    Calculate how cacheable a prompt cluster is (0-100).
-    Returns score and list of reasons for score.
-    """
-    score = 100
-    reasons = []
-    
-    # Check variant consistency
-    if cluster['variant_count'] > 10:
-        score -= 20
-        reasons.append("Too many variants - inconsistent formatting")
-    
-    # Check for dynamic content
-    representative = cluster['representative']
-    
-    if re.search(r'\d{4}-\d{2}-\d{2}', representative):
-        score -= 15
-        reasons.append("Contains timestamps")
-    
-    if re.search(r'\btoday\b|\bnow\b|\bcurrent\b', representative.lower()):
-        score -= 10
-        reasons.append("Contains temporal references")
-    
-    # Check length
-    words = len(representative.split())
-    if words > 500:
-        score -= 10
-        reasons.append("Very long prompt - harder to cache")
-    
-    # Check if prompts are similar enough
-    if cluster['variant_count'] > 5:
-        # Multiple variants suggest inconsistency
-        score -= 15
-        reasons.append("Multiple formatting variations detected")
-    
-    # Positive factors
-    if cluster['cache_hits'] > 0:
-        score += 10
-        reasons.append(f"Already achieving {cluster['cache_hits']} cache hits")
-    
-    if cluster['variant_count'] == 1:
-        reasons.append("Perfectly consistent - ideal for caching")
-    
-    if words < 100:
-        reasons.append("Short prompt - efficient to cache")
-    
-    # Ensure score is in valid range
-    score = max(0, min(100, score))
-    
-    if not reasons:
-        reasons.append("Standard cacheability")
-    
-    return score, reasons
-
-
-def estimate_cache_potential(calls: List[Dict], clusters: List[Dict]) -> Dict[str, Any]:
-    """
-    Estimate potential cache savings if not implemented.
-    """
-    if not calls:
+    if breakdown:
         return {
-            'enabled': False,
-            'potential_hit_rate': 0,
-            'potential_tokens_saved': 0,
-            'potential_cost_saved': 0
+            'system_prompt': breakdown.get('system_prompt', '')[:500],
+            'system_tokens': breakdown.get('system_prompt_tokens', 0),
+            'user_message': breakdown.get('user_message', '')[:300],
+            'user_tokens': breakdown.get('user_message_tokens', 0),
+            'history_tokens': breakdown.get('chat_history_tokens', 0),
+            'history_count': breakdown.get('chat_history_count', 0),
+            'has_breakdown': True,
         }
     
-    # Analyze prompt repetition
-    total_calls = len(calls)
-    
-    # Count prompts that appear multiple times (cacheable)
-    prompt_counts = defaultdict(int)
-    for call in calls:
-        normalized = normalize_prompt(call.get('prompt', ''))
-        if normalized:
-            prompt_counts[normalized] += 1
-    
-    # Prompts appearing 2+ times could be cached
-    cacheable_calls = sum(count for count in prompt_counts.values() if count > 1)
-    potential_hits = cacheable_calls - len([c for c in prompt_counts.values() if c > 1])
-    
-    potential_hit_rate = potential_hits / total_calls if total_calls > 0 else 0
-    
-    # Calculate savings
-    total_tokens = sum(c.get('total_tokens', 0) for c in calls)
-    total_cost = sum(c.get('total_cost', 0) for c in calls)
-    
-    avg_tokens = total_tokens / total_calls
-    avg_cost = total_cost / total_calls
-    
-    potential_tokens_saved = potential_hits * avg_tokens
-    potential_cost_saved = potential_hits * avg_cost
+    # Estimate from raw prompt
+    has_history = bool(re.search(r'Human:|User:|Assistant:|AI:', prompt, re.I))
+    message_count = len(re.findall(r'Human:|User:|Assistant:|AI:', prompt, re.I))
     
     return {
-        'enabled': False,
-        'potential_hit_rate': potential_hit_rate,
-        'potential_tokens_saved': int(potential_tokens_saved),
-        'potential_cost_saved': potential_cost_saved,
-        'cacheable_calls': cacheable_calls,
-        'unique_prompts': len(prompt_counts)
+        'system_prompt': prompt[:500],
+        'system_tokens': call.get('prompt_tokens', 0) // 3,
+        'user_message': prompt[-300:] if len(prompt) > 300 else prompt,
+        'user_tokens': call.get('prompt_tokens', 0) // 3,
+        'history_tokens': call.get('prompt_tokens', 0) // 3 if has_history else 0,
+        'history_count': message_count,
+        'has_breakdown': False,
     }
 
 
-def generate_cache_recommendations(clusters: List[Dict], has_cache: bool, calls: List[Dict]) -> List[Dict]:
-    """
-    Generate AI-style recommendations for cache optimization.
-    """
-    recommendations = []
-    
-    if not has_cache:
-        # Recommendations for implementing cache
-        
-        # Find highly repetitive clusters
-        repetitive = [c for c in clusters if len(c['calls']) >= 5]
-        if repetitive:
-            top_cluster = repetitive[0]
-            savings = sum(c['cost_saved'] for c in repetitive[:3])
-            recommendations.append({
-                'priority': 1,
-                'title': 'Implement Semantic Caching for Top Clusters',
-                'description': f"Top 3 repetitive prompts could save {format_cost(savings * 30)}/month",
-                'impact': 'High',
-                'action': 'Enable caching with TTL=60s'
-            })
-        
-        # Check for dynamic content
-        dynamic_clusters = []
-        for cluster in clusters:
-            if cluster['variant_count'] > 5:
-                dynamic_clusters.append(cluster)
-        
-        if dynamic_clusters:
-            recommendations.append({
-                'priority': 2,
-                'title': 'Normalize Prompts Before Caching',
-                'description': f"{len(dynamic_clusters)} prompt clusters have inconsistent formatting",
-                'impact': 'Medium',
-                'action': 'Strip timestamps, numbers, and whitespace'
-            })
-        
-        # Estimate overall opportunity
-        total_cost = sum(c.get('total_cost', 0) for c in calls)
-        est_savings = total_cost * 0.30  # 30% hit rate assumption
-        recommendations.append({
-            'priority': 3,
-            'title': 'Overall Cache Opportunity',
-            'description': f"Estimated {format_cost(est_savings * 30)}/month savings with 30% hit rate",
-            'impact': 'High',
-            'action': 'Implement cache infrastructure'
-        })
-    
-    else:
-        # Recommendations for improving existing cache
-        
-        # Find low-performing clusters
-        low_hit_rate = [c for c in clusters if len(c['calls']) >= 3 and c['cache_hits'] < len(c['calls']) * 0.2]
-        if low_hit_rate:
-            recommendations.append({
-                'priority': 1,
-                'title': 'Improve Hit Rate for Underperforming Clusters',
-                'description': f"{len(low_hit_rate)} clusters have <20% hit rate despite repetition",
-                'impact': 'Medium',
-                'action': 'Review normalization strategy'
-            })
-        
-        # Check for merge opportunities
-        similar_clusters = []
-        for i, c1 in enumerate(clusters):
-            for c2 in clusters[i+1:]:
-                if calculate_similarity(c1['normalized'], c2['normalized']) > 0.85:
-                    similar_clusters.append((c1, c2))
-        
-        if similar_clusters:
-            recommendations.append({
-                'priority': 2,
-                'title': 'Merge Similar Prompt Templates',
-                'description': f"{len(similar_clusters)} pairs of clusters are 85%+ similar",
-                'impact': 'Low',
-                'action': 'Consider template consolidation'
-            })
-        
-        # Calculate actual savings and project increase
-        total_hits = sum(c['cache_hits'] for c in clusters)
-        total_savings = sum(c['cost_saved'] for c in clusters)
-        
-        # Project with higher TTL
-        potential_increase = total_savings * 0.25  # 25% more with longer TTL
-        recommendations.append({
-            'priority': 3,
-            'title': 'Optimize Cache TTL',
-            'description': f"Increasing TTL to 60s could save additional {format_cost(potential_increase * 30)}/month",
-            'impact': 'Medium',
-            'action': 'Extend cache expiration time'
-        })
-    
-    return recommendations
+# =============================================================================
+# DUPLICATE DETECTION
+# =============================================================================
 
+def find_duplicates(calls: List[Dict]) -> List[Dict]:
+    """
+    Find duplicate/repeated calls grouped by normalized prompt.
+    
+    Returns list of duplicate groups with analysis.
+    """
+    # Group by normalized prompt
+    prompt_groups = defaultdict(list)
+    
+    for call in calls:
+        prompt = call.get('prompt') or ''
+        if not prompt:
+            continue
+        
+        normalized = normalize_prompt(prompt)
+        prompt_hash = hashlib.md5(normalized.encode()).hexdigest()[:12]
+        prompt_groups[prompt_hash].append({
+            'call': call,
+            'normalized': normalized,
+            'original': prompt,
+        })
+    
+    # Filter to duplicates only (2+ occurrences)
+    duplicates = []
+    
+    for prompt_hash, group in prompt_groups.items():
+        if len(group) < DUPLICATE_THRESHOLD:
+            continue
+        
+        calls_in_group = [g['call'] for g in group]
+        
+        # Calculate stats
+        total_cost = sum(c.get('total_cost', 0) for c in calls_in_group)
+        total_tokens = sum(c.get('total_tokens', 0) for c in calls_in_group)
+        avg_latency = sum(c.get('latency_ms', 0) for c in calls_in_group) / len(calls_in_group)
+        
+        # Wasted cost = (count - 1) * avg_cost (first call is necessary)
+        avg_cost = total_cost / len(calls_in_group)
+        wasted_cost = (len(calls_in_group) - 1) * avg_cost
+        
+        # Time analysis
+        timestamps = [c.get('timestamp') for c in calls_in_group if c.get('timestamp')]
+        if timestamps:
+            first_seen = min(timestamps)
+            last_seen = max(timestamps)
+            time_span = (last_seen - first_seen).total_seconds() / 3600  # hours
+            frequency = len(calls_in_group) / max(time_span, 1)  # per hour
+        else:
+            first_seen = last_seen = None
+            frequency = 0
+        
+        # Detect why it's repeating
+        operations = list(set(c.get('operation') or 'unknown' for c in calls_in_group))
+        agents = list(set(c.get('agent_name') or 'unknown' for c in calls_in_group))
+        
+        # Identify dynamic fields
+        dynamic_fields = []
+        if re.search(r'\d{4}-\d{2}-\d{2}', group[0]['original']):
+            dynamic_fields.append('timestamp')
+        if re.search(r'sess_', group[0]['original']):
+            dynamic_fields.append('session_id')
+        
+        duplicates.append({
+            'hash': prompt_hash,
+            'count': len(calls_in_group),
+            'calls': calls_in_group,
+            'representative': group[0]['original'],
+            'normalized': group[0]['normalized'],
+            'total_cost': total_cost,
+            'wasted_cost': wasted_cost,
+            'avg_cost': avg_cost,
+            'avg_latency': avg_latency,
+            'total_tokens': total_tokens,
+            'first_seen': first_seen,
+            'last_seen': last_seen,
+            'frequency': frequency,
+            'operations': operations,
+            'agents': agents,
+            'dynamic_fields': dynamic_fields,
+        })
+    
+    # Sort by wasted cost (highest first)
+    duplicates.sort(key=lambda x: -x['wasted_cost'])
+    
+    return duplicates
+
+
+# =============================================================================
+# HIGH-VALUE DETECTION
+# =============================================================================
+
+def find_high_value_calls(calls: List[Dict]) -> List[Dict]:
+    """
+    Find expensive calls worth caching even with low duplication.
+    """
+    high_value = []
+    
+    # Group by operation for analysis
+    by_operation = defaultdict(list)
+    for call in calls:
+        op = call.get('operation') or 'unknown'
+        by_operation[op].append(call)
+    
+    for operation, op_calls in by_operation.items():
+        avg_cost = sum(c.get('total_cost', 0) for c in op_calls) / len(op_calls)
+        avg_latency = sum(c.get('latency_ms', 0) for c in op_calls) / len(op_calls)
+        
+        # Check if high value
+        is_expensive = avg_cost >= HIGH_VALUE_COST_THRESHOLD
+        is_slow = avg_latency >= HIGH_VALUE_LATENCY_THRESHOLD
+        
+        if not (is_expensive or is_slow):
+            continue
+        
+        # Analyze duplicates within this operation
+        prompt_hashes = defaultdict(int)
+        for call in op_calls:
+            normalized = normalize_prompt(call.get('prompt') or '')
+            prompt_hashes[normalized] += 1
+        
+        exact_duplicates = sum(1 for v in prompt_hashes.values() if v > 1)
+        duplicate_pct = exact_duplicates / len(prompt_hashes) if prompt_hashes else 0
+        
+        # Analyze semantic similarity
+        prompts = [normalize_prompt(c.get('prompt', '')) for c in op_calls[:20]]
+        semantic_clusters = []
+        used = set()
+        
+        for i, p1 in enumerate(prompts):
+            if i in used:
+                continue
+            cluster = [i]
+            for j, p2 in enumerate(prompts[i+1:], i+1):
+                if j in used:
+                    continue
+                if calculate_similarity(p1, p2) > 0.8:
+                    cluster.append(j)
+                    used.add(j)
+            if len(cluster) > 1:
+                semantic_clusters.append(cluster)
+            used.add(i)
+        
+        semantic_similar_pct = sum(len(c) for c in semantic_clusters) / len(prompts) if prompts else 0
+        
+        high_value.append({
+            'operation': operation,
+            'call_count': len(op_calls),
+            'avg_cost': avg_cost,
+            'avg_latency': avg_latency,
+            'total_cost': sum(c.get('total_cost', 0) for c in op_calls),
+            'is_expensive': is_expensive,
+            'is_slow': is_slow,
+            'exact_duplicate_pct': duplicate_pct,
+            'semantic_similar_pct': semantic_similar_pct,
+            'potential_savings': avg_cost * len(op_calls) * max(duplicate_pct, semantic_similar_pct * 0.5),
+            'models_used': list(set(c.get('model_name') or '' for c in op_calls)),
+            'sample_calls': op_calls[:5],
+        })
+    
+    # Sort by potential savings
+    high_value.sort(key=lambda x: -x['potential_savings'])
+    
+    return high_value
+
+
+# =============================================================================
+# CACHE KEY ANALYSIS
+# =============================================================================
+
+def analyze_cache_keys(calls: List[Dict]) -> List[Dict]:
+    """
+    Analyze prompt structure to recommend cache key strategies.
+    """
+    # Group by operation
+    by_operation = defaultdict(list)
+    for call in calls:
+        op = call.get('operation') or 'unknown'
+        by_operation[op].append(call)
+    
+    strategies = []
+    
+    for operation, op_calls in by_operation.items():
+        if len(op_calls) < 3:
+            continue
+        
+        # Analyze prompt components
+        components = defaultdict(lambda: {'values': set(), 'variance': 0})
+        
+        for call in op_calls[:50]:  # Sample
+            prompt = (call.get('prompt') or '')
+            
+            # Check for common patterns
+            # System prompt (usually at start)
+            system_match = re.match(r'^(.*?)(Human:|User:|$)', prompt, re.S)
+            if system_match:
+                system = system_match.group(1)[:200]
+                components['system_prompt']['values'].add(system)
+            
+            # Look for IDs
+            ids = re.findall(r'\b[a-zA-Z_]+_id["\s:=]+([a-zA-Z0-9_-]+)', prompt, re.I)
+            for id_val in ids:
+                components['entity_ids']['values'].add(id_val)
+            
+            # Timestamps
+            timestamps = re.findall(r'\d{4}-\d{2}-\d{2}', prompt)
+            for ts in timestamps:
+                components['timestamps']['values'].add(ts)
+            
+            # Check metadata for hints (null-safe)
+            metadata = call.get('prompt_metadata') or {}
+            dynamic_fields = metadata.get('dynamic_fields') or []
+            if dynamic_fields:
+                for field in dynamic_fields:
+                    components[field]['values'].add('dynamic')
+        
+        # Calculate variance
+        for comp_name, comp_data in components.items():
+            total_samples = min(len(op_calls), 50)
+            unique_values = len(comp_data['values'])
+            comp_data['variance'] = unique_values / total_samples if total_samples > 0 else 0
+        
+        # Determine recommendations
+        include_in_key = []
+        exclude_from_key = []
+        
+        for comp_name, comp_data in components.items():
+            if comp_data['variance'] == 0:
+                exclude_from_key.append((comp_name, "0% variance - same every call"))
+            elif comp_data['variance'] < 0.3:
+                include_in_key.append((comp_name, f"{comp_data['variance']*100:.0f}% variance - good key candidate"))
+            elif comp_data['variance'] > 0.8:
+                exclude_from_key.append((comp_name, f"{comp_data['variance']*100:.0f}% variance - exclude"))
+            else:
+                include_in_key.append((comp_name, f"{comp_data['variance']*100:.0f}% variance - consider including"))
+        
+        # Calculate cacheability
+        avg_cost = sum(c.get('total_cost', 0) for c in op_calls) / len(op_calls)
+        
+        # Determine recommended TTL
+        if 'job' in operation.lower() or 'match' in operation.lower():
+            recommended_ttl = "24h (job data updates daily)"
+        elif 'chat' in operation.lower():
+            recommended_ttl = "1h (conversation context)"
+        elif 'extract' in operation.lower() or 'skill' in operation.lower():
+            recommended_ttl = "7d (static content)"
+        else:
+            recommended_ttl = "1h (default)"
+        
+        strategies.append({
+            'operation': operation,
+            'call_count': len(op_calls),
+            'avg_cost': avg_cost,
+            'components': dict(components),
+            'include_in_key': include_in_key,
+            'exclude_from_key': exclude_from_key,
+            'recommended_ttl': recommended_ttl,
+            'sample_prompt': (op_calls[0].get('prompt') or '')[:500] if op_calls else '',
+        })
+    
+    # Sort by call count
+    strategies.sort(key=lambda x: -x['call_count'])
+    
+    return strategies
+
+
+# =============================================================================
+# OVERVIEW ANALYSIS
+# =============================================================================
+
+def calculate_overview_stats(calls: List[Dict], duplicates: List[Dict]) -> Dict[str, Any]:
+    """Calculate overview statistics for the Overview tab."""
+    
+    total_calls = len(calls)
+    total_cost = sum(c.get('total_cost', 0) for c in calls)
+    
+    # Duplicate stats
+    total_duplicates = sum(d['count'] for d in duplicates)
+    total_wasted = sum(d['wasted_cost'] for d in duplicates)
+    
+    # By operation breakdown
+    by_operation = defaultdict(lambda: {
+        'calls': 0,
+        'duplicates': 0,
+        'cost': 0,
+        'wasted': 0,
+    })
+    
+    for call in calls:
+        op = call.get('operation') or 'unknown'
+        by_operation[op]['calls'] += 1
+        by_operation[op]['cost'] += call.get('total_cost', 0)
+    
+    for dup in duplicates:
+        for op in dup['operations']:
+            by_operation[op]['duplicates'] += dup['count']
+            by_operation[op]['wasted'] += dup['wasted_cost'] / len(dup['operations'])
+    
+    # Calculate cacheability per operation
+    operations = []
+    for op, stats in by_operation.items():
+        repeat_pct = stats['duplicates'] / stats['calls'] if stats['calls'] > 0 else 0
+        
+        if repeat_pct > 0.5:
+            cacheability = '🟢 High'
+        elif repeat_pct > 0.2:
+            cacheability = '🟡 Partial'
+        else:
+            cacheability = '🔴 Low'
+        
+        operations.append({
+            'operation': op,
+            'calls': stats['calls'],
+            'duplicates': stats['duplicates'],
+            'repeat_pct': repeat_pct,
+            'cost': stats['cost'],
+            'wasted': stats['wasted'],
+            'cacheability': cacheability,
+        })
+    
+    operations.sort(key=lambda x: -x['wasted'])
+    
+    return {
+        'total_calls': total_calls,
+        'total_cost': total_cost,
+        'total_duplicates': total_duplicates,
+        'total_wasted': total_wasted,
+        'monthly_savings': total_wasted * 30,  # Project to monthly
+        'cacheable_pct': total_duplicates / total_calls if total_calls > 0 else 0,
+        'operations': operations,
+    }
+
+
+# =============================================================================
+# RENDERING FUNCTIONS
+# =============================================================================
+
+def render_cache_status_banner(has_cache: bool, mode: str, stats: Dict):
+    """Render the cache status banner at top of page."""
+    
+    if has_cache and stats.get('cache_hits', 0) > 0:
+        hit_rate = stats['cache_hits'] / stats['calls_with_cache'] if stats['calls_with_cache'] > 0 else 0
+        st.success(f"🟢 **{mode}** — {stats['cache_hits']} hits, {stats['cache_misses']} misses")
+    elif has_cache:
+        st.warning(f"🟡 **{mode}** — Cache enabled but no hits yet")
+    else:
+        st.info(f"📊 **{mode}** — Analyzing prompt patterns to identify caching opportunities")
+
+
+def render_overview_tab(calls: List[Dict], duplicates: List[Dict], has_cache: bool, stats: Dict):
+    """Render the Overview tab."""
+    
+    overview = calculate_overview_stats(calls, duplicates)
+    
+    st.subheader("📊 Caching Opportunity Summary")
+    
+    # KPIs
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Calls", f"{overview['total_calls']:,}")
+    
+    with col2:
+        label = "Cacheable" if not has_cache else "Duplicates Found"
+        st.metric(label, f"{overview['total_duplicates']:,}",
+                  help=f"{format_percentage(overview['cacheable_pct'])} of calls")
+    
+    with col3:
+        label = "Potential Savings" if not has_cache else "Wasted Cost"
+        st.metric(label, format_cost(overview['total_wasted']))
+    
+    with col4:
+        st.metric("Monthly Opportunity", format_cost(overview['monthly_savings']),
+                  help="Projected monthly savings with caching")
+    
+    st.divider()
+    
+    # Quick Win callout
+    if overview['operations']:
+        top_op = overview['operations'][0]
+        if top_op['wasted'] > 0:
+            st.info(f"💡 **Quick Win:** Cache `{top_op['operation']}` — {format_percentage(top_op['repeat_pct'])} of calls are duplicates ({format_cost(top_op['wasted'])}/period)")
+    
+    st.divider()
+    
+    # Operations table
+    st.subheader("🎯 Caching Opportunities by Operation")
+    
+    if overview['operations']:
+        op_data = []
+        for op in overview['operations']:
+            op_data.append({
+                'Operation': op['operation'],
+                'Calls': op['calls'],
+                'Duplicates': op['duplicates'],
+                'Repeat %': format_percentage(op['repeat_pct']),
+                'Savings': format_cost(op['wasted']),
+                'Cacheable?': op['cacheability'],
+            })
+        
+        st.dataframe(pd.DataFrame(op_data), use_container_width=True, hide_index=True)
+    else:
+        st.info("No operations found")
+
+
+def render_repeated_tab(duplicates: List[Dict]):
+    """Render the Repeated Calls tab."""
+    
+    if not duplicates:
+        st.success("✅ No duplicate calls detected!")
+        st.caption("Your prompts appear to be unique")
+        return
+    
+    st.subheader(f"🔁 {len(duplicates)} Duplicate Patterns Found")
+    st.caption("These calls are being made multiple times with same/similar input")
+    
+    # Summary
+    total_wasted = sum(d['wasted_cost'] for d in duplicates)
+    total_dups = sum(d['count'] for d in duplicates)
+    
+    st.warning(f"**{total_dups} duplicate calls** wasting **{format_cost(total_wasted)}** per period")
+    
+    st.divider()
+    
+    # Show each duplicate pattern
+    for i, dup in enumerate(duplicates[:10], 1):
+        with st.container():
+            st.markdown(f"### #{i} — {dup['count']} duplicates — `{dup['operations'][0]}` — {format_cost(dup['wasted_cost'])} wasted")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Duplicate Pattern**")
+                st.write(f"- First seen: {dup['first_seen'].strftime('%Y-%m-%d %H:%M') if dup['first_seen'] else 'N/A'}")
+                st.write(f"- Last seen: {dup['last_seen'].strftime('%Y-%m-%d %H:%M') if dup['last_seen'] else 'N/A'}")
+                st.write(f"- Frequency: ~{dup['frequency']:.1f}/hour")
+                st.write(f"- Avg cost: {format_cost(dup['avg_cost'])}/call")
+                st.write(f"- Avg latency: {format_latency(dup['avg_latency'])}")
+            
+            with col2:
+                st.markdown("**Why It's Repeating**")
+                if len(dup['agents']) > 1:
+                    st.error(f"🔴 Multiple agents calling: {', '.join(dup['agents'][:3])}")
+                elif dup['frequency'] > 10:
+                    st.error("🔴 High frequency — same query repeated rapidly")
+                else:
+                    st.warning("🟡 Same query pattern detected")
+                
+                if dup['dynamic_fields']:
+                    st.caption(f"Dynamic fields detected: {', '.join(dup['dynamic_fields'])}")
+            
+            # Show prompt
+            with st.expander("📝 View Repeated Prompt"):
+                st.code(truncate_text(dup['representative'], 500), language="text")
+            
+            # Fix suggestion
+            st.markdown("**🛠️ Fix: Add Caching**")
+            
+            cache_key_suggestion = f"{dup['operations'][0]}:" + ":".join(
+                f"[{f}]" for f in dup['dynamic_fields']
+            ) if dup['dynamic_fields'] else f"hash({dup['operations'][0]}_prompt)"
+            
+            st.success(f"""
+**Impact:** {dup['count']} calls → 1 call + {dup['count']-1} cache hits  
+**Save:** {format_cost(dup['wasted_cost'])}/period ({format_cost(dup['wasted_cost'] * 30)}/month)  
+**Latency:** {format_latency(dup['avg_latency'])} → <100ms for cached  
+
+**Suggested Cache Key:** `{cache_key_suggestion}`
+            """)
+            
+            st.divider()
+    
+    if len(duplicates) > 10:
+        st.caption(f"Showing top 10 of {len(duplicates)} duplicate patterns")
+
+
+def render_high_value_tab(high_value: List[Dict]):
+    """Render the High-Value Targets tab."""
+    
+    if not high_value:
+        st.success("✅ No high-value caching targets found")
+        st.caption(f"No operations with avg cost > {format_cost(HIGH_VALUE_COST_THRESHOLD)} or latency > {format_latency(HIGH_VALUE_LATENCY_THRESHOLD)}")
+        return
+    
+    st.subheader(f"💰 {len(high_value)} High-Value Targets")
+    st.caption("Even with low duplication, these calls are expensive enough to cache")
+    
+    for i, hv in enumerate(high_value[:8], 1):
+        with st.container():
+            # Header
+            tags = []
+            if hv['is_expensive']:
+                tags.append(f"{format_cost(hv['avg_cost'])}/call")
+            if hv['is_slow']:
+                tags.append(f"{format_latency(hv['avg_latency'])} avg")
+            
+            st.markdown(f"### #{i} — `{hv['operation']}` — {' • '.join(tags)}")
+            st.caption(f"Models: {', '.join(format_model_name(m) for m in hv['models_used'][:3])}")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Call Profile**")
+                st.write(f"- Avg cost: {format_cost(hv['avg_cost'])}/call")
+                st.write(f"- Avg latency: {format_latency(hv['avg_latency'])}")
+                st.write(f"- Calls/period: {hv['call_count']}")
+                st.write(f"- Total cost: {format_cost(hv['total_cost'])}/period")
+                st.write(f"- Exact duplicates: {format_percentage(hv['exact_duplicate_pct'])}")
+            
+            with col2:
+                st.markdown("**Cache Opportunity**")
+                
+                if hv['exact_duplicate_pct'] > 0.3:
+                    st.success(f"🟢 **HIGH** — {format_percentage(hv['exact_duplicate_pct'])} exact duplicates")
+                elif hv['semantic_similar_pct'] > 0.5:
+                    st.warning(f"🟡 **MODERATE** — {format_percentage(hv['semantic_similar_pct'])} semantically similar")
+                    st.caption("Consider semantic caching with embeddings")
+                else:
+                    st.info(f"🔵 **LATENCY** — High cost justifies caching even at low hit rate")
+                
+                st.write(f"**Potential Savings:** {format_cost(hv['potential_savings'])}/period")
+            
+            # Semantic analysis
+            if hv['semantic_similar_pct'] > 0.3:
+                with st.expander("🔬 Semantic Similarity Analysis"):
+                    st.write(f"While only {format_percentage(hv['exact_duplicate_pct'])} are exact duplicates, {format_percentage(hv['semantic_similar_pct'])} are semantically similar.")
+                    st.write("This suggests semantic caching with embeddings could be effective.")
+                    
+                    st.code("""
+# Semantic caching example
+async def cached_operation(prompt: str):
+    embedding = await embed(prompt)
+    
+    # Search for similar cached queries (threshold: 0.95)
+    similar = await vector_cache.search(embedding, threshold=0.95)
+    if similar:
+        return similar.result
+    
+    result = await llm.call(prompt)
+    await vector_cache.store(embedding, result, ttl=3600)
+    return result
+                    """, language="python")
+            
+            st.divider()
+
+
+def render_cache_keys_tab(strategies: List[Dict]):
+    """Render the Cache Keys tab."""
+    
+    if not strategies:
+        st.info("Not enough data to analyze cache key strategies")
+        return
+    
+    st.subheader("🔑 Cache Key Strategies")
+    st.caption("How to design cache keys for each operation")
+    
+    for strategy in strategies[:8]:
+        with st.container():
+            st.markdown(f"### `{strategy['operation']}` — {strategy['call_count']} calls")
+            st.caption(f"Avg cost: {format_cost(strategy['avg_cost'])}/call")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Prompt Structure Analysis**")
+                
+                # Show what to include/exclude
+                if strategy['include_in_key']:
+                    st.write("**✅ Include in cache key:**")
+                    for comp, reason in strategy['include_in_key'][:5]:
+                        st.write(f"- `{comp}`: {reason}")
+                
+                if strategy['exclude_from_key']:
+                    st.write("**❌ Exclude from cache key:**")
+                    for comp, reason in strategy['exclude_from_key'][:5]:
+                        st.write(f"- `{comp}`: {reason}")
+            
+            with col2:
+                st.markdown("**Recommended Cache Key**")
+                
+                # Generate cache key pattern
+                key_parts = [strategy['operation']]
+                for comp, _ in strategy['include_in_key'][:3]:
+                    key_parts.append(f"{{{comp}}}")
+                
+                key_pattern = ":".join(key_parts)
+                
+                st.code(f"Pattern: {key_pattern}", language="text")
+                st.write(f"**TTL:** {strategy['recommended_ttl']}")
+                
+                # Invalidation triggers
+                st.markdown("**Invalidation Triggers:**")
+                if 'entity_ids' in [c[0] for c in strategy['include_in_key']]:
+                    st.write("• Entity updated → invalidate keys with that ID")
+                st.write("• User changes preferences → invalidate user's cached results")
+            
+            # Sample prompt
+            with st.expander("📝 Sample Prompt"):
+                st.code(truncate_text(strategy['sample_prompt'], 400), language="text")
+            
+            st.divider()
+
+
+# =============================================================================
+# MAIN RENDER
+# =============================================================================
 
 def render():
-    """Render the Cache Analyzer page."""
+    """Main render function for Cache Analyzer page."""
     
-    st.title("💾 Cache Analyzer - Semantic Caching")
+    st.title("💾 Cache Analyzer")
+    st.caption("Find repeated calls and how to cache them")
     
     # Get selected project
     selected_project = st.session_state.get('selected_project')
     
-    # Project indicator
-    if selected_project:
-        st.info(f"📊 Analyzing cache for: **{selected_project}**")
-    else:
-        st.info("📊 Analyzing cache for: **All Projects**")
-    
-    st.divider()
-    
-    # Filters
-    col1, col2, col3, col4 = st.columns(4)
+    # Controls
+    col1, col2, col3 = st.columns([2, 2, 1])
     
     with col1:
-        try:
-            agents = get_available_agents(selected_project)
-            filter_agent = st.selectbox(
-                "Agent",
-                options=["All"] + agents,
-                key="cache_agent_filter"
-            )
-        except:
-            filter_agent = "All"
+        if selected_project:
+            st.info(f"Analyzing: **{selected_project}**")
+        else:
+            st.info("Analyzing: **All Projects**")
     
     with col2:
-        time_period = st.selectbox(
-            "Time Period",
-            options=["1h", "24h", "7d", "30d"],
-            index=2,
-            key="cache_time_period"
+        limit = st.selectbox(
+            "Analyze",
+            options=[100, 250, 500, 1000],
+            index=1,
+            format_func=lambda x: f"Last {x} calls",
+            key="cache_limit"
         )
     
     with col3:
-        similarity_threshold = st.slider(
-            "Similarity Threshold",
-            min_value=0.5,
-            max_value=0.95,
-            value=0.7,
-            step=0.05,
-            help="How similar prompts must be to cluster together",
-            key="cache_similarity"
-        )
-    
-    with col4:
-        limit = st.selectbox(
-            "Max Results",
-            options=[100, 200, 500, 1000],
-            index=1,
-            key="cache_limit"
-        )
+        if st.button("🔄 Refresh", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
     
     st.divider()
     
     # Fetch data
     try:
-        with st.spinner("Loading cache data and analyzing prompts..."):
+        with st.spinner("Loading and analyzing calls..."):
             calls = get_llm_calls(
                 project_name=selected_project,
-                agent_name=None if filter_agent == "All" else filter_agent,
                 limit=limit
             )
             
@@ -494,354 +834,39 @@ def render():
                 return
     
     except Exception as e:
-        st.error(f"Error loading cache data: {str(e)}")
+        st.error(f"Error loading data: {str(e)}")
         return
     
     # Detect cache mode
-    has_cache, cache_mode = detect_cache_mode(calls)
+    has_cache, mode, cache_stats = detect_cache_mode(calls)
     
-    # Show cache status (UPDATED)
-    if has_cache:
-        st.success(f"✅ {cache_mode}")
-    else:
-        st.info(f"📊 **DISCOVERY MODE** - {cache_mode}. Analyzing prompt patterns to identify caching opportunities.")
+    # Show status banner
+    render_cache_status_banner(has_cache, mode, cache_stats)
     
     st.divider()
     
-    # Cluster prompts
-    with st.spinner("Clustering prompts by similarity..."):
-        clusters = cluster_prompts(calls, similarity_threshold)
+    # Analyze
+    with st.spinner("Analyzing prompt patterns..."):
+        duplicates = find_duplicates(calls)
+        high_value = find_high_value_calls(calls)
+        strategies = analyze_cache_keys(calls)
     
-    st.caption(f"Found {len(clusters)} prompt clusters from {len(calls)} calls")
+    # Tabs
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📊 Overview",
+        f"🔁 Repeated ({len(duplicates)})",
+        f"💰 High-Value ({len(high_value)})",
+        "🔑 Cache Keys"
+    ])
     
-    # Calculate cache metrics
-    if has_cache:
-        # Actual cache performance
-        total_hits = sum(
-            1 for c in calls
-            if c.get('cache_metadata', {}).get('cache_hit', False)
-        )
-        total_misses = len(calls) - total_hits
-        hit_rate = total_hits / len(calls) if calls else 0
-        
-        # Tokens and cost saved
-        avg_tokens = sum(c.get('total_tokens', 0) for c in calls) / len(calls)
-        avg_cost = sum(c.get('total_cost', 0) for c in calls) / len(calls)
-        
-        tokens_saved = total_hits * avg_tokens
-        cost_saved = total_hits * avg_cost
-        latency_saved = total_hits * 500  # Assume 500ms saved per cache hit
-    else:
-        # Potential cache performance
-        potential = estimate_cache_potential(calls, clusters)
-        hit_rate = potential['potential_hit_rate']
-        tokens_saved = potential['potential_tokens_saved']
-        cost_saved = potential['potential_cost_saved']
-        total_hits = int(len(calls) * hit_rate)
-        total_misses = len(calls) - total_hits
-        latency_saved = total_hits * 500
+    with tab1:
+        render_overview_tab(calls, duplicates, has_cache, cache_stats)
     
-    # Section 1: High-Level KPIs
-    st.subheader("📊 Cache Performance Metrics")
+    with tab2:
+        render_repeated_tab(duplicates)
     
-    if has_cache:
-        metrics = [
-            {
-                "label": "Cache Hit Rate",
-                "value": format_percentage(hit_rate),
-                "help_text": f"{total_hits} hits / {len(calls)} total"
-            },
-            {
-                "label": "Tokens Saved",
-                "value": format_tokens(int(tokens_saved)),
-            },
-            {
-                "label": "Cost Saved",
-                "value": format_cost(cost_saved),
-                "help_text": f"{format_cost(cost_saved * 30)}/month projected"
-            },
-            {
-                "label": "Latency Saved",
-                "value": format_latency(latency_saved),
-                "help_text": "Estimated time savings"
-            }
-        ]
-    else:
-        metrics = [
-            {
-                "label": "Potential Hit Rate",
-                "value": format_percentage(hit_rate),
-                "help_text": "Based on prompt repetition analysis"
-            },
-            {
-                "label": "Tokens Saveable",
-                "value": format_tokens(tokens_saved),
-                "help_text": "If caching enabled"
-            },
-            {
-                "label": "Cost Saveable",
-                "value": format_cost(cost_saved),
-                "delta": f"{format_cost(cost_saved * 30)}/month",
-                "help_text": "Projected monthly savings"
-            },
-            {
-                "label": "Latency Reduction",
-                "value": format_latency(latency_saved),
-                "help_text": "Estimated improvement"
-            }
-        ]
+    with tab3:
+        render_high_value_tab(high_value)
     
-    render_metric_row(metrics, columns=4)
-    
-    st.divider()
-    
-    # Section 2: Timeline (if has cache)
-    if has_cache:
-        st.subheader("📈 Cache Performance Over Time")
-        
-        try:
-            # Get time series data
-            cache_timeline = []
-            
-            # Group calls by hour
-            hourly_data = defaultdict(lambda: {'hits': 0, 'misses': 0})
-            
-            for call in calls:
-                timestamp = call.get('timestamp')
-                if timestamp:
-                    hour = timestamp.replace(minute=0, second=0, microsecond=0)
-                    is_hit = call.get('cache_metadata', {}).get('cache_hit', False)
-                    
-                    if is_hit:
-                        hourly_data[hour]['hits'] += 1
-                    else:
-                        hourly_data[hour]['misses'] += 1
-            
-            # Create timeline
-            sorted_hours = sorted(hourly_data.keys())
-            
-            if sorted_hours:
-                timeline_data = {
-                    'timestamps': sorted_hours,
-                    'Hits': [hourly_data[h]['hits'] for h in sorted_hours],
-                    'Misses': [hourly_data[h]['misses'] for h in sorted_hours]
-                }
-                
-                # Create multi-line chart
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=timeline_data['timestamps'],
-                    y=timeline_data['Hits'],
-                    mode='lines+markers',
-                    name='Cache Hits',
-                    line=dict(color='green', width=2)
-                ))
-                fig.add_trace(go.Scatter(
-                    x=timeline_data['timestamps'],
-                    y=timeline_data['Misses'],
-                    mode='lines+markers',
-                    name='Cache Misses',
-                    line=dict(color='red', width=2)
-                ))
-                
-                fig.update_layout(
-                    title="Cache Hits vs Misses Over Time",
-                    xaxis_title="Time",
-                    yaxis_title="Request Count",
-                    hovermode='x unified'
-                )
-                
-                st.plotly_chart(fig, width='stretch')
-            else:
-                st.info("Not enough temporal data for timeline")
-        
-        except Exception as e:
-            st.warning(f"Could not generate timeline: {str(e)}")
-        
-        st.divider()
-    
-    # Section 3: Prompt Cluster Explorer
-    st.subheader("🔍 Prompt Cluster Explorer")
-    
-    if not clusters:
-        st.info("No prompt clusters found - prompts may be too unique")
-    else:
-        st.caption(f"Showing {len(clusters)} clusters sorted by frequency")
-        
-        # Create cluster table
-        cluster_table = []
-        for cluster in clusters[:50]:  # Top 50 clusters
-            cluster_table.append({
-                'Cluster Name': cluster['name'],
-                'Agent': ', '.join(cluster['agent_list'][:2]),
-                'Variants': cluster['variant_count'],
-                'Calls': len(cluster['calls']),
-                'Hits': cluster['cache_hits'] if has_cache else f"~{int(len(cluster['calls']) * 0.3)}",
-                'Misses': cluster['cache_misses'] if has_cache else f"~{int(len(cluster['calls']) * 0.7)}",
-                'Tokens Saved': format_tokens(int(cluster['tokens_saved'])),
-                'Cost Saved': format_cost(cluster['cost_saved']),
-                'Cache Key': cluster['cache_key']
-            })
-        
-        cluster_df = pd.DataFrame(cluster_table)
-        
-        # Display table
-        st.dataframe(cluster_df, width='stretch', hide_index=True)
-        
-        st.divider()
-        
-        # Section 4: Per-Prompt Drilldown
-        st.subheader("🔬 Prompt Cluster Details")
-        
-        selected_cluster_idx = st.selectbox(
-            "Select cluster to analyze",
-            options=range(len(clusters[:20])),
-            format_func=lambda i: f"{i+1}. {clusters[i]['name']} ({len(clusters[i]['calls'])} calls)",
-            key="selected_cluster"
-        )
-        
-        selected_cluster = clusters[selected_cluster_idx]
-        
-        # Calculate cacheability
-        cacheability_score, reasons = calculate_cacheability_score(selected_cluster)
-        
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            st.write("**Cluster Overview**")
-            
-            st.write(f"**Cluster Name:** {selected_cluster['name']}")
-            st.write(f"**Total Calls:** {len(selected_cluster['calls'])}")
-            st.write(f"**Unique Variants:** {selected_cluster['variant_count']}")
-            st.write(f"**Agents Using:** {', '.join(selected_cluster['agent_list'])}")
-            
-            if has_cache:
-                st.write(f"**Cache Hits:** {selected_cluster['cache_hits']}")
-                st.write(f"**Cache Misses:** {selected_cluster['cache_misses']}")
-                hit_rate_cluster = selected_cluster['cache_hits'] / len(selected_cluster['calls']) if selected_cluster['calls'] else 0
-                st.write(f"**Hit Rate:** {format_percentage(hit_rate_cluster)}")
-            
-            st.write("**Representative Prompt:**")
-            st.code(selected_cluster['representative'][:300] + ('...' if len(selected_cluster['representative']) > 300 else ''), language="text")
-            
-            if selected_cluster['variant_count'] > 1:
-                with st.expander(f"View all {selected_cluster['variant_count']} variants"):
-                    for i, variant in enumerate(selected_cluster['variants'][:10], 1):
-                        st.write(f"**Variant {i}:**")
-                        st.code(variant[:200] + ('...' if len(variant) > 200 else ''), language="text")
-        
-        with col2:
-            st.metric("Cacheability Score", f"{cacheability_score}/100")
-            
-            st.write("**Score Factors:**")
-            for reason in reasons:
-                st.caption(f"• {reason}")
-            
-            st.write("**Savings Potential:**")
-            
-            if has_cache:
-                actual_saved = selected_cluster['cost_saved']
-                potential_max = len(selected_cluster['calls']) * (sum(c.get('total_cost', 0) for c in selected_cluster['calls']) / len(selected_cluster['calls']))
-                missed_opportunity = potential_max - actual_saved
-                
-                st.write(f"**Actual Savings:** {format_cost(actual_saved)}")
-                st.write(f"**Potential Max:** {format_cost(potential_max)}")
-                st.write(f"**Missed:** {format_cost(missed_opportunity)}")
-            else:
-                potential = len(selected_cluster['calls']) * 0.4 * (sum(c.get('total_cost', 0) for c in selected_cluster['calls']) / len(selected_cluster['calls']))
-                st.write(f"**Potential Savings:** {format_cost(potential)}/day")
-                st.write(f"**Monthly:** {format_cost(potential * 30)}")
-        
-        st.divider()
-    
-    # Section 5: Cache Capacity (if has cache)
-    if has_cache:
-        st.subheader("📦 Cache Capacity & Evictions")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            # Estimate current cache size
-            cached_clusters = [c for c in clusters if c['cache_hits'] > 0]
-            st.metric("Clusters in Cache", len(cached_clusters))
-        
-        with col2:
-            # Total cached tokens
-            total_cached_tokens = sum(c['tokens_saved'] for c in cached_clusters)
-            st.metric("Cached Content", format_tokens(int(total_cached_tokens)))
-        
-        with col3:
-            # Eviction estimate (simplified)
-            potential_evictions = max(0, len(clusters) - len(cached_clusters))
-            st.metric("Potential Evictions", potential_evictions)
-        
-        st.caption("Eviction analytics require cache event logging (coming soon)")
-        
-        st.divider()
-    
-    # Section 6: AI-Generated Recommendations
-    st.subheader("💡 Optimization Recommendations")
-    
-    recommendations = generate_cache_recommendations(clusters, has_cache, calls)
-    
-    if recommendations:
-        for rec in recommendations:
-            with st.container():
-                col1, col2 = st.columns([3, 1])
-                
-                with col1:
-                    st.markdown(f"**{rec['priority']}. {rec['title']}** ({rec['impact']} Impact)")
-                    st.caption(rec['description'])
-                    st.info(f"**Action:** {rec['action']}")
-                
-                with col2:
-                    if rec['impact'] == 'High':
-                        st.markdown("🔴 **High Priority**")
-                    elif rec['impact'] == 'Medium':
-                        st.markdown("🟡 **Medium Priority**")
-                    else:
-                        st.markdown("🟢 **Low Priority**")
-                
-                st.divider()
-    else:
-        st.success("✅ Cache is well optimized! No major recommendations.")
-    
-    # Additional insights
-    with st.expander("📊 Additional Cache Statistics"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("**Top Agents by Cache Potential:**")
-            agent_stats = defaultdict(lambda: {'calls': 0, 'hits': 0, 'cost': 0})
-            
-            for call in calls:
-                agent = call.get('agent_name', 'Unknown')
-                agent_stats[agent]['calls'] += 1
-                if call.get('cache_metadata', {}).get('cache_hit'):
-                    agent_stats[agent]['hits'] += 1
-                agent_stats[agent]['cost'] += call.get('total_cost', 0)
-            
-            agent_list = []
-            for agent, stats in agent_stats.items():
-                hit_rate = stats['hits'] / stats['calls'] if stats['calls'] > 0 else 0
-                agent_list.append({
-                    'Agent': agent,
-                    'Calls': stats['calls'],
-                    'Hit Rate': format_percentage(hit_rate),
-                    'Potential Savings': format_cost(stats['cost'] * 0.3)
-                })
-            
-            agent_df = pd.DataFrame(agent_list)
-            st.dataframe(agent_df, width='stretch', hide_index=True)
-        
-        with col2:
-            st.write("**Cache Key Distribution:**")
-            st.caption(f"Total unique cache keys: {len(clusters)}")
-            avg_calls_per_key = len(calls) / len(clusters) if clusters else 0
-            st.caption(f"Average calls per key: {avg_calls_per_key:.1f}")
-            if clusters:
-                st.caption(f"Most frequent cluster: {clusters[0]['name']} ({len(clusters[0]['calls'])} calls)")
-
-
-# Import plotly for timeline
-import plotly.graph_objects as go
+    with tab4:
+        render_cache_keys_tab(strategies)

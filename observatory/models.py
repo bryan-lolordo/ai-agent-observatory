@@ -1,25 +1,11 @@
-"""
-Observatory Data Models
-Location: observatory/models.py
-
-Complete data models with all fields for:
-- Basic metrics
-- Routing decisions (enhanced)
-- Cache metadata (enhanced)
-- Quality evaluation (enhanced)
-- Prompt breakdown (NEW)
-- Prompt metadata (NEW)
-"""
+# observatory/models.py
+# UPDATED: Added PromptBreakdown, PromptMetadata, and extended existing models
 
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 
-
-# =============================================================================
-# ENUMS
-# =============================================================================
 
 class ModelProvider(str, Enum):
     OPENAI = "openai"
@@ -37,7 +23,7 @@ class AgentRole(str, Enum):
 
 
 # =============================================================================
-# ROUTING DECISION (Enhanced)
+# ROUTING DECISION (EXTENDED)
 # =============================================================================
 
 class RoutingDecision(BaseModel):
@@ -50,8 +36,8 @@ class RoutingDecision(BaseModel):
     complexity_score: Optional[float] = None
     estimated_cost_savings: Optional[float] = None
     
-    # NEW: For Impact Tracker attribution
-    routing_strategy: Optional[str] = None  # e.g., "complexity", "cost", "latency"
+    # NEW: Extended routing fields
+    routing_strategy: Optional[str] = None  # e.g., "complexity_based", "cost_optimized", "quality_first"
     
     @field_validator('complexity_score')
     @classmethod
@@ -69,7 +55,7 @@ class RoutingDecision(BaseModel):
 
 
 # =============================================================================
-# CACHE METADATA (Enhanced)
+# CACHE METADATA (EXTENDED)
 # =============================================================================
 
 class CacheMetadata(BaseModel):
@@ -78,13 +64,13 @@ class CacheMetadata(BaseModel):
     cache_key: Optional[str] = None
     cache_cluster_id: Optional[str] = None
     normalization_strategy: Optional[str] = None
-    similarity_score: Optional[float] = None
+    similarity_score: Optional[float] = None  # Keep original name for compatibility
     eviction_info: Optional[str] = None
     
-    # NEW: For Cache Analyzer diagnostics
-    cache_key_candidates: Optional[List[str]] = None  # IDs that form the cache key
-    dynamic_fields: Optional[List[str]] = None  # Fields to exclude from key
-    content_hash: Optional[str] = None  # Pre-computed stable hash
+    # NEW: Extended cache fields
+    cache_key_candidates: Optional[List[str]] = None  # Alternative keys considered
+    dynamic_fields: Optional[List[str]] = None  # Fields excluded from caching
+    content_hash: Optional[str] = None  # Hash of cacheable content
     ttl_seconds: Optional[int] = None  # Time-to-live for cache entry
     
     @field_validator('similarity_score')
@@ -96,7 +82,7 @@ class CacheMetadata(BaseModel):
 
 
 # =============================================================================
-# QUALITY EVALUATION (Enhanced)
+# QUALITY EVALUATION (EXTENDED)
 # =============================================================================
 
 class QualityEvaluation(BaseModel):
@@ -107,12 +93,14 @@ class QualityEvaluation(BaseModel):
     reasoning: Optional[str] = None
     confidence_score: Optional[float] = None
     
-    # NEW: For Quality Diagnostics page
+    # NEW: Extended quality fields
+    judge_model: Optional[str] = None  # Model used for judging
     failure_reason: Optional[str] = None  # HALLUCINATION, FACTUAL_ERROR, VERY_LOW_QUALITY, LOW_QUALITY
     improvement_suggestion: Optional[str] = None  # Auto-generated fix suggestion
     hallucination_details: Optional[str] = None  # What specifically was hallucinated
     evidence_cited: Optional[bool] = None  # Whether response cited sources
     factual_error: Optional[bool] = None  # Whether factual error detected
+    criteria_scores: Optional[Dict[str, float]] = None  # Individual criteria scores
     
     @field_validator('judge_score')
     @classmethod
@@ -174,11 +162,11 @@ class PromptMetadata(BaseModel):
     prompt_version: Optional[str] = None  # e.g., "1.2.0"
     compressible_sections: Optional[List[str]] = None  # Sections that can be compressed
     optimization_flags: Optional[Dict[str, bool]] = None  # e.g., {"caching_enabled": True}
-    config_version: Optional[str] = None  # Configuration version for attribution
+    config_version: Optional[str] = None  # e.g., "1.0"
 
 
 # =============================================================================
-# LLM CALL (Enhanced)
+# LLM CALL (EXTENDED)
 # =============================================================================
 
 class LLMCall(BaseModel):
@@ -224,13 +212,13 @@ class LLMCall(BaseModel):
     # Enhanced fields - Quality
     quality_evaluation: Optional[QualityEvaluation] = None
     
+    # NEW: Enhanced fields - Prompt Analysis
+    prompt_breakdown: Optional[PromptBreakdown] = None
+    prompt_metadata: Optional[PromptMetadata] = None
+    
     # Enhanced fields - Prompt Variants (for A/B testing)
     prompt_variant_id: Optional[str] = None
     test_dataset_id: Optional[str] = None
-    
-    # NEW: Structured prompt analysis
-    prompt_breakdown: Optional[PromptBreakdown] = None
-    prompt_metadata: Optional[PromptMetadata] = None
     
     # Optional metadata
     metadata: Dict[str, Any] = Field(default_factory=dict)
@@ -258,7 +246,7 @@ class LLMCall(BaseModel):
 
 
 # =============================================================================
-# SESSION
+# SESSION (unchanged)
 # =============================================================================
 
 class Session(BaseModel):
@@ -322,41 +310,41 @@ class Session(BaseModel):
 
 
 # =============================================================================
-# REPORT MODELS
+# BREAKDOWN MODELS (unchanged)
 # =============================================================================
 
 class CostBreakdown(BaseModel):
     total_cost: float
-    by_model: Dict[str, float] = Field(default_factory=dict)
-    by_provider: Dict[str, float] = Field(default_factory=dict)
-    by_agent: Dict[str, float] = Field(default_factory=dict)
-    by_operation: Dict[str, float] = Field(default_factory=dict)
+    by_model: Dict[str, float]
+    by_provider: Dict[str, float]
+    by_agent: Dict[str, float]
+    by_operation: Dict[str, float]
 
 
 class LatencyBreakdown(BaseModel):
     total_latency_ms: float
     avg_latency_ms: float
-    p50_latency_ms: float = 0.0
-    p95_latency_ms: float = 0.0
-    p99_latency_ms: float = 0.0
-    by_agent: Dict[str, float] = Field(default_factory=dict)
-    by_operation: Dict[str, float] = Field(default_factory=dict)
+    p50_latency_ms: float
+    p95_latency_ms: float
+    p99_latency_ms: float
+    by_agent: Dict[str, float]
+    by_operation: Dict[str, float]
 
 
 class TokenBreakdown(BaseModel):
     total_tokens: int
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    by_model: Dict[str, int] = Field(default_factory=dict)
-    by_agent: Dict[str, int] = Field(default_factory=dict)
+    prompt_tokens: int
+    completion_tokens: int
+    by_model: Dict[str, int]
+    by_agent: Dict[str, int]
 
 
 class QualityMetrics(BaseModel):
     total_calls: int
-    successful_calls: int = 0
-    failed_calls: int = 0
-    success_rate: float = 0.0
-    avg_tokens_per_call: float = 0.0
+    successful_calls: int
+    failed_calls: int
+    success_rate: float
+    avg_tokens_per_call: float
     cache_hit_rate: Optional[float] = None
     avg_quality_score: Optional[float] = None
     hallucination_rate: Optional[float] = None
@@ -394,9 +382,9 @@ class RoutingMetrics(BaseModel):
     """Routing effectiveness metrics"""
     total_routing_decisions: int
     routing_accuracy: Optional[float] = None
-    avg_cost_per_route: float = 0.0
-    total_cost_savings: float = 0.0
-    model_distribution: Dict[str, int] = Field(default_factory=dict)
+    avg_cost_per_route: float
+    total_cost_savings: float
+    model_distribution: Dict[str, int]
     avg_complexity_score: Optional[float] = None
     
     @field_validator('total_routing_decisions')
@@ -431,12 +419,12 @@ class RoutingMetrics(BaseModel):
 class CacheMetrics(BaseModel):
     """Cache performance metrics"""
     total_requests: int
-    cache_hits: int = 0
-    cache_misses: int = 0
-    hit_rate: float = 0.0
-    tokens_saved: int = 0
-    cost_saved: float = 0.0
-    latency_saved_ms: float = 0.0
+    cache_hits: int
+    cache_misses: int
+    hit_rate: float
+    tokens_saved: int
+    cost_saved: float
+    latency_saved_ms: float
     cluster_count: Optional[int] = None
     
     @field_validator('total_requests', 'cache_hits', 'cache_misses', 'tokens_saved')
@@ -470,10 +458,10 @@ class CacheMetrics(BaseModel):
 
 class SessionReport(BaseModel):
     session: Session
-    cost_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    latency_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    token_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    quality_metrics: Dict[str, Any] = Field(default_factory=dict)
+    cost_breakdown: CostBreakdown
+    latency_breakdown: LatencyBreakdown
+    token_breakdown: TokenBreakdown
+    quality_metrics: QualityMetrics
     routing_metrics: Optional[RoutingMetrics] = None
     cache_metrics: Optional[CacheMetrics] = None
     optimization_suggestions: List[str] = Field(default_factory=list)

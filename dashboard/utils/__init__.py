@@ -3,6 +3,8 @@ Dashboard Utilities Package
 Location: dashboard/utils/__init__.py
 
 Centralized utilities for data fetching, formatting, and aggregation.
+
+UPDATED: Added calculate_prompt_breakdown_metrics export
 """
 
 from dashboard.utils.formatters import (
@@ -30,7 +32,8 @@ from dashboard.utils.aggregators import (
     calculate_quality_metrics,
     calculate_time_series,
     calculate_session_kpis,
-    group_by_time_period
+    group_by_time_period,
+    calculate_prompt_breakdown_metrics,  # NEW
 )
 
 from dashboard.utils.data_fetcher import (
@@ -78,6 +81,7 @@ __all__ = [
     'calculate_time_series',
     'calculate_session_kpis',
     'group_by_time_period',
+    'calculate_prompt_breakdown_metrics',  # NEW
     
     # Data Fetchers
     'get_storage',

@@ -4,6 +4,8 @@ Location: dashboard/utils/data_fetcher.py
 
 All database queries and data retrieval functions.
 Pages should use these functions instead of querying storage directly.
+
+UPDATED: Fixed field name mappings for QualityEvaluation (confidence_score, not confidence)
 """
 
 import streamlit as st
@@ -126,7 +128,6 @@ def get_sessions(
         limit=limit,
         start_time=start_time,
         end_time=end_time,
-        operation_type=operation_type,
     )
 
 
@@ -152,13 +153,6 @@ def get_llm_calls(
         session_id=session_id,
         model_name=model_name,
         agent_name=agent_name,
-        operation=operation,
-        start_time=start_time,
-        end_time=end_time,
-        success_only=success_only,
-        has_quality_eval=has_quality_eval,
-        has_routing=has_routing,
-        has_cache=has_cache,
         limit=limit
     )
     
@@ -219,6 +213,7 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
             'rule_triggered': call.routing_decision.rule_triggered,
             'complexity_score': call.routing_decision.complexity_score,
             'estimated_cost_savings': call.routing_decision.estimated_cost_savings,
+            # NEW field
             'routing_strategy': getattr(call.routing_decision, 'routing_strategy', None),
         }
     else:
@@ -233,6 +228,7 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
             'normalization_strategy': call.cache_metadata.normalization_strategy,
             'similarity_score': call.cache_metadata.similarity_score,
             'eviction_info': call.cache_metadata.eviction_info,
+            # NEW fields
             'cache_key_candidates': getattr(call.cache_metadata, 'cache_key_candidates', None),
             'dynamic_fields': getattr(call.cache_metadata, 'dynamic_fields', None),
             'content_hash': getattr(call.cache_metadata, 'content_hash', None),
@@ -245,11 +241,14 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
     if call.quality_evaluation:
         data['quality_evaluation'] = {
             'judge_score': call.quality_evaluation.judge_score,
-            'judge_model': call.quality_evaluation.judge_model,
-            'criteria_scores': call.quality_evaluation.criteria_scores,
             'reasoning': call.quality_evaluation.reasoning,
             'hallucination_flag': call.quality_evaluation.hallucination_flag,
-            'confidence': call.quality_evaluation.confidence,
+            'error_category': getattr(call.quality_evaluation, 'error_category', None),
+            # FIXED: Use confidence_score (not confidence)
+            'confidence_score': getattr(call.quality_evaluation, 'confidence_score', None),
+            # NEW fields
+            'judge_model': getattr(call.quality_evaluation, 'judge_model', None),
+            'criteria_scores': getattr(call.quality_evaluation, 'criteria_scores', None),
             'failure_reason': getattr(call.quality_evaluation, 'failure_reason', None),
             'improvement_suggestion': getattr(call.quality_evaluation, 'improvement_suggestion', None),
             'hallucination_details': getattr(call.quality_evaluation, 'hallucination_details', None),
@@ -259,7 +258,7 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
     else:
         data['quality_evaluation'] = None
     
-    # Prompt Breakdown
+    # Prompt Breakdown (NEW)
     if hasattr(call, 'prompt_breakdown') and call.prompt_breakdown:
         data['prompt_breakdown'] = {
             'system_prompt': call.prompt_breakdown.system_prompt,
@@ -274,7 +273,7 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
     else:
         data['prompt_breakdown'] = None
     
-    # Prompt Metadata
+    # Prompt Metadata (NEW)
     if hasattr(call, 'prompt_metadata') and call.prompt_metadata:
         data['prompt_metadata'] = {
             'prompt_template_id': call.prompt_metadata.prompt_template_id,
@@ -318,71 +317,79 @@ def get_project_overview(project_name: Optional[str] = None) -> Dict[str, Any]:
             'quality_metrics': {},
         }
     
+    # Calculate all metrics
+    by_model = aggregate_by_model(llm_calls)
+    by_agent = aggregate_by_agent(llm_calls)
+    by_operation = aggregate_by_operation(llm_calls)
+    cost_breakdown = calculate_cost_breakdown(llm_calls)
+    routing_metrics = calculate_routing_metrics(llm_calls)
+    cache_metrics = calculate_cache_metrics(llm_calls)
+    quality_metrics = calculate_quality_metrics(llm_calls)
+    
     # Calculate KPIs
-    total_calls = len(llm_calls)
     total_cost = sum(c['total_cost'] for c in llm_calls)
     total_tokens = sum(c['total_tokens'] for c in llm_calls)
-    avg_latency = sum(c['latency_ms'] for c in llm_calls) / total_calls if total_calls > 0 else 0
+    total_latency = sum(c['latency_ms'] for c in llm_calls)
+    successful = sum(1 for c in llm_calls if c.get('success', True))
     
-    # Success rate
-    success_count = sum(1 for c in llm_calls if c.get('success', True))
-    success_rate = success_count / total_calls if total_calls > 0 else 1.0
-    
-    # Unique sessions
-    sessions = set(c['session_id'] for c in llm_calls if c.get('session_id'))
-    total_sessions = len(sessions)
-    avg_cost_per_session = total_cost / total_sessions if total_sessions > 0 else 0
+    kpis = {
+        'total_calls': len(llm_calls),
+        'total_cost': total_cost,
+        'total_tokens': total_tokens,
+        'avg_latency_ms': total_latency / len(llm_calls) if llm_calls else 0,
+        'avg_cost_per_call': total_cost / len(llm_calls) if llm_calls else 0,
+        'success_rate': successful / len(llm_calls) if llm_calls else 1.0,
+    }
     
     return {
-        'kpis': {
-            'total_calls': total_calls,
-            'total_cost': total_cost,
-            'total_tokens': total_tokens,
-            'avg_latency_ms': avg_latency,
-            'avg_cost_per_session': avg_cost_per_session,
-            'success_rate': success_rate,
-            'total_sessions': total_sessions,
-        },
-        'by_model': aggregate_by_model(llm_calls),
-        'by_agent': aggregate_by_agent(llm_calls),
-        'by_operation': aggregate_by_operation(llm_calls),
-        'cost_breakdown': calculate_cost_breakdown(llm_calls),
-        'routing_metrics': calculate_routing_metrics(llm_calls),
-        'cache_metrics': calculate_cache_metrics(llm_calls),
-        'quality_metrics': calculate_quality_metrics(llm_calls),
+        'kpis': kpis,
+        'by_model': by_model,
+        'by_agent': by_agent,
+        'by_operation': by_operation,
+        'cost_breakdown': cost_breakdown,
+        'routing_metrics': routing_metrics,
+        'cache_metrics': cache_metrics,
+        'quality_metrics': quality_metrics,
     }
+
+
+@st.cache_data(ttl=60)
+def get_time_series_data(
+    project_name: Optional[str] = None,
+    metric: str = 'cost',
+    interval: str = 'hour',
+    period: str = '24h'
+) -> Dict[datetime, float]:
+    """Get time series data for charts."""
+    days = parse_period_to_days(period)
+    start_time = datetime.utcnow() - timedelta(days=days)
+    
+    llm_calls = get_llm_calls(
+        project_name=project_name,
+        start_time=start_time,
+        limit=10000
+    )
+    
+    return calculate_time_series(llm_calls, metric=metric, interval=interval)
 
 
 @st.cache_data(ttl=60)
 def get_comparative_metrics(
     project_name: Optional[str] = None,
-    days: Union[int, float] = 7,
-    period: Union[str, int, float, None] = None
+    period: str = '24h'
 ) -> Dict[str, Any]:
-    """
-    Get metrics comparison between current and previous period.
-    
-    Args:
-        project_name: Filter by project
-        days: Number of days (default 7)
-        period: Period string like '1h', '24h', '7d', '30d' (overrides days)
-    """
-    # Parse period to days
-    days_float = parse_period_to_days(period, default=float(days))
-    
+    """Get comparative metrics between current and previous period."""
+    days = parse_period_to_days(period)
     now = datetime.utcnow()
+    current_start = now - timedelta(days=days)
+    previous_start = current_start - timedelta(days=days)
     
-    # Current period
-    current_start = now - timedelta(days=days_float)
     current_calls = get_llm_calls(
         project_name=project_name,
         start_time=current_start,
-        end_time=now,
         limit=5000
     )
     
-    # Previous period
-    previous_start = current_start - timedelta(days=days_float)
     previous_calls = get_llm_calls(
         project_name=project_name,
         start_time=previous_start,
@@ -392,110 +399,17 @@ def get_comparative_metrics(
     
     def calc_metrics(calls):
         if not calls:
-            return {
-                'total_calls': 0,
-                'total_cost': 0,
-                'total_tokens': 0,
-                'avg_latency_ms': 0,
-                'avg_cost_per_call': 0,
-            }
+            return {'cost': 0, 'tokens': 0, 'latency': 0, 'count': 0}
         return {
-            'total_calls': len(calls),
-            'total_cost': sum(c['total_cost'] for c in calls),
-            'total_tokens': sum(c['total_tokens'] for c in calls),
-            'avg_latency_ms': sum(c['latency_ms'] for c in calls) / len(calls),
-            'avg_cost_per_call': sum(c['total_cost'] for c in calls) / len(calls),
-        }
-    
-    current = calc_metrics(current_calls)
-    previous = calc_metrics(previous_calls)
-    
-    # Calculate trends
-    trends = {}
-    for key in current:
-        if previous[key] > 0:
-            change_pct = ((current[key] - previous[key]) / previous[key]) * 100
-        else:
-            change_pct = 100 if current[key] > 0 else 0
-        trends[key] = {
-            'current': current[key],
-            'previous': previous[key],
-            'change_pct': change_pct,
+            'cost': sum(c['total_cost'] for c in calls),
+            'tokens': sum(c['total_tokens'] for c in calls),
+            'latency': sum(c['latency_ms'] for c in calls) / len(calls),
+            'count': len(calls),
         }
     
     return {
-        'current': current,
-        'previous': previous,
-        'trends': trends,
-        'period_days': days_float,
-    }
-
-
-@st.cache_data(ttl=60)
-def get_time_series_data(
-    project_name: Optional[str] = None,
-    days: Union[int, float] = 7,
-    period: Union[str, int, float, None] = None,
-    granularity: str = 'hour'
-) -> Dict[str, Any]:
-    """
-    Get time series data for charts.
-    
-    Args:
-        project_name: Filter by project
-        days: Number of days (default 7)
-        period: Period string like '1h', '24h', '7d', '30d' (overrides days)
-        granularity: 'hour', 'day', or 'week'
-    """
-    # Parse period to days
-    days_float = parse_period_to_days(period, default=float(days))
-    
-    start_time = datetime.utcnow() - timedelta(days=days_float)
-    calls = get_llm_calls(
-        project_name=project_name,
-        start_time=start_time,
-        limit=10000
-    )
-    
-    if not calls:
-        return {
-            'timestamps': [],
-            'costs': [],
-            'calls': [],
-            'latencies': [],
-            'tokens': [],
-        }
-    
-    # Group by time bucket
-    buckets = {}
-    for call in calls:
-        ts = call['timestamp']
-        if not ts:
-            continue
-        if granularity == 'hour':
-            bucket = ts.replace(minute=0, second=0, microsecond=0)
-        elif granularity == 'day':
-            bucket = ts.replace(hour=0, minute=0, second=0, microsecond=0)
-        else:  # week
-            bucket = ts.replace(hour=0, minute=0, second=0, microsecond=0)
-            bucket = bucket - timedelta(days=bucket.weekday())
-        
-        if bucket not in buckets:
-            buckets[bucket] = {'cost': 0, 'calls': 0, 'latency_sum': 0, 'tokens': 0}
-        
-        buckets[bucket]['cost'] += call['total_cost']
-        buckets[bucket]['calls'] += 1
-        buckets[bucket]['latency_sum'] += call['latency_ms']
-        buckets[bucket]['tokens'] += call['total_tokens']
-    
-    sorted_buckets = sorted(buckets.items())
-    
-    return {
-        'timestamps': [b[0] for b in sorted_buckets],
-        'costs': [b[1]['cost'] for b in sorted_buckets],
-        'calls': [b[1]['calls'] for b in sorted_buckets],
-        'latencies': [b[1]['latency_sum'] / b[1]['calls'] if b[1]['calls'] > 0 else 0 for b in sorted_buckets],
-        'tokens': [b[1]['tokens'] for b in sorted_buckets],
+        'current': calc_metrics(current_calls),
+        'previous': calc_metrics(previous_calls),
     }
 
 
@@ -506,29 +420,37 @@ def get_routing_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
     
     routing_metrics = calculate_routing_metrics(llm_calls)
     
-    # Get recent routing decisions
-    recent_decisions = []
-    for call in llm_calls:
-        if call.get('routing_decision'):
-            rd = call['routing_decision']
-            recent_decisions.append({
-                'timestamp': call['timestamp'],
-                'chosen_model': rd.get('chosen_model'),
-                'alternatives': rd.get('alternative_models', []),
-                'reasoning': rd.get('reasoning'),
-                'complexity_score': rd.get('complexity_score'),
-                'cost_savings': rd.get('estimated_cost_savings'),
-                'latency_ms': call['latency_ms'],
-                'cost': call['total_cost'],
-            })
+    # Get calls with routing decisions for detailed analysis
+    routed_calls = [c for c in llm_calls if c.get('routing_decision')]
     
-    # Sort by timestamp descending
-    recent_decisions.sort(key=lambda x: x['timestamp'] if x['timestamp'] else datetime.min, reverse=True)
+    # Group by strategy
+    by_strategy = {}
+    for call in routed_calls:
+        strategy = call['routing_decision'].get('routing_strategy') or 'unknown'
+        if strategy not in by_strategy:
+            by_strategy[strategy] = {
+                'count': 0,
+                'total_cost': 0,
+                'total_savings': 0,
+                'models_used': set(),
+            }
+        by_strategy[strategy]['count'] += 1
+        by_strategy[strategy]['total_cost'] += call['total_cost']
+        by_strategy[strategy]['total_savings'] += (
+            call['routing_decision'].get('estimated_cost_savings') or 0
+        )
+        by_strategy[strategy]['models_used'].add(
+            call['routing_decision']['chosen_model']
+        )
+    
+    # Convert sets to lists
+    for strategy in by_strategy:
+        by_strategy[strategy]['models_used'] = list(by_strategy[strategy]['models_used'])
     
     return {
         'metrics': routing_metrics,
-        'recent_decisions': recent_decisions[:100],
-        'total_routed': len(recent_decisions),
+        'by_strategy': by_strategy,
+        'total_with_routing': len(routed_calls),
         'total_calls': len(llm_calls),
     }
 
@@ -540,20 +462,46 @@ def get_cache_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
     
     cache_metrics = calculate_cache_metrics(llm_calls)
     
+    # Get calls with cache metadata
+    cached_calls = [c for c in llm_calls if c.get('cache_metadata')]
+    
     # Analyze cache patterns
     cache_patterns = {}
-    for call in llm_calls:
-        if call.get('cache_metadata'):
-            cm = call['cache_metadata']
-            key = cm.get('cache_key', 'unknown')
-            if key not in cache_patterns:
-                cache_patterns[key] = {'hits': 0, 'misses': 0, 'total_tokens': 0}
-            
-            if cm.get('cache_hit'):
-                cache_patterns[key]['hits'] += 1
-            else:
-                cache_patterns[key]['misses'] += 1
-            cache_patterns[key]['total_tokens'] += call['total_tokens']
+    for call in cached_calls:
+        cluster_id = call['cache_metadata'].get('cache_cluster_id') or 'default'
+        if cluster_id not in cache_patterns:
+            cache_patterns[cluster_id] = {
+                'hits': 0,
+                'misses': 0,
+                'operations': set(),
+                'avg_similarity': [],
+            }
+        
+        if call['cache_metadata']['cache_hit']:
+            cache_patterns[cluster_id]['hits'] += 1
+        else:
+            cache_patterns[cluster_id]['misses'] += 1
+        
+        if call.get('operation'):
+            cache_patterns[cluster_id]['operations'].add(call['operation'])
+        
+        sim = call['cache_metadata'].get('similarity_score')
+        if sim is not None:
+            cache_patterns[cluster_id]['avg_similarity'].append(sim)
+    
+    # Calculate averages and convert sets
+    for cluster in cache_patterns:
+        sims = cache_patterns[cluster]['avg_similarity']
+        cache_patterns[cluster]['avg_similarity'] = (
+            sum(sims) / len(sims) if sims else 0
+        )
+        cache_patterns[cluster]['operations'] = list(
+            cache_patterns[cluster]['operations']
+        )
+        total = cache_patterns[cluster]['hits'] + cache_patterns[cluster]['misses']
+        cache_patterns[cluster]['hit_rate'] = (
+            cache_patterns[cluster]['hits'] / total if total > 0 else 0
+        )
     
     return {
         'metrics': cache_metrics,
@@ -590,6 +538,27 @@ def get_quality_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
         if reason:
             failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
     
+    # Criteria scores analysis
+    criteria_analysis = {}
+    for call in evaluated_calls:
+        qe = call.get('quality_evaluation', {})
+        criteria = qe.get('criteria_scores')
+        if criteria:
+            for criterion, score in criteria.items():
+                if criterion not in criteria_analysis:
+                    criteria_analysis[criterion] = []
+                criteria_analysis[criterion].append(score)
+    
+    # Calculate averages
+    for criterion in criteria_analysis:
+        scores = criteria_analysis[criterion]
+        criteria_analysis[criterion] = {
+            'avg': sum(scores) / len(scores) if scores else 0,
+            'min': min(scores) if scores else 0,
+            'max': max(scores) if scores else 0,
+            'count': len(scores),
+        }
+    
     return {
         'metrics': quality_metrics,
         'best_examples': [
@@ -620,6 +589,7 @@ def get_quality_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
             for c in worst_examples if c.get('quality_evaluation')
         ],
         'failure_reasons': failure_reasons,
+        'criteria_analysis': criteria_analysis,
         'total_evaluated': len(evaluated_calls),
         'total_calls': len(llm_calls),
     }
@@ -634,6 +604,7 @@ def get_prompt_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
         return {
             'total_calls': 0,
             'calls_with_breakdown': 0,
+            'calls_with_metadata': 0,
             'token_stats': {
                 'avg_system_tokens': 0,
                 'avg_history_tokens': 0,
@@ -642,10 +613,12 @@ def get_prompt_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
             },
             'long_prompt_count': 0,
             'by_operation': {},
+            'by_template': {},
         }
     
     # Analyze calls with prompt breakdown
     calls_with_breakdown = [c for c in llm_calls if c.get('prompt_breakdown')]
+    calls_with_metadata = [c for c in llm_calls if c.get('prompt_metadata')]
     
     # Token distribution
     token_stats = {
@@ -687,11 +660,14 @@ def get_prompt_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
                 'count': 0,
                 'total_prompt_tokens': 0,
                 'has_breakdown': 0,
+                'has_metadata': 0,
             }
         by_operation[op]['count'] += 1
         by_operation[op]['total_prompt_tokens'] += call['prompt_tokens']
         if call.get('prompt_breakdown'):
             by_operation[op]['has_breakdown'] += 1
+        if call.get('prompt_metadata'):
+            by_operation[op]['has_metadata'] += 1
     
     # Calculate averages
     for op in by_operation:
@@ -699,12 +675,42 @@ def get_prompt_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
             by_operation[op]['total_prompt_tokens'] / by_operation[op]['count']
         )
     
+    # By template analysis (NEW)
+    by_template = {}
+    for call in calls_with_metadata:
+        template_id = call['prompt_metadata'].get('prompt_template_id') or 'unknown'
+        version = call['prompt_metadata'].get('prompt_version') or 'unknown'
+        key = f"{template_id}@{version}"
+        
+        if key not in by_template:
+            by_template[key] = {
+                'template_id': template_id,
+                'version': version,
+                'count': 0,
+                'total_cost': 0,
+                'total_tokens': 0,
+            }
+        by_template[key]['count'] += 1
+        by_template[key]['total_cost'] += call['total_cost']
+        by_template[key]['total_tokens'] += call['prompt_tokens']
+    
+    # Calculate averages
+    for key in by_template:
+        by_template[key]['avg_cost'] = (
+            by_template[key]['total_cost'] / by_template[key]['count']
+        )
+        by_template[key]['avg_tokens'] = (
+            by_template[key]['total_tokens'] / by_template[key]['count']
+        )
+    
     return {
         'total_calls': len(llm_calls),
         'calls_with_breakdown': len(calls_with_breakdown),
+        'calls_with_metadata': len(calls_with_metadata),
         'token_stats': token_stats,
         'long_prompt_count': len(long_prompts),
         'by_operation': by_operation,
+        'by_template': by_template,
     }
 
 

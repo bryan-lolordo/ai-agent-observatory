@@ -111,7 +111,7 @@ def analyze_prompt_health(calls: List[Dict]) -> Dict[str, Any]:
         by_operation[op]['calls'].append(call)
         by_operation[op]['total_tokens'] += prompt_tokens
         
-        qual = call.get('quality_evaluation', {})
+        qual = call.get('quality_evaluation') or {}
         if qual.get('score') is not None:
             by_operation[op]['scores'].append(qual['score'])
         
@@ -217,7 +217,7 @@ def find_low_performers(calls: List[Dict]) -> List[Dict]:
     low_performers = []
     
     for call in calls:
-        qual = call.get('quality_evaluation', {})
+        qual = call.get('quality_evaluation') or {}
         if qual.get('score') is None:
             continue
         
