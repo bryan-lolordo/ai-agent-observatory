@@ -1,23 +1,25 @@
 """
-Prompt Optimizer Page - A/B Testing and Optimization
+Prompt Optimizer - Prompt Diagnostics Dashboard
 Location: dashboard/pages/prompt_optimizer.py
 
-Advanced prompt testing with A/B comparison, diff viewing, and optimization insights.
-Enables systematic prompt improvement through data-driven analysis.
+Developer-focused prompt analysis:
+1. Overview - Prompt health summary
+2. Long Prompts - Token reduction opportunities
+3. Low Performers - Quality-correlated prompt issues
+4. Compare - Side-by-side prompt comparison
 """
 
 import streamlit as st
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List, Tuple
 import pandas as pd
+from datetime import datetime
+from typing import Dict, Any, List
 from collections import defaultdict
 import difflib
-import json
+import re
 
 from dashboard.utils.data_fetcher import (
     get_project_overview,
     get_llm_calls,
-    get_available_agents,
 )
 from dashboard.utils.formatters import (
     format_cost,
@@ -27,697 +29,620 @@ from dashboard.utils.formatters import (
     format_model_name,
     truncate_text,
 )
-from dashboard.components.metric_cards import (
-    render_metric_row,
-    render_empty_state,
-)
-from dashboard.components.charts import (
-    create_bar_chart,
-    create_cost_breakdown_pie,
-)
+from dashboard.components.metric_cards import render_empty_state
 
 
-def count_tokens_estimate(text: str) -> int:
-    """Rough token count estimate (4 chars ≈ 1 token)."""
-    return len(text) // 4
+# =============================================================================
+# CONSTANTS
+# =============================================================================
+
+LONG_PROMPT_THRESHOLD = 4000  # tokens
+VERY_LONG_PROMPT_THRESHOLD = 8000  # tokens
+LOW_QUALITY_THRESHOLD = 7.0
 
 
-def generate_prompt_diff(prompt_a: str, prompt_b: str) -> List[Tuple[str, str]]:
-    """
-    Generate diff between two prompts.
+# =============================================================================
+# ANALYSIS FUNCTIONS
+# =============================================================================
+
+def parse_prompt_components(call: Dict) -> Dict[str, Any]:
+    """Parse prompt into components."""
     
-    Returns:
-        List of (diff_type, text) tuples where diff_type is '+', '-', or ' '
-    """
+    metadata = call.get('metadata', {}) or {}
+    prompt = call.get('prompt', '') or ''
+    prompt_tokens = call.get('prompt_tokens', 0)
+    
+    # Try metadata first
+    if metadata.get('system_prompt_tokens'):
+        return {
+            'system_prompt': metadata.get('system_prompt', '')[:500],
+            'system_prompt_tokens': metadata.get('system_prompt_tokens', 0),
+            'chat_history_tokens': metadata.get('chat_history_tokens', 0),
+            'chat_history_count': metadata.get('chat_history_count', 0),
+            'user_message': metadata.get('user_message', '')[:300],
+            'user_message_tokens': metadata.get('user_message_tokens', 0),
+            'has_breakdown': True,
+        }
+    
+    # Estimate from prompt
+    has_history = bool(re.search(r'Human:|User:|Assistant:|AI:', prompt, re.I))
+    message_count = len(re.findall(r'Human:|User:|Assistant:|AI:', prompt, re.I))
+    
+    # Rough estimation
+    if has_history and message_count > 2:
+        system_pct = 0.25
+        history_pct = min(0.60, message_count * 0.08)
+        user_pct = 1 - system_pct - history_pct
+    else:
+        system_pct = 0.30
+        history_pct = 0
+        user_pct = 0.70
+    
+    return {
+        'system_prompt': prompt[:500],
+        'system_prompt_tokens': int(prompt_tokens * system_pct),
+        'chat_history_tokens': int(prompt_tokens * history_pct),
+        'chat_history_count': message_count,
+        'user_message': prompt[-300:],
+        'user_message_tokens': int(prompt_tokens * user_pct),
+        'has_breakdown': False,
+    }
+
+
+def analyze_prompt_health(calls: List[Dict]) -> Dict[str, Any]:
+    """Analyze overall prompt health."""
+    
+    total = len(calls)
+    
+    # Categorize prompts
+    long_prompts = []
+    low_quality_prompts = []
+    
+    by_operation = defaultdict(lambda: {
+        'calls': [],
+        'total_tokens': 0,
+        'scores': [],
+    })
+    
+    for call in calls:
+        prompt_tokens = call.get('prompt_tokens', 0)
+        op = call.get('operation', 'unknown')
+        
+        by_operation[op]['calls'].append(call)
+        by_operation[op]['total_tokens'] += prompt_tokens
+        
+        qual = call.get('quality_evaluation', {})
+        if qual.get('score') is not None:
+            by_operation[op]['scores'].append(qual['score'])
+        
+        if prompt_tokens > LONG_PROMPT_THRESHOLD:
+            long_prompts.append(call)
+        
+        if qual.get('score') is not None and qual['score'] < LOW_QUALITY_THRESHOLD:
+            low_quality_prompts.append(call)
+    
+    # Calculate per-operation stats
+    operations = []
+    for op, stats in by_operation.items():
+        avg_tokens = stats['total_tokens'] / len(stats['calls'])
+        avg_score = sum(stats['scores']) / len(stats['scores']) if stats['scores'] else None
+        
+        # Determine status
+        if avg_tokens > VERY_LONG_PROMPT_THRESHOLD:
+            status = 'VERY_LONG'
+        elif avg_tokens > LONG_PROMPT_THRESHOLD:
+            status = 'LONG'
+        elif avg_score and avg_score < LOW_QUALITY_THRESHOLD:
+            status = 'LOW_QUALITY'
+        else:
+            status = 'HEALTHY'
+        
+        operations.append({
+            'operation': op,
+            'call_count': len(stats['calls']),
+            'avg_tokens': avg_tokens,
+            'avg_score': avg_score,
+            'status': status,
+        })
+    
+    operations.sort(key=lambda x: -x['avg_tokens'])
+    
+    return {
+        'total_calls': total,
+        'long_prompt_count': len(long_prompts),
+        'low_quality_count': len(low_quality_prompts),
+        'avg_prompt_tokens': sum(c.get('prompt_tokens', 0) for c in calls) / total if total > 0 else 0,
+        'operations': operations,
+    }
+
+
+def find_long_prompts(calls: List[Dict]) -> List[Dict]:
+    """Find calls with long prompts and analyze reduction opportunities."""
+    
+    long_prompts = []
+    
+    for call in calls:
+        prompt_tokens = call.get('prompt_tokens', 0)
+        
+        if prompt_tokens > LONG_PROMPT_THRESHOLD:
+            components = parse_prompt_components(call)
+            
+            # Identify optimization opportunities
+            opportunities = []
+            potential_savings = 0
+            
+            # Check for long chat history
+            if components['chat_history_count'] > 6:
+                history_reduction = components['chat_history_tokens'] * 0.5  # Keep ~half
+                opportunities.append({
+                    'type': 'SLIDING_WINDOW',
+                    'description': f"Limit chat history from {components['chat_history_count']} to 6 messages",
+                    'token_savings': int(history_reduction),
+                })
+                potential_savings += history_reduction
+            
+            # Check for large system prompt
+            if components['system_prompt_tokens'] > 2000:
+                system_reduction = components['system_prompt_tokens'] * 0.4  # 40% reduction possible
+                opportunities.append({
+                    'type': 'COMPRESS_SYSTEM',
+                    'description': "Compress or summarize system prompt content",
+                    'token_savings': int(system_reduction),
+                })
+                potential_savings += system_reduction
+            
+            # Calculate cost savings
+            cost_per_token = call.get('total_cost', 0) / call.get('total_tokens', 1) if call.get('total_tokens', 0) > 0 else 0
+            cost_savings = potential_savings * cost_per_token
+            
+            long_prompts.append({
+                'call': call,
+                'prompt_tokens': prompt_tokens,
+                'components': components,
+                'opportunities': opportunities,
+                'potential_savings_tokens': int(potential_savings),
+                'potential_savings_cost': cost_savings,
+                'reduction_pct': potential_savings / prompt_tokens if prompt_tokens > 0 else 0,
+            })
+    
+    # Sort by potential savings
+    long_prompts.sort(key=lambda x: -x['potential_savings_tokens'])
+    
+    return long_prompts
+
+
+def find_low_performers(calls: List[Dict]) -> List[Dict]:
+    """Find prompts correlated with low quality."""
+    
+    low_performers = []
+    
+    for call in calls:
+        qual = call.get('quality_evaluation', {})
+        if qual.get('score') is None:
+            continue
+        
+        score = qual['score']
+        if score < LOW_QUALITY_THRESHOLD:
+            components = parse_prompt_components(call)
+            
+            # Analyze potential prompt issues
+            issues = []
+            
+            prompt = call.get('prompt', '')
+            
+            # Check for vague instructions
+            if not any(word in prompt.lower() for word in ['must', 'should', 'always', 'never', 'required']):
+                issues.append({
+                    'type': 'VAGUE_INSTRUCTIONS',
+                    'description': 'Prompt lacks explicit requirements or constraints',
+                    'fix': 'Add specific requirements: "You must...", "Always include..."',
+                })
+            
+            # Check for missing examples
+            if 'example' not in prompt.lower() and 'e.g.' not in prompt.lower():
+                issues.append({
+                    'type': 'NO_EXAMPLES',
+                    'description': 'Prompt has no examples to guide output',
+                    'fix': 'Add 1-2 examples of expected output format',
+                })
+            
+            # Check for missing output format
+            if not any(word in prompt.lower() for word in ['format', 'json', 'markdown', 'structure', 'return']):
+                issues.append({
+                    'type': 'NO_FORMAT',
+                    'description': 'No output format specification',
+                    'fix': 'Specify expected output format explicitly',
+                })
+            
+            low_performers.append({
+                'call': call,
+                'score': score,
+                'components': components,
+                'issues': issues,
+                'judge_feedback': qual.get('reasoning', qual.get('judge_feedback', '')),
+            })
+    
+    # Sort by score (lowest first)
+    low_performers.sort(key=lambda x: x['score'])
+    
+    return low_performers
+
+
+def generate_prompt_diff(prompt_a: str, prompt_b: str) -> List[Dict]:
+    """Generate diff between two prompts."""
+    
     lines_a = prompt_a.split('\n')
     lines_b = prompt_b.split('\n')
     
-    diff = list(difflib.unified_diff(lines_a, lines_b, lineterm=''))
+    differ = difflib.unified_diff(lines_a, lines_b, lineterm='', n=3)
     
-    # Parse unified diff format
     changes = []
-    for line in diff[2:]:  # Skip header lines
-        if line.startswith('+'):
-            changes.append(('+', line[1:]))
+    for line in differ:
+        if line.startswith('+++') or line.startswith('---') or line.startswith('@@'):
+            continue
+        elif line.startswith('+'):
+            changes.append({'type': 'add', 'text': line[1:]})
         elif line.startswith('-'):
-            changes.append(('-', line[1:]))
-        elif not line.startswith('@@'):
-            changes.append((' ', line))
+            changes.append({'type': 'remove', 'text': line[1:]})
+        else:
+            changes.append({'type': 'same', 'text': line})
     
     return changes
 
 
-def analyze_test_results(results_a: List[Dict], results_b: List[Dict]) -> Dict[str, Any]:
-    """
-    Analyze A/B test results and determine winners.
-    
-    Args:
-        results_a: Test results for Prompt A
-        results_b: Test results for Prompt B
-    
-    Returns:
-        Analysis dictionary with metrics and winners
-    """
-    if not results_a or not results_b:
-        return {}
-    
-    # Calculate averages for Prompt A
-    avg_score_a = sum(r.get('score', 0) for r in results_a) / len(results_a)
-    avg_cost_a = sum(r.get('cost', 0) for r in results_a) / len(results_a)
-    avg_latency_a = sum(r.get('latency', 0) for r in results_a) / len(results_a)
-    avg_tokens_a = sum(r.get('tokens', 0) for r in results_a) / len(results_a)
-    
-    # Calculate averages for Prompt B
-    avg_score_b = sum(r.get('score', 0) for r in results_b) / len(results_b)
-    avg_cost_b = sum(r.get('cost', 0) for r in results_b) / len(results_b)
-    avg_latency_b = sum(r.get('latency', 0) for r in results_b) / len(results_b)
-    avg_tokens_b = sum(r.get('tokens', 0) for r in results_b) / len(results_b)
-    
-    # Determine winners
-    winners = {
-        'quality': 'A' if avg_score_a > avg_score_b else ('B' if avg_score_b > avg_score_a else 'Tie'),
-        'cost': 'A' if avg_cost_a < avg_cost_b else ('B' if avg_cost_b < avg_cost_a else 'Tie'),
-        'latency': 'A' if avg_latency_a < avg_latency_b else ('B' if avg_latency_b < avg_latency_a else 'Tie'),
-        'tokens': 'A' if avg_tokens_a < avg_tokens_b else ('B' if avg_tokens_b < avg_tokens_a else 'Tie'),
-    }
-    
-    return {
-        'prompt_a': {
-            'avg_score': avg_score_a,
-            'avg_cost': avg_cost_a,
-            'avg_latency': avg_latency_a,
-            'avg_tokens': avg_tokens_a,
-        },
-        'prompt_b': {
-            'avg_score': avg_score_b,
-            'avg_cost': avg_cost_b,
-            'avg_latency': avg_latency_b,
-            'avg_tokens': avg_tokens_b,
-        },
-        'winners': winners,
-        'deltas': {
-            'score': avg_score_b - avg_score_a,
-            'cost': avg_cost_b - avg_cost_a,
-            'latency': avg_latency_b - avg_latency_a,
-            'tokens': avg_tokens_b - avg_tokens_a,
-        }
-    }
+# =============================================================================
+# RENDERING FUNCTIONS
+# =============================================================================
 
-
-def generate_optimization_insights(analysis: Dict, prompt_a: str, prompt_b: str, 
-                                   results_a: List[Dict], results_b: List[Dict]) -> List[str]:
-    """Generate AI-style optimization insights from test results."""
-    if not analysis:
-        return []
+def render_prompt_health_banner(health: Dict):
+    """Render prompt health banner."""
     
-    insights = []
+    long_count = health['long_prompt_count']
+    low_qual_count = health['low_quality_count']
     
-    deltas = analysis['deltas']
-    winners = analysis['winners']
-    
-    # Quality insights
-    if abs(deltas['score']) > 0.5:
-        if deltas['score'] > 0:
-            insights.append(f"✅ Prompt B improves quality by {deltas['score']:.1f} points ({format_percentage(abs(deltas['score'])/10)} improvement)")
-        else:
-            insights.append(f"⚠️ Prompt A performs better with {abs(deltas['score']):.1f} higher quality score")
-    
-    # Cost insights
-    if abs(deltas['cost']) > 0.0001:
-        cost_change_pct = (deltas['cost'] / analysis['prompt_a']['avg_cost']) * 100 if analysis['prompt_a']['avg_cost'] > 0 else 0
-        if deltas['cost'] < 0:
-            insights.append(f"💰 Prompt B reduces cost by {format_cost(abs(deltas['cost']))} per call ({abs(cost_change_pct):.1f}% savings)")
-        else:
-            insights.append(f"💸 Prompt B increases cost by {format_cost(deltas['cost'])} per call ({cost_change_pct:.1f}% more expensive)")
-    
-    # Token efficiency
-    if abs(deltas['tokens']) > 50:
-        if deltas['tokens'] < 0:
-            insights.append(f"📉 Prompt B uses {int(abs(deltas['tokens']))} fewer tokens per call (more concise)")
-        else:
-            insights.append(f"📈 Prompt B uses {int(deltas['tokens'])} more tokens per call (more detailed)")
-    
-    # Latency insights
-    if abs(deltas['latency']) > 100:
-        if deltas['latency'] < 0:
-            insights.append(f"⚡ Prompt B is {int(abs(deltas['latency']))}ms faster on average")
-        else:
-            insights.append(f"🐌 Prompt B is {int(deltas['latency'])}ms slower on average")
-    
-    # Prompt length comparison
-    len_a = len(prompt_a)
-    len_b = len(prompt_b)
-    if abs(len_a - len_b) > 100:
-        if len_b < len_a:
-            insights.append(f"✂️ Prompt B is {len_a - len_b} characters shorter (simplification)")
-        else:
-            insights.append(f"📝 Prompt B is {len_b - len_a} characters longer (more detailed instructions)")
-    
-    # Consistency analysis
-    scores_a = [r.get('score', 0) for r in results_a]
-    scores_b = [r.get('score', 0) for r in results_b]
-    
-    if scores_a and scores_b:
-        import statistics
-        std_a = statistics.stdev(scores_a) if len(scores_a) > 1 else 0
-        std_b = statistics.stdev(scores_b) if len(scores_b) > 1 else 0
-        
-        if std_b < std_a * 0.8:
-            insights.append(f"🎯 Prompt B is more consistent (lower variance in quality)")
-        elif std_b > std_a * 1.2:
-            insights.append(f"📊 Prompt A is more consistent across test cases")
-    
-    # Overall recommendation
-    wins_a = sum(1 for w in winners.values() if w == 'A')
-    wins_b = sum(1 for w in winners.values() if w == 'B')
-    
-    if wins_b > wins_a:
-        insights.append(f"🏆 **Recommendation: Use Prompt B** (wins {wins_b}/{len(winners)} metrics)")
-    elif wins_a > wins_b:
-        insights.append(f"🏆 **Recommendation: Use Prompt A** (wins {wins_a}/{len(winners)} metrics)")
+    if long_count > 10 or low_qual_count > 5:
+        st.error(f"🔴 **Prompt Issues Detected** — {long_count} long prompts, {low_qual_count} low-quality outputs")
+    elif long_count > 0 or low_qual_count > 0:
+        st.warning(f"🟡 **{long_count} prompts need optimization** — Avg {format_tokens(int(health['avg_prompt_tokens']))} tokens/prompt")
     else:
-        insights.append(f"🤝 **Prompts perform similarly** - choose based on your priority (quality vs cost)")
-    
-    return insights
+        st.success(f"🟢 **Prompts Healthy** — Avg {format_tokens(int(health['avg_prompt_tokens']))} tokens/prompt")
 
 
-def render_prompt_diff_viewer(prompt_a: str, prompt_b: str):
-    """Render side-by-side diff viewer."""
-    st.subheader("📝 Prompt Diff Viewer")
+def render_token_breakdown(components: Dict, total_tokens: int):
+    """Render token breakdown visualization."""
     
-    diff_changes = generate_prompt_diff(prompt_a, prompt_b)
+    system_pct = components['system_prompt_tokens'] / total_tokens * 100 if total_tokens > 0 else 0
+    history_pct = components['chat_history_tokens'] / total_tokens * 100 if total_tokens > 0 else 0
+    user_pct = components['user_message_tokens'] / total_tokens * 100 if total_tokens > 0 else 0
     
-    if not diff_changes:
-        st.info("Prompts are identical")
+    st.markdown("**Token Breakdown:**")
+    
+    data = {
+        'Component': ['System Prompt', 'Chat History', 'User Message'],
+        'Tokens': [
+            f"{components['system_prompt_tokens']:,}",
+            f"{components['chat_history_tokens']:,} ({components['chat_history_count']} msgs)",
+            f"{components['user_message_tokens']:,}",
+        ],
+        '%': [f"{system_pct:.0f}%", f"{history_pct:.0f}%", f"{user_pct:.0f}%"],
+    }
+    
+    st.dataframe(pd.DataFrame(data), width='stretch', hide_index=True)
+    
+    if not components['has_breakdown']:
+        st.caption("⚠️ Estimated breakdown — add instrumentation for exact values")
+
+
+def render_long_prompt_card(item: Dict, index: int):
+    """Render a long prompt card."""
+    
+    call = item['call']
+    
+    severity = "🔴" if item['prompt_tokens'] > VERY_LONG_PROMPT_THRESHOLD else "🟡"
+    
+    st.markdown(f"### {severity} #{index} — {format_tokens(item['prompt_tokens'])} tokens — {call.get('operation', 'unknown')}")
+    st.caption(f"{call.get('agent_name', 'unknown')} • {format_model_name(call.get('model_name', ''))} • {format_cost(call.get('total_cost', 0))}")
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        render_token_breakdown(item['components'], item['prompt_tokens'])
+    
+    with col2:
+        st.markdown("**Optimization Opportunities:**")
+        
+        if item['opportunities']:
+            for opp in item['opportunities']:
+                st.write(f"- {opp['description']} (save ~{format_tokens(opp['token_savings'])})")
+            
+            st.success(f"**Potential:** {format_tokens(item['potential_savings_tokens'])} tokens ({item['reduction_pct']:.0%} reduction)")
+            st.write(f"Save ~{format_cost(item['potential_savings_cost'])}/call")
+        else:
+            st.info("No obvious optimization opportunities detected")
+    
+    with st.expander("📝 View Prompt Preview"):
+        st.markdown("**System Prompt:**")
+        st.code(item['components']['system_prompt'], language="text")
+        
+        if item['components']['chat_history_count'] > 0:
+            st.markdown(f"**Chat History:** {item['components']['chat_history_count']} messages")
+        
+        st.markdown("**User Message:**")
+        st.code(item['components']['user_message'], language="text")
+
+
+def render_low_performer_card(item: Dict, index: int):
+    """Render a low performer card."""
+    
+    call = item['call']
+    
+    st.markdown(f"### 📉 #{index} — Score: {item['score']:.1f}/10 — {call.get('operation', 'unknown')}")
+    st.caption(f"{call.get('agent_name', 'unknown')} • {format_model_name(call.get('model_name', ''))}")
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("**Prompt Issues Detected:**")
+        
+        if item['issues']:
+            for issue in item['issues']:
+                st.error(f"**{issue['type']}:** {issue['description']}")
+                st.caption(f"Fix: {issue['fix']}")
+        else:
+            st.info("No obvious prompt issues detected — may be model limitation")
+    
+    with col2:
+        if item['judge_feedback']:
+            st.markdown("**Judge Feedback:**")
+            st.info(item['judge_feedback'][:300])
+    
+    with st.expander("📝 View Full Prompt"):
+        st.code(call.get('prompt', 'N/A')[:1000], language="text")
+
+
+def render_overview_tab(calls: List[Dict], health: Dict):
+    """Render Overview tab."""
+    
+    st.subheader("📊 Prompt Health Summary")
+    
+    # KPIs
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Calls", f"{health['total_calls']:,}")
+    with col2:
+        st.metric("Avg Tokens", format_tokens(int(health['avg_prompt_tokens'])))
+    with col3:
+        st.metric("Long Prompts", health['long_prompt_count'])
+    with col4:
+        st.metric("Low Quality", health['low_quality_count'])
+    
+    st.divider()
+    
+    # By operation
+    st.subheader("🎯 Prompt Stats by Operation")
+    
+    op_data = []
+    for op in health['operations']:
+        status_display = {
+            'VERY_LONG': '🔴 Very long',
+            'LONG': '🟡 Long',
+            'LOW_QUALITY': '🟠 Low quality',
+            'HEALTHY': '🟢 Healthy',
+        }
+        
+        op_data.append({
+            'Operation': op['operation'],
+            'Calls': op['call_count'],
+            'Avg Tokens': format_tokens(int(op['avg_tokens'])),
+            'Avg Score': f"{op['avg_score']:.1f}/10" if op['avg_score'] else "—",
+            'Status': status_display.get(op['status'], op['status']),
+        })
+    
+    st.dataframe(pd.DataFrame(op_data), width='stretch', hide_index=True)
+
+
+def render_long_prompts_tab(long_prompts: List[Dict]):
+    """Render Long Prompts tab."""
+    
+    if not long_prompts:
+        st.success(f"✅ No prompts over {format_tokens(LONG_PROMPT_THRESHOLD)} tokens!")
         return
     
-    st.caption("Color coding: 🟢 Added, 🔴 Removed, ⚪ Unchanged")
+    st.subheader(f"📏 {len(long_prompts)} Long Prompts")
+    st.caption(f"Prompts over {format_tokens(LONG_PROMPT_THRESHOLD)} tokens")
     
-    # Display diff
-    diff_html = []
-    for diff_type, text in diff_changes:
-        if diff_type == '+':
-            diff_html.append(f'<div style="background-color: #d4edda; padding: 2px 4px; margin: 1px 0;">+ {text}</div>')
-        elif diff_type == '-':
-            diff_html.append(f'<div style="background-color: #f8d7da; padding: 2px 4px; margin: 1px 0;">- {text}</div>')
-        else:
-            diff_html.append(f'<div style="padding: 2px 4px; margin: 1px 0;">&nbsp; {text}</div>')
+    # Summary
+    total_potential = sum(p['potential_savings_tokens'] for p in long_prompts)
+    total_cost_savings = sum(p['potential_savings_cost'] for p in long_prompts)
     
-    st.markdown(''.join(diff_html), unsafe_allow_html=True)
+    if total_potential > 0:
+        st.info(f"💡 **Total Optimization Potential:** {format_tokens(total_potential)} tokens, ~{format_cost(total_cost_savings)}/period")
+    
+    st.divider()
+    
+    for i, item in enumerate(long_prompts[:10], 1):
+        with st.container():
+            render_long_prompt_card(item, i)
+            st.divider()
+    
+    if len(long_prompts) > 10:
+        st.caption(f"Showing top 10 of {len(long_prompts)} long prompts")
 
 
-def render_routing_impact_analysis(results_a: List[Dict], results_b: List[Dict]):
-    """Analyze and display routing impact of each prompt."""
-    st.subheader("🔀 Routing Impact Analysis")
+def render_low_performers_tab(low_performers: List[Dict]):
+    """Render Low Performers tab."""
     
-    # Analyze model distribution for each prompt
-    models_a = defaultdict(int)
-    models_b = defaultdict(int)
+    if not low_performers:
+        st.success("✅ No low-quality prompts detected!")
+        return
     
-    for r in results_a:
-        model = r.get('model', 'Unknown')
-        models_a[model] += 1
+    st.subheader(f"📉 {len(low_performers)} Low-Performing Prompts")
+    st.caption(f"Prompts with quality score < {LOW_QUALITY_THRESHOLD}")
     
-    for r in results_b:
-        model = r.get('model', 'Unknown')
-        models_b[model] += 1
+    for i, item in enumerate(low_performers[:10], 1):
+        with st.container():
+            render_low_performer_card(item, i)
+            st.divider()
+
+
+def render_compare_tab(calls: List[Dict]):
+    """Render Compare tab for side-by-side comparison."""
     
-    # Categorize models
-    def categorize_model(model: str) -> str:
-        model_lower = model.lower()
-        if any(x in model_lower for x in ['gpt-4', 'opus', '4o']):
-            return 'Premium'
-        elif any(x in model_lower for x in ['sonnet', 'haiku', 'turbo', '3.5']):
-            return 'Medium'
-        else:
-            return 'Budget'
+    st.subheader("🔬 Compare Prompts")
+    st.caption("Select two calls to compare their prompts")
     
-    categories_a = defaultdict(int)
-    categories_b = defaultdict(int)
+    # Filter to calls with prompts
+    calls_with_prompts = [c for c in calls if c.get('prompt')][:50]
     
-    for model, count in models_a.items():
-        category = categorize_model(model)
-        categories_a[category] += count
-    
-    for model, count in models_b.items():
-        category = categorize_model(model)
-        categories_b[category] += count
-    
-    # Calculate percentages
-    total_a = sum(categories_a.values())
-    total_b = sum(categories_b.values())
+    if len(calls_with_prompts) < 2:
+        st.info("Need at least 2 calls with prompts to compare")
+        return
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.write("### Prompt A Distribution")
-        if total_a > 0:
-            for category in ['Budget', 'Medium', 'Premium']:
-                count = categories_a.get(category, 0)
-                pct = (count / total_a) * 100
-                st.write(f"**{category}:** {pct:.1f}% ({count} calls)")
-        else:
-            st.info("No routing data")
+        idx_a = st.selectbox(
+            "Select Call A",
+            options=range(len(calls_with_prompts)),
+            format_func=lambda i: f"{calls_with_prompts[i].get('operation', 'unknown')} - {format_tokens(calls_with_prompts[i].get('prompt_tokens', 0))}",
+            key="compare_a"
+        )
     
     with col2:
-        st.write("### Prompt B Distribution")
-        if total_b > 0:
-            for category in ['Budget', 'Medium', 'Premium']:
-                count = categories_b.get(category, 0)
-                pct = (count / total_b) * 100
-                st.write(f"**{category}:** {pct:.1f}% ({count} calls)")
-        else:
-            st.info("No routing data")
+        idx_b = st.selectbox(
+            "Select Call B",
+            options=range(len(calls_with_prompts)),
+            format_func=lambda i: f"{calls_with_prompts[i].get('operation', 'unknown')} - {format_tokens(calls_with_prompts[i].get('prompt_tokens', 0))}",
+            key="compare_b",
+            index=min(1, len(calls_with_prompts) - 1)
+        )
     
-    # Analysis
-    if total_a > 0 and total_b > 0:
-        budget_a_pct = (categories_a.get('Budget', 0) / total_a) * 100
-        budget_b_pct = (categories_b.get('Budget', 0) / total_b) * 100
+    if idx_a == idx_b:
+        st.warning("Select different calls to compare")
+        return
+    
+    call_a = calls_with_prompts[idx_a]
+    call_b = calls_with_prompts[idx_b]
+    
+    st.divider()
+    
+    # Comparison metrics
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### Call A")
+        st.write(f"- Operation: {call_a.get('operation', 'unknown')}")
+        st.write(f"- Tokens: {format_tokens(call_a.get('prompt_tokens', 0))}")
+        st.write(f"- Cost: {format_cost(call_a.get('total_cost', 0))}")
         
-        if budget_b_pct > budget_a_pct + 5:
-            st.success(f"✅ Prompt B is more router-friendly ({budget_b_pct:.1f}% vs {budget_a_pct:.1f}% budget models)")
-        elif budget_a_pct > budget_b_pct + 5:
-            st.success(f"✅ Prompt A is more router-friendly ({budget_a_pct:.1f}% vs {budget_b_pct:.1f}% budget models)")
+        qual_a = call_a.get('quality_evaluation', {})
+        if qual_a.get('score'):
+            st.write(f"- Score: {qual_a['score']:.1f}/10")
+    
+    with col2:
+        st.markdown("### Call B")
+        st.write(f"- Operation: {call_b.get('operation', 'unknown')}")
+        st.write(f"- Tokens: {format_tokens(call_b.get('prompt_tokens', 0))}")
+        st.write(f"- Cost: {format_cost(call_b.get('total_cost', 0))}")
+        
+        qual_b = call_b.get('quality_evaluation', {})
+        if qual_b.get('score'):
+            st.write(f"- Score: {qual_b['score']:.1f}/10")
+    
+    st.divider()
+    
+    # Side-by-side prompts
+    st.markdown("### Prompts")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**Prompt A:**")
+        st.code(truncate_text(call_a.get('prompt', ''), 1000), language="text")
+    
+    with col2:
+        st.markdown("**Prompt B:**")
+        st.code(truncate_text(call_b.get('prompt', ''), 1000), language="text")
+    
+    # Diff view
+    with st.expander("📋 View Diff"):
+        diff = generate_prompt_diff(
+            call_a.get('prompt', '')[:2000], 
+            call_b.get('prompt', '')[:2000]
+        )
+        
+        for change in diff[:50]:
+            if change['type'] == 'add':
+                st.markdown(f"<span style='background-color: #90EE90'>+ {change['text']}</span>", unsafe_allow_html=True)
+            elif change['type'] == 'remove':
+                st.markdown(f"<span style='background-color: #FFB6C1'>- {change['text']}</span>", unsafe_allow_html=True)
 
+
+# =============================================================================
+# MAIN RENDER
+# =============================================================================
 
 def render():
-    """Render the Prompt Optimizer page."""
+    """Main render function for Prompt Optimizer page."""
     
-    st.title("✨ Prompt Optimizer - A/B Testing")
+    st.title("📝 Prompt Diagnostics")
+    st.caption("Find inefficient prompts and how to improve them")
     
-    # Get selected project
     selected_project = st.session_state.get('selected_project')
     
-    # Project indicator
-    if selected_project:
-        st.info(f"📊 Optimizing prompts for: **{selected_project}**")
-    else:
-        st.info("📊 Optimizing prompts for: **All Projects**")
-    
-    st.divider()
-    
-    # Initialize session state for test results
-    if 'test_results_a' not in st.session_state:
-        st.session_state.test_results_a = None
-    if 'test_results_b' not in st.session_state:
-        st.session_state.test_results_b = None
-    
-    # Section 1: Prompt Variant Workspace
-    st.subheader("✏️ Prompt Variant Workspace")
-    
-    col1, col2 = st.columns(2)
-    
+    col1, col2 = st.columns([3, 1])
     with col1:
-        st.write("### Prompt A (Baseline)")
-        prompt_a = st.text_area(
-            "Enter Prompt A",
-            value="Summarize the following text concisely:\n\n{text}",
-            height=200,
-            key="prompt_a"
-        )
-        tokens_a = count_tokens_estimate(prompt_a)
-        st.caption(f"Estimated tokens: ~{tokens_a}")
-    
+        if selected_project:
+            st.info(f"Analyzing: **{selected_project}**")
     with col2:
-        st.write("### Prompt B (Variant)")
-        prompt_b = st.text_area(
-            "Enter Prompt B",
-            value="Provide a 3-bullet point summary of this text:\n\n{text}",
-            height=200,
-            key="prompt_b"
-        )
-        tokens_b = count_tokens_estimate(prompt_b)
-        st.caption(f"Estimated tokens: ~{tokens_b}")
-    
-    st.divider()
-    
-    # Section 2: Test Dataset Selector
-    st.subheader("🎯 Test Dataset & Configuration")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        test_dataset = st.selectbox(
-            "Test Dataset",
-            options=[
-                "10 sample queries",
-                "25 mixed queries",
-                "50 comprehensive test",
-                "Use recent calls (last 24h)",
-            ],
-            key="test_dataset"
-        )
-    
-    with col2:
-        test_model = st.selectbox(
-            "Test Model",
-            options=["gpt-4o", "claude-sonnet-4", "mistral-small", "Use router"],
-            key="test_model"
-        )
-    
-    with col3:
-        enable_judge = st.checkbox(
-            "Enable Quality Evaluation",
-            value=True,
-            help="Run LLM Judge on outputs (adds cost)",
-            key="enable_judge"
-        )
-    
-    # Simulate test button
-    if st.button("🚀 Run A/B Test", type="primary"):
-        with st.spinner("Running A/B test..."):
-            # Simulate test results (in production, this would call actual LLMs)
-            import random
-            import time
-            
-            time.sleep(2)  # Simulate processing
-            
-            # Generate simulated results
-            num_tests = 10 if "10" in test_dataset else (25 if "25" in test_dataset else 50)
-            
-            results_a = []
-            results_b = []
-            
-            base_score_a = random.uniform(7.5, 8.5)
-            base_score_b = random.uniform(8.0, 9.0)
-            
-            for i in range(num_tests):
-                # Simulate results for Prompt A
-                results_a.append({
-                    'query': f"Test query {i+1}",
-                    'score': base_score_a + random.uniform(-1, 1),
-                    'cost': 0.004 + random.uniform(-0.001, 0.001),
-                    'latency': 1200 + random.randint(-200, 200),
-                    'tokens': tokens_a + random.randint(-50, 50),
-                    'model': test_model if test_model != "Use router" else random.choice(['gpt-4o', 'claude-sonnet-4', 'mistral-small'])
-                })
-                
-                # Simulate results for Prompt B
-                results_b.append({
-                    'query': f"Test query {i+1}",
-                    'score': base_score_b + random.uniform(-1, 1),
-                    'cost': 0.003 + random.uniform(-0.0005, 0.0005),
-                    'latency': 1100 + random.randint(-150, 150),
-                    'tokens': tokens_b + random.randint(-40, 40),
-                    'model': test_model if test_model != "Use router" else random.choice(['gpt-4o', 'claude-sonnet-4', 'mistral-small'])
-                })
-            
-            st.session_state.test_results_a = results_a
-            st.session_state.test_results_b = results_b
-            
-            st.success(f"✅ A/B test completed! Tested {num_tests} queries.")
+        if st.button("🔄 Refresh", width='stretch'):
+            st.cache_data.clear()
             st.rerun()
     
-    # Check if we have test results
-    if st.session_state.test_results_a is None or st.session_state.test_results_b is None:
+    try:
+        calls = get_llm_calls(project_name=selected_project, limit=500)
+        
+        if not calls:
+            render_empty_state(
+                message="No LLM calls found",
+                icon="📝",
+                suggestion="Start making LLM calls with Observatory tracking enabled"
+            )
+            return
+        
+        # Analyze
+        with st.spinner("Analyzing prompts..."):
+            health = analyze_prompt_health(calls)
+            long_prompts = find_long_prompts(calls)
+            low_performers = find_low_performers(calls)
+        
+        # Status banner
+        render_prompt_health_banner(health)
+        
         st.divider()
-        st.info("👆 Configure test parameters and click 'Run A/B Test' to start optimization analysis")
         
-        # Show guidance
-        with st.expander("ℹ️ How to Use Prompt Optimizer"):
-            st.markdown("""
-            **Step-by-Step Guide:**
-            
-            1. **Enter Prompts**
-               - Prompt A: Your baseline/current prompt
-               - Prompt B: The variant you want to test
-               - Use {variables} for dynamic content
-            
-            2. **Select Test Dataset**
-               - Start small (10 queries) for quick iteration
-               - Use larger sets (50+) for production validation
-               - Can use recent real calls for realistic testing
-            
-            3. **Configure Testing**
-               - Choose model to test with
-               - Enable/disable quality evaluation (Judge)
-               - Quality eval adds ~$0.01 per test but provides score
-            
-            4. **Run Test**
-               - System tests both prompts on same queries
-               - Tracks quality, cost, latency, tokens
-               - Identifies routing patterns
-            
-            5. **Analyze Results**
-               - Compare metrics side-by-side
-               - View detailed per-query results
-               - Get optimization insights
-               - Export winning prompt
-            
-            **Best Practices:**
-            - Test one change at a time
-            - Use diverse test queries
-            - Consider cost vs quality tradeoffs
-            - Run multiple iterations
-            """)
+        # Tabs
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📊 Overview",
+            f"📏 Long ({len(long_prompts)})",
+            f"📉 Low Perf ({len(low_performers)})",
+            "🔬 Compare"
+        ])
         
-        return
-    
-    # We have test results - show analysis
-    st.divider()
-    
-    # Analyze results
-    analysis = analyze_test_results(
-        st.session_state.test_results_a,
-        st.session_state.test_results_b
-    )
-    
-    # Section 3: A/B Test Results Summary
-    st.subheader("📊 A/B Test Results Summary")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.write("### Prompt A (Baseline)")
-        metrics_a = [
-            {
-                "label": "Avg Quality Score",
-                "value": f"{analysis['prompt_a']['avg_score']:.1f}/10",
-            },
-            {
-                "label": "Avg Cost",
-                "value": format_cost(analysis['prompt_a']['avg_cost']),
-            },
-            {
-                "label": "Avg Latency",
-                "value": format_latency(analysis['prompt_a']['avg_latency']),
-            },
-            {
-                "label": "Avg Tokens",
-                "value": format_tokens(int(analysis['prompt_a']['avg_tokens'])),
-            },
-        ]
-        render_metric_row(metrics_a, columns=2)
-    
-    with col2:
-        st.write("### Prompt B (Variant)")
-        metrics_b = [
-            {
-                "label": "Avg Quality Score",
-                "value": f"{analysis['prompt_b']['avg_score']:.1f}/10",
-                "delta": f"{analysis['deltas']['score']:+.1f}"
-            },
-            {
-                "label": "Avg Cost",
-                "value": format_cost(analysis['prompt_b']['avg_cost']),
-                "delta": f"{analysis['deltas']['cost']:+.4f}"
-            },
-            {
-                "label": "Avg Latency",
-                "value": format_latency(analysis['prompt_b']['avg_latency']),
-                "delta": f"{analysis['deltas']['latency']:+.0f}ms"
-            },
-            {
-                "label": "Avg Tokens",
-                "value": format_tokens(int(analysis['prompt_b']['avg_tokens'])),
-                "delta": f"{analysis['deltas']['tokens']:+.0f}"
-            },
-        ]
-        render_metric_row(metrics_b, columns=2)
-    
-    st.divider()
-    
-    # Section 4: Win/Loss Heatmap
-    st.subheader("🏆 Win/Loss Summary")
-    
-    winners = analysis['winners']
-    
-    # Create heatmap-style display
-    heatmap_data = {
-        'Metric': ['Quality', 'Cost', 'Latency', 'Tokens'],
-        'Winner': [
-            f"{'🟢 Prompt ' + winners['quality']}" if winners['quality'] != 'Tie' else "⚪ Tie",
-            f"{'🟢 Prompt ' + winners['cost']}" if winners['cost'] != 'Tie' else "⚪ Tie",
-            f"{'🟢 Prompt ' + winners['latency']}" if winners['latency'] != 'Tie' else "⚪ Tie",
-            f"{'🟢 Prompt ' + winners['tokens']}" if winners['tokens'] != 'Tie' else "⚪ Tie",
-        ],
-        'Difference': [
-            f"{analysis['deltas']['score']:+.2f} points",
-            f"{analysis['deltas']['cost']:+.4f}",
-            f"{analysis['deltas']['latency']:+.0f}ms",
-            f"{analysis['deltas']['tokens']:+.0f} tokens",
-        ]
-    }
-    
-    df = pd.DataFrame(heatmap_data)
-    st.dataframe(df, width='stretch', hide_index=True)
-    
-    st.divider()
-    
-    # Section 5: Detailed Comparison Table
-    st.subheader("📋 Detailed Per-Query Comparison")
-    
-    comparison_data = []
-    for i, (res_a, res_b) in enumerate(zip(st.session_state.test_results_a, st.session_state.test_results_b), 1):
-        comparison_data.append({
-            'Query': f"Test {i}",
-            'Score A': f"{res_a['score']:.1f}",
-            'Score B': f"{res_b['score']:.1f}",
-            'Diff': f"{res_b['score'] - res_a['score']:+.1f}",
-            'Cost A': format_cost(res_a['cost']),
-            'Cost B': format_cost(res_b['cost']),
-            'Latency A': format_latency(res_a['latency']),
-            'Latency B': format_latency(res_b['latency']),
-            'Winner': 'B' if res_b['score'] > res_a['score'] else ('A' if res_a['score'] > res_b['score'] else 'Tie')
-        })
-    
-    comp_df = pd.DataFrame(comparison_data)
-    st.dataframe(comp_df, width='stretch', hide_index=True)
-    
-    st.divider()
-    
-    # Section 6: Prompt Diff Viewer
-    render_prompt_diff_viewer(prompt_a, prompt_b)
-    
-    st.divider()
-    
-    # Section 7: Routing Impact Analysis
-    if test_model == "Use router":
-        render_routing_impact_analysis(
-            st.session_state.test_results_a,
-            st.session_state.test_results_b
-        )
-        st.divider()
-    
-    # Section 8: Per-Model Results Breakdown
-    st.subheader("🤖 Per-Model Performance")
-    
-    # Group results by model
-    model_scores_a = defaultdict(list)
-    model_scores_b = defaultdict(list)
-    
-    for res in st.session_state.test_results_a:
-        model_scores_a[res['model']].append(res['score'])
-    
-    for res in st.session_state.test_results_b:
-        model_scores_b[res['model']].append(res['score'])
-    
-    # Calculate averages
-    all_models = set(list(model_scores_a.keys()) + list(model_scores_b.keys()))
-    
-    model_comparison = []
-    for model in sorted(all_models):
-        avg_a = sum(model_scores_a[model]) / len(model_scores_a[model]) if model_scores_a[model] else 0
-        avg_b = sum(model_scores_b[model]) / len(model_scores_b[model]) if model_scores_b[model] else 0
+        with tab1:
+            render_overview_tab(calls, health)
         
-        model_comparison.append({
-            'Model': format_model_name(model),
-            'Avg Score A': f"{avg_a:.1f}" if avg_a > 0 else "N/A",
-            'Avg Score B': f"{avg_b:.1f}" if avg_b > 0 else "N/A",
-            'Difference': f"{avg_b - avg_a:+.1f}" if avg_a > 0 and avg_b > 0 else "N/A",
-            'Tests': len(model_scores_a[model]) + len(model_scores_b[model])
-        })
-    
-    model_df = pd.DataFrame(model_comparison)
-    st.dataframe(model_df, width='stretch', hide_index=True)
-    
-    st.divider()
-    
-    # Section 9: Optimization Insights
-    st.subheader("💡 Optimization Insights")
-    
-    insights = generate_optimization_insights(
-        analysis,
-        prompt_a,
-        prompt_b,
-        st.session_state.test_results_a,
-        st.session_state.test_results_b
-    )
-    
-    if insights:
-        for insight in insights:
-            if "Recommendation" in insight:
-                st.success(insight)
-            elif "⚠️" in insight:
-                st.warning(insight)
-            else:
-                st.info(insight)
-    
-    st.divider()
-    
-    # Section 10: Export Prompt Variant
-    st.subheader("💾 Export Winning Prompt")
-    
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        st.write("**Save the better-performing prompt for production use**")
+        with tab2:
+            render_long_prompts_tab(long_prompts)
         
-        # Determine winner
-        wins_a = sum(1 for w in winners.values() if w == 'A')
-        wins_b = sum(1 for w in winners.values() if w == 'B')
+        with tab3:
+            render_low_performers_tab(low_performers)
         
-        if wins_b > wins_a:
-            recommended = "Prompt B"
-            recommended_text = prompt_b
-        elif wins_a > wins_b:
-            recommended = "Prompt A"
-            recommended_text = prompt_a
-        else:
-            recommended = "Either (similar performance)"
-            recommended_text = prompt_b
-        
-        st.info(f"**Recommended:** {recommended}")
+        with tab4:
+            render_compare_tab(calls)
     
-    with col2:
-        # Export buttons
-        export_format = st.selectbox(
-            "Format",
-            options=["JSON", "Text", "Python Code"],
-            key="export_format"
-        )
-    
-    if export_format == "JSON":
-        export_data = {
-            "prompt": recommended_text,
-            "metrics": {
-                "avg_score": analysis['prompt_b']['avg_score'] if wins_b >= wins_a else analysis['prompt_a']['avg_score'],
-                "avg_cost": analysis['prompt_b']['avg_cost'] if wins_b >= wins_a else analysis['prompt_a']['avg_cost'],
-                "avg_latency": analysis['prompt_b']['avg_latency'] if wins_b >= wins_a else analysis['prompt_a']['avg_latency'],
-                "avg_tokens": analysis['prompt_b']['avg_tokens'] if wins_b >= wins_a else analysis['prompt_a']['avg_tokens'],
-            },
-            "test_date": datetime.now().isoformat(),
-            "test_size": len(st.session_state.test_results_a)
-        }
-        export_content = json.dumps(export_data, indent=2)
-    elif export_format == "Python Code":
-        export_content = f'''# Optimized Prompt - Tested {datetime.now().strftime("%Y-%m-%d")}
-# Performance: Quality {analysis['prompt_b']['avg_score'] if wins_b >= wins_a else analysis['prompt_a']['avg_score']:.1f}/10, Cost {format_cost(analysis['prompt_b']['avg_cost'] if wins_b >= wins_a else analysis['prompt_a']['avg_cost'])}
-
-OPTIMIZED_PROMPT = """{recommended_text}"""
-'''
-    else:  # Text
-        export_content = recommended_text
-    
-    st.download_button(
-        label=f"📥 Download {recommended}",
-        data=export_content,
-        file_name=f"optimized_prompt_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{'json' if export_format == 'JSON' else 'py' if export_format == 'Python Code' else 'txt'}",
-        mime="application/json" if export_format == "JSON" else "text/plain"
-    )
-    
-    # Reset button
-    if st.button("🔄 Start New Test"):
-        st.session_state.test_results_a = None
-        st.session_state.test_results_b = None
-        st.rerun()
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())

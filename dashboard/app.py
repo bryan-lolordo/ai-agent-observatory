@@ -3,6 +3,7 @@ AI Agent Observatory Dashboard - Main Application
 Location: dashboard/app.py
 
 Multi-page Streamlit dashboard for monitoring and optimizing AI agents.
+UPDATED: Added Optimization Impact page
 """
 from dotenv import load_dotenv
 load_dotenv()
@@ -120,6 +121,7 @@ page = st.sidebar.radio(
         "💾 Cache Analyzer",
         "⚖️ LLM Judge",
         "✨ Prompt Optimizer",
+        "📈 Optimization Impact",  # NEW PAGE
         "⚙️ Settings"
     ]
 )
@@ -175,6 +177,9 @@ elif page == "⚖️ LLM Judge":
 elif page == "✨ Prompt Optimizer":
     from dashboard.pages import prompt_optimizer
     prompt_optimizer.render()
+elif page == "📈 Optimization Impact":
+    from dashboard.pages import optimization_impact
+    optimization_impact.render()
 elif page == "⚙️ Settings":
     from dashboard.pages import settings
     settings.render()

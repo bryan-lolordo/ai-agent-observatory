@@ -1,29 +1,27 @@
 """
-Home Page - Mission Control Dashboard
+Home Page - Executive Dashboard
 Location: dashboard/pages/home.py
 
-Comprehensive overview of AI agent performance with:
-- KPIs with trends
-- System activity and cost breakdown
-- Performance metrics and health status
-- Quality evaluation and routing insights
-- Alerts and AI-generated optimization suggestions
+Executive-level overview focused on:
+- What requires attention NOW (alerts)
+- Financial impact (cost + savings ROI)
+- Quality and risk status
+- Prioritized actions
 """
 
 import streamlit as st
 import os
+from datetime import datetime
+from typing import Dict, Any, List, Tuple
+
 from observatory import Observatory
-from observatory.models import ModelProvider  
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from observatory.models import ModelProvider
 
 from dashboard.utils.data_fetcher import (
     get_project_overview,
     get_comparative_metrics,
     get_time_series_data,
-    get_routing_analysis,
     get_quality_analysis,
-    get_cache_analysis,
     get_llm_calls,
 )
 from dashboard.utils.formatters import (
@@ -33,7 +31,6 @@ from dashboard.utils.formatters import (
     format_percentage,
     format_score,
     format_model_name,
-    truncate_text,
 )
 from dashboard.components.metric_cards import (
     render_kpi_grid,
@@ -43,597 +40,515 @@ from dashboard.components.metric_cards import (
 from dashboard.components.charts import (
     create_cost_breakdown_pie,
     create_time_series_chart,
-    create_multi_line_chart,
-    create_gauge_chart,
     create_bar_chart,
 )
-from dashboard.components.tables import (
-    render_agent_comparison_table,
-    render_routing_decisions_table,
-    render_quality_scores_table,
-)
+from dashboard.components.tables import render_quality_scores_table
 from dashboard.components.filters import render_time_period_filter
 
 
-# Initialize Observatory for self-monitoring
-obs_system = Observatory(
-    project_name="Observatory-System"
-)
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
 
-# Start a session for tracking AI insights
-try:
-    obs_session = obs_system.start_session()
-    print(f"✅ Observatory session started: {obs_session.id}")
-except Exception as e:
-    print(f"⚠️ Could not start Observatory session: {e}")
-    obs_session = None
+def calculate_total_savings(overview: Dict[str, Any]) -> Tuple[float, float, float]:
+    """
+    Calculate combined optimization savings.
+    
+    Returns:
+        Tuple of (total_savings, routing_savings, cache_savings)
+    """
+    routing_savings = overview.get('routing_metrics', {}).get('total_savings', 0) or 0
+    cache_savings = overview.get('cache_metrics', {}).get('cost_saved', 0) or 0
+    return (routing_savings + cache_savings, routing_savings, cache_savings)
+
+
+def detect_critical_alerts(overview: Dict[str, Any], trends: Dict[str, Any]) -> List[Tuple[str, str, str]]:
+    """
+    Detect only critical/warning alerts that require executive attention.
+    Returns list of (severity, title, message) tuples.
+    """
+    alerts = []
+    
+    # HIGH PRIORITY: Hallucination rate > 5%
+    quality_metrics = overview.get('quality_metrics', {})
+    hallucination_rate = quality_metrics.get('hallucination_rate', 0)
+    if hallucination_rate > 0.05:
+        alerts.append(("error", "High Hallucination Rate", 
+                      f"{format_percentage(hallucination_rate)} of responses flagged"))
+    
+    # HIGH PRIORITY: Success rate dropped below 90%
+    kpis = overview.get('kpis', {})
+    success_rate = kpis.get('success_rate', 1.0)
+    if success_rate < 0.90:
+        alerts.append(("error", "High Error Rate", 
+                      f"{format_percentage(1 - success_rate)} of requests failing"))
+    
+    # MEDIUM: Cost spike > 50%
+    cost_trend = trends.get('trends', {}).get('total_cost', {})
+    if cost_trend.get('change_pct', 0) > 50:
+        alerts.append(("warning", "Cost Spike", 
+                      f"+{cost_trend['change_pct']:.0f}% vs previous period"))
+    
+    # MEDIUM: Latency spike > 30%
+    latency_trend = trends.get('trends', {}).get('avg_latency_ms', {})
+    if latency_trend.get('change_pct', 0) > 30:
+        alerts.append(("warning", "Latency Degradation", 
+                      f"+{latency_trend['change_pct']:.0f}% slower than previous period"))
+    
+    # MEDIUM: Cache performing poorly
+    cache_metrics = overview.get('cache_metrics', {})
+    hit_rate = cache_metrics.get('hit_rate', 0)
+    if hit_rate < 0.15 and cache_metrics.get('total_requests', 0) > 20:
+        alerts.append(("warning", "Cache Underperforming", 
+                      f"Only {format_percentage(hit_rate)} hit rate"))
+    
+    # MEDIUM: Quality score dropped
+    avg_score = quality_metrics.get('avg_judge_score')
+    if avg_score and avg_score < 6.5:
+        alerts.append(("warning", "Low Quality Score", 
+                      f"Average score: {format_score(avg_score)}"))
+    
+    return alerts
+
+
+def generate_prioritized_actions(overview: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Generate top prioritized actions with estimated $ impact.
+    Returns list of action dicts with keys: priority, action, impact, effort
+    """
+    actions = []
+    
+    kpis = overview.get('kpis', {})
+    cache_metrics = overview.get('cache_metrics', {})
+    routing_metrics = overview.get('routing_metrics', {})
+    quality_metrics = overview.get('quality_metrics', {})
+    by_model = overview.get('by_model', {})
+    
+    total_cost = kpis.get('total_cost', 0)
+    
+    # Action 1: Cache optimization
+    hit_rate = cache_metrics.get('hit_rate', 0)
+    if hit_rate < 0.30 and cache_metrics.get('total_requests', 0) > 10:
+        potential = total_cost * (0.30 - hit_rate)
+        actions.append({
+            "priority": "high" if potential > 1.0 else "medium",
+            "action": "Improve cache hit rate to 30%",
+            "impact": f"Save ~{format_cost(potential)}/period",
+            "effort": "Low",
+            "category": "cost"
+        })
+    
+    # Action 2: Model routing optimization
+    if by_model:
+        expensive_model = max(by_model.items(), key=lambda x: x[1].get('total_cost', 0))
+        model_name, model_data = expensive_model
+        model_cost = model_data.get('total_cost', 0)
+        if total_cost > 0 and model_cost / total_cost > 0.60:
+            potential = model_cost * 0.3  # Assume 30% could be routed cheaper
+            actions.append({
+                "priority": "high",
+                "action": f"Route simpler tasks away from {format_model_name(model_name)}",
+                "impact": f"Save ~{format_cost(potential)}/period",
+                "effort": "Medium",
+                "category": "cost"
+            })
+    
+    # Action 3: Quality improvement
+    avg_score = quality_metrics.get('avg_judge_score')
+    if avg_score and avg_score < 7.5:
+        actions.append({
+            "priority": "high" if avg_score < 6.5 else "medium",
+            "action": "Review and improve low-scoring prompts",
+            "impact": f"Improve quality from {format_score(avg_score)}",
+            "effort": "Medium",
+            "category": "quality"
+        })
+    
+    # Action 4: Latency optimization
+    avg_latency = kpis.get('avg_latency_ms', 0)
+    if avg_latency > 3000:
+        actions.append({
+            "priority": "medium",
+            "action": "Optimize high-latency operations",
+            "impact": f"Reduce from {format_latency(avg_latency)}",
+            "effort": "Medium",
+            "category": "performance"
+        })
+    
+    # Action 5: Error reduction
+    success_rate = kpis.get('success_rate', 1.0)
+    if success_rate < 0.95:
+        error_cost = total_cost * (1 - success_rate)
+        actions.append({
+            "priority": "high" if success_rate < 0.90 else "medium",
+            "action": "Investigate and fix error patterns",
+            "impact": f"Recover ~{format_cost(error_cost)} in failed requests",
+            "effort": "High",
+            "category": "reliability"
+        })
+    
+    # Sort by priority
+    priority_order = {"high": 0, "medium": 1, "low": 2}
+    actions.sort(key=lambda x: priority_order.get(x['priority'], 2))
+    
+    return actions[:5]
 
 
 def generate_ai_insights(overview_data: Dict[str, Any]) -> str:
-    """Generate AI-powered deep analysis of metrics."""
+    """Generate AI-powered analysis of metrics."""
     import time
     from openai import OpenAI
     
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     kpis = overview_data.get('kpis', {})
+    cache = overview_data.get('cache_metrics', {})
+    quality = overview_data.get('quality_metrics', {})
     
-    prompt = f"""Analyze these AI agent metrics and provide 3 specific, actionable insights:
+    prompt = f"""You are an AI operations analyst. Analyze these metrics and provide 3 specific, actionable executive recommendations:
 
-Total Cost: ${kpis.get('total_cost', 0):.4f}
-Total Calls: {kpis.get('total_calls', 0):,}
-Avg Cost/Call: ${kpis.get('avg_cost_per_session', 0):.4f}
-Avg Latency: {kpis.get('avg_latency_ms', 0):.0f}ms
-Success Rate: {kpis.get('success_rate', 0):.1%}
+CURRENT METRICS:
+- Total Spend: ${kpis.get('total_cost', 0):.2f}
+- Total Requests: {kpis.get('total_calls', 0):,}
+- Avg Cost/Request: ${kpis.get('total_cost', 0) / max(kpis.get('total_calls', 1), 1):.4f}
+- Avg Latency: {kpis.get('avg_latency_ms', 0):.0f}ms
+- Success Rate: {kpis.get('success_rate', 0):.1%}
+- Cache Hit Rate: {cache.get('hit_rate', 0):.1%}
+- Quality Score: {quality.get('avg_judge_score', 'N/A')}
 
 Focus on:
-1. Cost optimization opportunities
-2. Performance improvements  
-3. Quality or reliability concerns
+1. Biggest cost optimization opportunity with $ estimate
+2. Most critical quality/reliability risk
+3. Quick win that can be implemented this week
 
-Be specific and actionable. Format as numbered list."""
+Be specific with numbers. Format as 3 numbered recommendations, 2-3 sentences each."""
 
-    # Time the call
     start = time.time()
     
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=300,
+        max_tokens=400,
         temperature=0.7
     )
-    
-    latency_ms = max((time.time() - start) * 1000, 1.0)
-    
-    # Track it manually
-    try:
-        print(f"🔍 Attempting to track call... latency={latency_ms}ms")
-        
-        obs_system.record_call(
-            provider=ModelProvider.OPENAI,
-            model_name="gpt-4o-mini",
-            agent_name="InsightGenerator",
-            operation="generate_dashboard_insights",
-            prompt_tokens=response.usage.prompt_tokens,
-            completion_tokens=response.usage.completion_tokens,
-            latency_ms=latency_ms,
-            success=True
-        )
-        
-        print("✅ Successfully tracked AI insights call!")
-        
-    except Exception as tracking_error:
-        print("=" * 80)
-        print(f"❌ TRACKING FAILED: {type(tracking_error).__name__}: {tracking_error}")
-        import traceback
-        traceback.print_exc()
-        print("=" * 80)
     
     return response.choices[0].message.content
 
 
-def calculate_system_health(overview: Dict[str, Any]) -> list:
-    """Calculate system health indicators based on metrics."""
-    health_indicators = []
-    
-    # Cache health
-    cache_metrics = overview.get('cache_metrics', {})
-    hit_rate = cache_metrics.get('hit_rate', 0)
-    if hit_rate > 0.30:
-        health_indicators.append(("healthy", "Cache", f"Hit rate: {format_percentage(hit_rate)}"))
-    elif hit_rate > 0.15:
-        health_indicators.append(("warning", "Cache", f"Hit rate: {format_percentage(hit_rate)}"))
-    else:
-        health_indicators.append(("error", "Cache", f"Low hit rate: {format_percentage(hit_rate)}"))
-    
-    # Routing health
-    routing_metrics = overview.get('routing_metrics', {})
-    accuracy = routing_metrics.get('routing_accuracy', 0)
-    if accuracy and accuracy > 0.85:
-        health_indicators.append(("healthy", "Router", f"Accuracy: {format_percentage(accuracy)}"))
-    elif accuracy and accuracy > 0.70:
-        health_indicators.append(("warning", "Router", f"Accuracy: {format_percentage(accuracy)}"))
-    elif accuracy:
-        health_indicators.append(("error", "Router", f"Low accuracy: {format_percentage(accuracy)}"))
-    
-    # Quality health
-    quality_metrics = overview.get('quality_metrics', {})
-    avg_score = quality_metrics.get('avg_judge_score')
-    if avg_score and avg_score > 8.5:
-        health_indicators.append(("healthy", "Quality", f"Score: {format_score(avg_score)}"))
-    elif avg_score and avg_score > 7.0:
-        health_indicators.append(("warning", "Quality", f"Score: {format_score(avg_score)}"))
-    elif avg_score:
-        health_indicators.append(("error", "Quality", f"Low score: {format_score(avg_score)}"))
-    
-    # Latency health
-    kpis = overview.get('kpis', {})
-    avg_latency = kpis.get('avg_latency_ms', 0)
-    if avg_latency < 2000:
-        health_indicators.append(("healthy", "Latency", f"{format_latency(avg_latency)}"))
-    elif avg_latency < 5000:
-        health_indicators.append(("warning", "Latency", f"{format_latency(avg_latency)}"))
-    else:
-        health_indicators.append(("error", "Latency", f"Slow: {format_latency(avg_latency)}"))
-    
-    # Error health
-    success_rate = kpis.get('success_rate', 1.0)
-    if success_rate > 0.95:
-        health_indicators.append(("healthy", "Errors", f"{format_percentage(1 - success_rate)} error rate"))
-    elif success_rate > 0.90:
-        health_indicators.append(("warning", "Errors", f"{format_percentage(1 - success_rate)} error rate"))
-    else:
-        health_indicators.append(("error", "Errors", f"High: {format_percentage(1 - success_rate)}"))
-    
-    return health_indicators
-
-
-def detect_alerts(overview: Dict[str, Any], trends: Dict[str, Any]) -> list:
-    """Detect anomalies and generate alerts."""
-    alerts = []
-    
-    # Check cache hit rate drop
-    cache_metrics = overview.get('cache_metrics', {})
-    hit_rate = cache_metrics.get('hit_rate', 0)
-    if hit_rate < 0.20 and cache_metrics.get('total_requests', 0) > 10:
-        alerts.append(("warning", "Cache hit rate is low", f"Current: {format_percentage(hit_rate)}"))
-    
-    # Check cost spike
-    cost_trend = trends.get('trends', {}).get('total_cost', {})
-    if cost_trend.get('change_pct', 0) > 50:
-        alerts.append(("warning", "Cost spike detected", f"+{cost_trend['change_pct']:.0f}% vs previous period"))
-    
-    # Check latency spike
-    latency_trend = trends.get('trends', {}).get('avg_latency_ms', {})
-    if latency_trend.get('change_pct', 0) > 25:
-        alerts.append(("warning", "Latency increased", f"+{latency_trend['change_pct']:.0f}% vs previous period"))
-    
-    # Check hallucinations
-    quality_metrics = overview.get('quality_metrics', {})
-    hallucination_rate = quality_metrics.get('hallucination_rate', 0)
-    if hallucination_rate > 0.05:
-        alerts.append(("error", "High hallucination rate", f"{format_percentage(hallucination_rate)} of responses"))
-    
-    # Check routing savings
-    routing_metrics = overview.get('routing_metrics', {})
-    savings = routing_metrics.get('total_savings', 0)
-    if savings > 1.0:
-        alerts.append(("info", "Routing is saving money", f"${savings:.2f} saved in this period"))
-    
-    return alerts
-
-
-def generate_insights(overview: Dict[str, Any]) -> list:
-    """Generate rule-based optimization insights."""
-    insights = []
-    
-    kpis = overview.get('kpis', {})
-    cache_metrics = overview.get('cache_metrics', {})
-    routing_metrics = overview.get('routing_metrics', {})
-    quality_metrics = overview.get('quality_metrics', {})
-    
-    # Cache optimization
-    hit_rate = cache_metrics.get('hit_rate', 0)
-    if hit_rate < 0.30 and cache_metrics.get('total_requests', 0) > 20:
-        potential_savings = kpis.get('total_cost', 0) * (0.30 - hit_rate)
-        insights.append(f"💾 Improving cache hit rate to 30% could save ~${potential_savings:.2f}")
-    
-    # Cost optimization
-    by_model = overview.get('by_model', {})
-    if by_model:
-        most_expensive = max(by_model.items(), key=lambda x: x[1].get('total_cost', 0))
-        model_name = most_expensive[0]
-        model_cost = most_expensive[1].get('total_cost', 0)
-        total_cost = kpis.get('total_cost', 1)
-        if model_cost / total_cost > 0.60:
-            insights.append(f"💰 {format_model_name(model_name)} accounts for {format_percentage(model_cost/total_cost)} of costs. Consider routing simpler tasks to cheaper models.")
-    
-    # Token optimization
-    avg_tokens = kpis.get('avg_tokens_per_session', 0) / max(kpis.get('avg_calls_per_session', 1), 1)
-    if avg_tokens > 2000:
-        insights.append(f"📦 High token usage ({format_tokens(int(avg_tokens))} per call). Review prompts for compression opportunities.")
-    
-    # Quality optimization
-    avg_score = quality_metrics.get('avg_judge_score')
-    if avg_score and avg_score < 7.5:
-        insights.append(f"⚖️ Quality score is {format_score(avg_score)}. Consider prompt engineering or model upgrades.")
-    
-    # Routing success
-    if routing_metrics.get('total_savings', 0) > 0.50:
-        insights.append(f"✅ Router is working well! Saved ${routing_metrics['total_savings']:.2f} through smart model selection.")
-    
-    # Latency optimization
-    if kpis.get('avg_latency_ms', 0) > 3000:
-        insights.append(f"⚡ Average latency is {format_latency(kpis['avg_latency_ms'])}. Consider parallelizing independent calls or using faster models.")
-    
-    return insights[:5]  # Limit to top 5 insights
-
+# =============================================================================
+# MAIN RENDER FUNCTION
+# =============================================================================
 
 def render():
-    """Render the home page."""
+    """Render the executive home page."""
     
-    # Page header with time controls
+    # Header
     col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
-        st.title("🏠 Mission Control")
+        st.title("📊 Executive Dashboard")
     with col2:
-        time_period = render_time_period_filter(key="home_time_period", label="Time Range")
+        time_period = render_time_period_filter(key="home_time_period", label="Period")
     with col3:
         if st.button("🔄 Refresh", width='stretch'):
             st.cache_data.clear()
             st.rerun()
     
-    # Get selected project from session state
     selected_project = st.session_state.get('selected_project')
+    project_label = selected_project or "All Projects"
+    st.caption(f"**{project_label}** • Updated {datetime.now().strftime('%I:%M %p')}")
     
-    # Last updated timestamp
-    st.caption(f"Last updated: {datetime.now().strftime('%I:%M %p')}")
-    
-    st.divider()
-    
-    # Fetch all data
+    # Load data
     try:
-        with st.spinner("Loading dashboard data..."):
-            overview = get_project_overview(selected_project)
-            trends = get_comparative_metrics(selected_project, period=time_period)
+        overview = get_project_overview(selected_project)
+        trends = get_comparative_metrics(selected_project, period=time_period)
+        
+        if overview.get('kpis', {}).get('total_calls', 0) == 0:
+            render_empty_state(
+                message="No data available",
+                icon="📊",
+                suggestion="Start tracking by running AI agents with Observatory enabled"
+            )
+            return
             
-            # Check if we have any data
-            if overview['total_calls'] == 0:
-                render_empty_state(
-                    message="No data available yet",
-                    icon="📊",
-                    suggestion="Start tracking by running your AI agents with Observatory enabled"
-                )
-                return
-    
     except Exception as e:
-        st.error(f"Error loading dashboard data: {str(e)}")
+        st.error(f"Error loading data: {str(e)}")
         return
     
-    # Create tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview", "⚡ Performance", "⚖️ Quality", "💡 Insights"])
+    # Extract common data
+    kpis = overview.get('kpis', {})
+    cache_metrics = overview.get('cache_metrics', {})
+    routing_metrics = overview.get('routing_metrics', {})
+    quality_metrics = overview.get('quality_metrics', {})
+    trend_data = trends.get('trends', {})
     
-    # ========================================================================
-    # TAB 1: OVERVIEW
-    # ========================================================================
+    # Calculate headline savings
+    total_savings, routing_savings, cache_savings = calculate_total_savings(overview)
+    
+    # ==========================================================================
+    # TABS
+    # ==========================================================================
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📋 Summary", 
+        "💰 Cost & Savings", 
+        "⚠️ Quality & Risk", 
+        "🎯 Actions"
+    ])
+    
+    # ==========================================================================
+    # TAB 1: SUMMARY
+    # ==========================================================================
     with tab1:
-        # Section 1: KPI Grid
-        st.subheader("Key Metrics")
+        # Headline savings callout
+        if total_savings > 0:
+            st.success(f"💰 **You saved {format_cost(total_savings)} this period** through routing ({format_cost(routing_savings)}) and caching ({format_cost(cache_savings)})")
         
-        kpis = overview.get('kpis', {})
-        cache_metrics = overview.get('cache_metrics', {})
-        routing_metrics = overview.get('routing_metrics', {})
-        quality_metrics = overview.get('quality_metrics', {})
+        # Critical Alerts (executives see these FIRST)
+        alerts = detect_critical_alerts(overview, trends)
+        
+        if alerts:
+            st.subheader("🚨 Requires Attention")
+            cols = st.columns(min(len(alerts), 3))
+            for i, (severity, title, message) in enumerate(alerts[:3]):
+                with cols[i % 3]:
+                    render_status_indicator(title, severity, message)
+            
+            if len(alerts) > 3:
+                with st.expander(f"+{len(alerts) - 3} more alerts"):
+                    for severity, title, message in alerts[3:]:
+                        render_status_indicator(title, severity, message)
+            st.divider()
+        
+        # KPIs
+        st.subheader("Key Metrics")
         
         current = trends.get('current', {})
         previous = trends.get('previous', {})
-        trend_data = trends.get('trends', {})
         
-        # Build metrics with trends
-        metrics = []
-        
-        # Avg Cost per Request
+        # Calculate trends
         avg_cost = current.get('total_cost', 0) / max(current.get('total_calls', 1), 1)
         prev_avg_cost = previous.get('total_cost', 0) / max(previous.get('total_calls', 1), 1)
         cost_change = ((avg_cost - prev_avg_cost) / prev_avg_cost * 100) if prev_avg_cost > 0 else 0
-        metrics.append({
-            "label": "Avg Cost/Request",
-            "value": format_cost(avg_cost),
-            "delta": f"{cost_change:+.1f}%" if abs(cost_change) > 0.1 else None,
-            "delta_color": "inverse" if cost_change < 0 else "normal"
-        })
         
-        # Avg Latency
         latency_change = trend_data.get('avg_latency_ms', {}).get('change_pct', 0)
-        metrics.append({
-            "label": "Avg Latency",
-            "value": format_latency(kpis.get('avg_latency_ms', 0)),
-            "delta": f"{latency_change:+.1f}%" if abs(latency_change) > 0.1 else None,
-            "delta_color": "inverse" if latency_change < 0 else "normal"
-        })
         
-        # Cache Hit Rate
-        metrics.append({
-            "label": "Cache Hit Rate",
-            "value": format_percentage(cache_metrics.get('hit_rate', 0)),
-            "help": f"{cache_metrics.get('cache_hits', 0)} hits, {cache_metrics.get('cache_misses', 0)} misses"
-        })
+        metrics = [
+            {
+                "label": "Total Spend",
+                "value": format_cost(kpis.get('total_cost', 0)),
+                "delta": f"{trend_data.get('total_cost', {}).get('change_pct', 0):+.0f}%" if trend_data.get('total_cost', {}).get('change_pct') else None,
+                "delta_color": "inverse"
+            },
+            {
+                "label": "Total Savings",
+                "value": format_cost(total_savings),
+                "help": f"Routing: {format_cost(routing_savings)} | Cache: {format_cost(cache_savings)}"
+            },
+            {
+                "label": "Avg Latency",
+                "value": format_latency(kpis.get('avg_latency_ms', 0)),
+                "delta": f"{latency_change:+.0f}%" if abs(latency_change) > 1 else None,
+                "delta_color": "inverse"
+            },
+            {
+                "label": "Success Rate",
+                "value": format_percentage(kpis.get('success_rate', 0)),
+            },
+        ]
         
-        # Routing Accuracy
-        if routing_metrics.get('total_decisions', 0) > 0:
-            metrics.append({
-                "label": "Routing Accuracy",
-                "value": format_percentage(routing_metrics.get('routing_accuracy', 0)) if routing_metrics.get('routing_accuracy') else "N/A",
-                "help": f"{routing_metrics.get('total_decisions', 0)} routing decisions"
-            })
-        
-        # Quality Score
+        # Add quality if available
         if quality_metrics.get('avg_judge_score'):
             metrics.append({
-                "label": "Avg Quality Score",
+                "label": "Quality Score",
                 "value": format_score(quality_metrics['avg_judge_score']),
-                "help": f"{quality_metrics.get('total_evaluated', 0)} evaluations"
             })
         
-        # Success Rate
-        metrics.append({
-            "label": "Success Rate",
-            "value": format_percentage(kpis.get('success_rate', 0)),
-        })
-        
-        render_kpi_grid(metrics, columns=min(len(metrics), 4))
+        render_kpi_grid(metrics, columns=min(len(metrics), 5))
         
         st.divider()
         
-        # Section 2: Activity Timeline
-        st.subheader("System Activity (Last 24h)")
-        
+        # Activity trend
+        st.subheader("Activity Trend")
         try:
-            # Get time series data for requests
-            activity_data = get_time_series_data(
-                selected_project,
-                metric='count',
-                interval='hour',
-                hours=24
-            )
-            
+            activity_data = get_time_series_data(selected_project, metric='count', interval='hour', hours=24)
             if activity_data:
-                fig = create_time_series_chart(
-                    activity_data,
-                    metric_name="Requests",
-                    title="Request Volume Over Time"
-                )
+                fig = create_time_series_chart(activity_data, metric_name="Requests", title="")
                 st.plotly_chart(fig, width='stretch')
-            else:
-                st.info("No activity data available for the selected time range")
+        except Exception:
+            st.info("Activity data unavailable")
+    
+    # ==========================================================================
+    # TAB 2: COST & SAVINGS
+    # ==========================================================================
+    with tab2:
+        # ROI Summary
+        st.subheader("Optimization ROI")
         
-        except Exception as e:
-            st.warning(f"Could not load activity timeline: {str(e)}")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Spend", format_cost(kpis.get('total_cost', 0)))
+        with col2:
+            st.metric("Total Saved", format_cost(total_savings), 
+                     help="Combined routing + cache savings")
+        with col3:
+            st.metric("Routing Savings", format_cost(routing_savings),
+                     help=f"{routing_metrics.get('total_decisions', 0)} routing decisions")
+        with col4:
+            st.metric("Cache Savings", format_cost(cache_savings),
+                     help=f"{format_percentage(cache_metrics.get('hit_rate', 0))} hit rate")
+        
+        # Net cost calculation
+        net_cost = kpis.get('total_cost', 0) - total_savings
+        if total_savings > 0:
+            roi_pct = (total_savings / kpis.get('total_cost', 1)) * 100
+            st.info(f"📈 **Net effective cost: {format_cost(net_cost)}** — Optimizations saved {roi_pct:.1f}% of spend")
         
         st.divider()
         
-        # Section 3: Cost Breakdown
-        st.subheader("Where Is Your Money Going?")
+        # Cost breakdown
+        st.subheader("Spend Breakdown")
         
         col1, col2 = st.columns(2)
         
         with col1:
             cost_breakdown = overview.get('cost_breakdown', {})
             if cost_breakdown:
-                fig = create_cost_breakdown_pie(
-                    cost_breakdown,
-                    title="Cost by Model"
-                )
+                fig = create_cost_breakdown_pie(cost_breakdown, title="By Model")
                 st.plotly_chart(fig, width='stretch')
             else:
-                st.info("No cost data available")
+                st.info("No model cost data")
         
         with col2:
             by_agent = overview.get('by_agent', {})
             if by_agent:
                 agent_costs = {agent: data['total_cost'] for agent, data in by_agent.items()}
-                fig = create_cost_breakdown_pie(
-                    agent_costs,
-                    title="Cost by Agent"
-                )
+                fig = create_cost_breakdown_pie(agent_costs, title="By Agent")
                 st.plotly_chart(fig, width='stretch')
             else:
-                st.info("No agent data available")
+                st.info("No agent cost data")
+        
+        st.divider()
+        
+        # Cost over time
+        st.subheader("Spend Over Time")
+        try:
+            cost_data = get_time_series_data(selected_project, metric='cost', interval='hour', hours=24)
+            if cost_data:
+                fig = create_time_series_chart(cost_data, metric_name="Cost ($)", title="")
+                st.plotly_chart(fig, width='stretch')
+        except Exception:
+            st.info("Cost trend unavailable")
     
-    # ========================================================================
-    # TAB 2: PERFORMANCE
-    # ========================================================================
-    with tab2:
-        # Section 4: System Health
-        st.subheader("System Health Status")
+    # ==========================================================================
+    # TAB 3: QUALITY & RISK
+    # ==========================================================================
+    with tab3:
+        # Quality overview
+        st.subheader("Quality Status")
         
-        health_indicators = calculate_system_health(overview)
-        
-        if health_indicators:
-            cols = st.columns(min(len(health_indicators), 3))
-            for i, (status, label, message) in enumerate(health_indicators):
-                with cols[i % 3]:
-                    render_status_indicator(label, status, message)
-        else:
-            st.info("Insufficient data to calculate system health")
-        
-        st.divider()
-        
-        # Section 5: Top Agents
-        st.subheader("Top Agents by Performance")
-        
-        by_agent = overview.get('by_agent', {})
-        if by_agent:
-            render_agent_comparison_table(by_agent)
-        else:
-            st.info("No agent data available")
-        
-        st.divider()
-        
-        # Cache Performance Gauge
-        st.subheader("Cache Performance")
-        
-        col1, col2 = st.columns(2)
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            if cache_metrics.get('total_requests', 0) > 0:
-                fig = create_gauge_chart(
-                    value=cache_metrics.get('hit_rate', 0) * 100,
-                    title="Cache Hit Rate (%)",
-                    min_value=0,
-                    max_value=100
-                )
-                st.plotly_chart(fig, width='stretch')
-            else:
-                st.info("No cache data available")
-        
+            score = quality_metrics.get('avg_judge_score')
+            st.metric("Quality Score", format_score(score) if score else "N/A")
         with col2:
-            st.metric("Tokens Saved", format_tokens(cache_metrics.get('tokens_saved', 0)))
-            st.metric("Cost Saved", format_cost(cache_metrics.get('cost_saved', 0)))
-            st.metric("Total Requests", f"{cache_metrics.get('total_requests', 0):,}")
-    
-    # ========================================================================
-    # TAB 3: QUALITY
-    # ========================================================================
-    with tab3:
-        # Section 6: Recent Judge Evaluations (Collapsible)
-        st.subheader("Quality Evaluations")
+            st.metric("Success Rate", format_percentage(kpis.get('success_rate', 0)))
+        with col3:
+            st.metric("Hallucination Rate", 
+                     format_percentage(quality_metrics.get('hallucination_rate', 0)))
+        with col4:
+            total_calls = kpis.get('total_calls', 0)
+            errors = int(total_calls * (1 - kpis.get('success_rate', 1)))
+            st.metric("Total Errors", f"{errors:,}")
+        
+        st.divider()
+        
+        # Risk indicators
+        st.subheader("Risk Assessment")
+        
+        risks = []
+        
+        # Evaluate risks
+        success_rate = kpis.get('success_rate', 1.0)
+        if success_rate >= 0.98:
+            risks.append(("healthy", "Error Rate", f"{format_percentage(1 - success_rate)}"))
+        elif success_rate >= 0.95:
+            risks.append(("warning", "Error Rate", f"{format_percentage(1 - success_rate)}"))
+        else:
+            risks.append(("error", "Error Rate", f"{format_percentage(1 - success_rate)} - needs attention"))
+        
+        hall_rate = quality_metrics.get('hallucination_rate', 0)
+        if hall_rate <= 0.02:
+            risks.append(("healthy", "Hallucinations", format_percentage(hall_rate)))
+        elif hall_rate <= 0.05:
+            risks.append(("warning", "Hallucinations", format_percentage(hall_rate)))
+        else:
+            risks.append(("error", "Hallucinations", f"{format_percentage(hall_rate)} - critical"))
+        
+        avg_score = quality_metrics.get('avg_judge_score')
+        if avg_score:
+            if avg_score >= 8.0:
+                risks.append(("healthy", "Quality", format_score(avg_score)))
+            elif avg_score >= 7.0:
+                risks.append(("warning", "Quality", format_score(avg_score)))
+            else:
+                risks.append(("error", "Quality", f"{format_score(avg_score)} - below target"))
+        
+        cols = st.columns(len(risks))
+        for i, (status, label, msg) in enumerate(risks):
+            with cols[i]:
+                render_status_indicator(label, status, msg)
+        
+        st.divider()
+        
+        # Worst performers
+        st.subheader("Responses Needing Review")
         
         try:
             quality_analysis = get_quality_analysis(selected_project)
-            best_examples = quality_analysis.get('best_examples', [])
-            worst_examples = quality_analysis.get('worst_examples', [])
+            worst = quality_analysis.get('worst_examples', [])
             
-            if best_examples or worst_examples:
-                with st.expander("🏆 Top 5 Best Responses", expanded=True):
-                    if best_examples:
-                        render_quality_scores_table(best_examples)
-                    else:
-                        st.info("No quality evaluations available")
-                
-                with st.expander("⚠️ Top 5 Worst Responses", expanded=False):
-                    if worst_examples:
-                        render_quality_scores_table(worst_examples)
-                    else:
-                        st.info("No quality evaluations available")
+            if worst:
+                render_quality_scores_table(worst[:5])
             else:
-                st.info("No quality evaluations available yet. Enable LLM Judge to track quality.")
-        
+                st.info("No quality evaluations available. Enable LLM Judge to track quality.")
         except Exception as e:
-            st.warning(f"Could not load quality data: {str(e)}")
-        
-        st.divider()
-        
-        # Section 7: Recent Routing Decisions (Collapsible)
-        st.subheader("Routing Decisions")
-        
-        try:
-            routing_analysis = get_routing_analysis(selected_project)
-            recent_decisions = routing_analysis.get('recent_decisions', [])
-            
-            if recent_decisions:
-                with st.expander(f"Recent Routing Decisions ({len(recent_decisions)})", expanded=True):
-                    render_routing_decisions_table(recent_decisions[:10])
-            else:
-                st.info("No routing decisions available yet")
-        
-        except Exception as e:
-            st.warning(f"Could not load routing data: {str(e)}")
-        
-        st.divider()
-        
-        # Error Analysis
-        st.subheader("Error Analysis")
-        
-        total_calls = kpis.get('total_calls', 0)
-        failed_calls = int(total_calls * (1 - kpis.get('success_rate', 1)))
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Errors", f"{failed_calls:,}")
-        with col2:
-            st.metric("Error Rate", format_percentage(1 - kpis.get('success_rate', 1)))
-        with col3:
-            st.metric("Hallucinations", quality_metrics.get('hallucinations', 0))
+            st.warning(f"Could not load quality data: {e}")
     
-    # ========================================================================
-    # TAB 4: INSIGHTS
-    # ========================================================================
+    # ==========================================================================
+    # TAB 4: ACTIONS
+    # ==========================================================================
     with tab4:
-        # Section 8: Active Alerts
-        st.subheader("⚠️ Active Alerts")
+        st.subheader("Recommended Actions")
         
-        alerts = detect_alerts(overview, trends)
+        actions = generate_prioritized_actions(overview)
         
-        if alerts:
-            # Show first 3 always
-            for status, title, message in alerts[:3]:
-                render_status_indicator(title, status, message)
-            
-            # Collapse the rest
-            if len(alerts) > 3:
-                with st.expander(f"Show {len(alerts) - 3} more alerts"):
-                    for status, title, message in alerts[3:]:
-                        render_status_indicator(title, status, message)
+        if actions:
+            for i, action in enumerate(actions, 1):
+                priority_emoji = "🔴" if action['priority'] == 'high' else "🟡" if action['priority'] == 'medium' else "🟢"
+                
+                with st.container():
+                    col1, col2, col3 = st.columns([3, 1, 1])
+                    with col1:
+                        st.markdown(f"{priority_emoji} **{action['action']}**")
+                    with col2:
+                        st.caption(f"Impact: {action['impact']}")
+                    with col3:
+                        st.caption(f"Effort: {action['effort']}")
+                st.divider()
         else:
-            st.success("✅ No alerts - all systems operating normally")
+            st.success("✅ No critical actions needed. System is performing well.")
         
-        st.divider()
+        # AI Analysis
+        st.subheader("🤖 AI Deep Analysis")
+        st.markdown("Get AI-powered recommendations based on your current metrics.")
         
-        # Section 9: Rule-Based Optimization Insights
-        st.subheader("💡 Optimization Insights")
-        
-        insights = generate_insights(overview)
-        
-        if insights:
-            for insight in insights:
-                st.info(insight)
-        else:
-            st.info("No optimization insights available yet. More data needed for analysis.")
-        
-        st.divider()
-        
-        # Section 9.5: AI-Powered Deep Analysis
-        st.subheader("🤖 AI-Powered Deep Analysis")
-        
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            st.markdown("Get AI-generated recommendations using GPT-4o-mini to analyze your metrics")
-        
-        with col2:
-            if st.button("🔮 Run AI Analysis", type="primary", width='stretch'):
-                with st.spinner("Analyzing metrics with AI..."):
-                    try:
-                        ai_insights = generate_ai_insights(overview)
-                        
-                        st.markdown("### 🎯 AI Recommendations")
-                        st.success(ai_insights)
-                        
-                        st.caption("💰 This analysis cost ~$0.0001 and is tracked in 'Observatory-System' project")
-                        
-                    except Exception as e:
-                        st.error(f"Error generating AI insights: {str(e)}")
-                        if "OPENAI_API_KEY" in str(e):
-                            st.caption("💡 Set OPENAI_API_KEY environment variable to enable this feature")
-        
-        st.divider()
-        
-        # Section 10: Quick Stats Summary
-        st.subheader("📈 Quick Stats")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric("Total Sessions", f"{kpis.get('total_sessions', 0):,}")
-            st.metric("Total LLM Calls", f"{kpis.get('total_calls', 0):,}")
-        
-        with col2:
-            st.metric("Total Cost", format_cost(kpis.get('total_cost', 0)))
-            st.metric("Total Tokens", format_tokens(kpis.get('total_tokens', 0)))
-        
-        with col3:
-            if routing_metrics.get('total_decisions', 0) > 0:
-                st.metric("Routing Decisions", f"{routing_metrics['total_decisions']:,}")
-                st.metric("Routing Savings", format_cost(routing_metrics.get('total_cost_savings', 0)))
-            else:
-                st.info("Enable routing to see savings")
+        if st.button("Run AI Analysis", type="primary"):
+            with st.spinner("Analyzing with GPT-4o-mini..."):
+                try:
+                    insights = generate_ai_insights(overview)
+                    st.markdown("### Recommendations")
+                    st.success(insights)
+                    st.caption("Analysis cost: ~$0.001")
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
+                    if "OPENAI_API_KEY" in str(e):
+                        st.info("Set OPENAI_API_KEY to enable AI analysis")

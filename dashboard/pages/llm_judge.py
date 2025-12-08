@@ -1,23 +1,23 @@
 """
-LLM Judge Page - Quality Evaluation Analysis
+LLM Judge - Quality Diagnostics Dashboard
 Location: dashboard/pages/llm_judge.py
 
-Analyzes quality evaluations, hallucinations, and model performance.
-Works with both actual evaluations and provides guidance when not implemented.
+Developer-focused quality analysis:
+1. Overview - Quality health and coverage
+2. Failures - Low-quality calls with root cause
+3. Hallucinations - Detected hallucinations
+4. Coverage Gaps - Operations without evaluation
 """
 
 import streamlit as st
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List, Tuple
 import pandas as pd
+from datetime import datetime
+from typing import Dict, Any, List
 from collections import defaultdict
 
 from dashboard.utils.data_fetcher import (
     get_project_overview,
     get_llm_calls,
-    get_available_agents,
-    get_available_models,
-    get_quality_analysis,
 )
 from dashboard.utils.formatters import (
     format_cost,
@@ -27,847 +27,511 @@ from dashboard.utils.formatters import (
     format_model_name,
     truncate_text,
 )
-from dashboard.components.metric_cards import (
-    render_metric_row,
-    render_empty_state,
-)
-from dashboard.components.charts import (
-    create_time_series_chart,
-    create_bar_chart,
-    create_cost_breakdown_pie,
-)
-from dashboard.components.tables import (
-    render_dataframe,
-)
+from dashboard.components.metric_cards import render_empty_state
 
 
-def detect_quality_mode(calls: List[Dict]) -> Tuple[bool, str, int]:
-    """
-    Detect if quality evaluation is active.
-    
-    Returns:
-        Tuple of (has_quality_eval, mode_description, eval_count)
-    """
-    if not calls:
-        return False, "No data", 0
-    
-    # Check for quality evaluations
-    evaluations = [
-        c.get('quality_evaluation', {})
-        for c in calls
-        if c.get('quality_evaluation') and isinstance(c.get('quality_evaluation'), dict)
-    ]
-    
-    # Filter out empty dicts
-    valid_evaluations = [
-        e for e in evaluations
-        if e.get('score') is not None
-    ]
-    
-    if valid_evaluations:
-        return True, f"Quality evaluation active", len(valid_evaluations)
-    else:
-        return False, "Quality evaluation not implemented", 0
+# =============================================================================
+# CONSTANTS
+# =============================================================================
+
+QUALITY_THRESHOLD = 7.0
+GOOD_QUALITY_THRESHOLD = 8.0
 
 
-def calculate_quality_kpis(calls: List[Dict]) -> Dict[str, Any]:
-    """Calculate quality performance KPIs."""
-    evaluations = []
+# =============================================================================
+# ANALYSIS FUNCTIONS
+# =============================================================================
+
+def analyze_quality_coverage(calls: List[Dict]) -> Dict[str, Any]:
+    """Analyze quality evaluation coverage."""
+    
+    total = len(calls)
+    evaluated = [c for c in calls if c.get('quality_evaluation', {}).get('score') is not None]
+    
+    # By operation
+    by_operation = defaultdict(lambda: {'total': 0, 'evaluated': 0, 'scores': [], 'issues': 0})
     
     for call in calls:
-        qual_eval = call.get('quality_evaluation', {})
-        if isinstance(qual_eval, dict) and qual_eval.get('score') is not None:
-            evaluations.append({
-                'score': qual_eval.get('score', 0),
-                'hallucination': qual_eval.get('hallucination', False),
-                'factual_error': qual_eval.get('factual_error', False),
-                'confidence': qual_eval.get('confidence', 0),
-                'call': call
-            })
+        op = call.get('operation', 'unknown')
+        by_operation[op]['total'] += 1
+        
+        qual = call.get('quality_evaluation', {})
+        if qual.get('score') is not None:
+            by_operation[op]['evaluated'] += 1
+            by_operation[op]['scores'].append(qual['score'])
+            
+            if qual['score'] < QUALITY_THRESHOLD or qual.get('hallucination') or qual.get('factual_error'):
+                by_operation[op]['issues'] += 1
     
-    if not evaluations:
-        return {
-            'avg_score': 0,
-            'hallucination_rate': 0,
-            'factual_error_rate': 0,
-            'confidence_gap': 0,
-            'total_evaluated': 0
-        }
+    # Calculate averages
+    operations = []
+    for op, stats in by_operation.items():
+        avg_score = sum(stats['scores']) / len(stats['scores']) if stats['scores'] else None
+        coverage = stats['evaluated'] / stats['total'] if stats['total'] > 0 else 0
+        
+        if coverage == 0:
+            status = 'NOT_EVALUATED'
+        elif avg_score and avg_score < QUALITY_THRESHOLD:
+            status = 'LOW_QUALITY'
+        elif stats['issues'] > 0:
+            status = 'HAS_ISSUES'
+        else:
+            status = 'HEALTHY'
+        
+        operations.append({
+            'operation': op,
+            'total': stats['total'],
+            'evaluated': stats['evaluated'],
+            'coverage': coverage,
+            'avg_score': avg_score,
+            'issues': stats['issues'],
+            'status': status,
+        })
     
-    total = len(evaluations)
-    avg_score = sum(e['score'] for e in evaluations) / total
-    hallucinations = sum(1 for e in evaluations if e['hallucination'])
-    factual_errors = sum(1 for e in evaluations if e['factual_error'])
-    
-    # Confidence gap: difference between model confidence and actual score
-    confidence_gaps = []
-    for e in evaluations:
-        if e['confidence'] > 0:
-            # Normalize score to 0-1 range for comparison
-            normalized_score = e['score'] / 10
-            gap = abs(e['confidence'] - normalized_score)
-            confidence_gaps.append(gap)
-    
-    avg_confidence_gap = sum(confidence_gaps) / len(confidence_gaps) if confidence_gaps else 0
+    operations.sort(key=lambda x: (x['status'] != 'NOT_EVALUATED', x['avg_score'] or 0))
     
     return {
-        'avg_score': avg_score,
-        'hallucination_rate': hallucinations / total,
-        'factual_error_rate': factual_errors / total,
-        'confidence_gap': avg_confidence_gap,
-        'total_evaluated': total
+        'total_calls': total,
+        'evaluated_calls': len(evaluated),
+        'coverage_rate': len(evaluated) / total if total > 0 else 0,
+        'operations': operations,
     }
 
 
-def calculate_model_leaderboard(calls: List[Dict]) -> List[Dict]:
-    """Calculate performance leaderboard by model."""
-    model_stats = defaultdict(lambda: {
-        'scores': [],
-        'hallucinations': 0,
-        'factual_errors': 0,
-        'total_cost': 0,
-        'total_latency': 0,
-        'total_tokens': 0,
-        'count': 0
-    })
+def find_quality_failures(calls: List[Dict]) -> List[Dict]:
+    """Find calls with quality issues."""
+    
+    failures = []
     
     for call in calls:
-        qual_eval = call.get('quality_evaluation', {})
-        if not isinstance(qual_eval, dict) or qual_eval.get('score') is None:
+        qual = call.get('quality_evaluation', {})
+        if not qual or qual.get('score') is None:
             continue
         
-        model = call.get('model_name', 'Unknown')
-        stats = model_stats[model]
+        score = qual.get('score', 10)
+        has_hallucination = qual.get('hallucination', False)
+        has_error = qual.get('factual_error', False)
         
-        stats['scores'].append(qual_eval.get('score', 0))
-        stats['hallucinations'] += 1 if qual_eval.get('hallucination') else 0
-        stats['factual_errors'] += 1 if qual_eval.get('factual_error') else 0
-        stats['total_cost'] += call.get('total_cost', 0)
-        stats['total_latency'] += call.get('latency_ms', 0)
-        stats['total_tokens'] += call.get('total_tokens', 0)
-        stats['count'] += 1
-    
-    leaderboard = []
-    for model, stats in model_stats.items():
-        if stats['count'] == 0:
-            continue
-        
-        leaderboard.append({
-            'model': model,
-            'avg_score': sum(stats['scores']) / len(stats['scores']),
-            'hallucination_rate': stats['hallucinations'] / stats['count'],
-            'factual_error_rate': stats['factual_errors'] / stats['count'],
-            'avg_cost': stats['total_cost'] / stats['count'],
-            'avg_latency': stats['total_latency'] / stats['count'],
-            'avg_tokens': stats['total_tokens'] / stats['count'],
-            'count': stats['count']
-        })
-    
-    # Sort by avg score descending
-    leaderboard.sort(key=lambda x: x['avg_score'], reverse=True)
-    
-    return leaderboard
-
-
-def calculate_agent_leaderboard(calls: List[Dict]) -> List[Dict]:
-    """Calculate performance leaderboard by agent."""
-    agent_stats = defaultdict(lambda: {
-        'scores': [],
-        'hallucinations': 0,
-        'factual_errors': 0,
-        'total_cost': 0,
-        'total_latency': 0,
-        'total_tokens': 0,
-        'count': 0
-    })
-    
-    for call in calls:
-        qual_eval = call.get('quality_evaluation', {})
-        if not isinstance(qual_eval, dict) or qual_eval.get('score') is None:
-            continue
-        
-        agent = call.get('agent_name', 'Unknown')
-        stats = agent_stats[agent]
-        
-        stats['scores'].append(qual_eval.get('score', 0))
-        stats['hallucinations'] += 1 if qual_eval.get('hallucination') else 0
-        stats['factual_errors'] += 1 if qual_eval.get('factual_error') else 0
-        stats['total_cost'] += call.get('total_cost', 0)
-        stats['total_latency'] += call.get('latency_ms', 0)
-        stats['total_tokens'] += call.get('total_tokens', 0)
-        stats['count'] += 1
-    
-    leaderboard = []
-    for agent, stats in agent_stats.items():
-        if stats['count'] == 0:
-            continue
-        
-        leaderboard.append({
-            'agent': agent,
-            'avg_score': sum(stats['scores']) / len(stats['scores']),
-            'hallucination_rate': stats['hallucinations'] / stats['count'],
-            'factual_error_rate': stats['factual_errors'] / stats['count'],
-            'avg_cost': stats['total_cost'] / stats['count'],
-            'avg_latency': stats['total_latency'] / stats['count'],
-            'avg_tokens': stats['total_tokens'] / stats['count'],
-            'count': stats['count']
-        })
-    
-    # Sort by avg score descending
-    leaderboard.sort(key=lambda x: x['avg_score'], reverse=True)
-    
-    return leaderboard
-
-
-def get_error_category_breakdown(calls: List[Dict]) -> Dict[str, int]:
-    """Get breakdown of error categories."""
-    categories = defaultdict(int)
-    
-    for call in calls:
-        qual_eval = call.get('quality_evaluation', {})
-        if not isinstance(qual_eval, dict):
-            continue
-        
-        # Check for various error types
-        if qual_eval.get('hallucination'):
-            categories['Hallucination'] += 1
-        if qual_eval.get('factual_error'):
-            categories['Factual Error'] += 1
-        
-        # Category from evaluation
-        category = qual_eval.get('error_category') or qual_eval.get('category')
-        if category:
-            categories[category] += 1
-        
-        # If no errors, mark as good
-        if not qual_eval.get('hallucination') and not qual_eval.get('factual_error'):
-            score = qual_eval.get('score', 0)
-            if score >= 9:
-                categories['Excellent'] += 1
-            elif score >= 7:
-                categories['Good'] += 1
-            elif score >= 5:
-                categories['Acceptable'] += 1
+        if score < QUALITY_THRESHOLD or has_hallucination or has_error:
+            # Determine root cause
+            if has_hallucination:
+                root_cause = 'HALLUCINATION'
+                cause_detail = 'Response contains fabricated information'
+            elif has_error:
+                root_cause = 'FACTUAL_ERROR'
+                cause_detail = 'Response contains incorrect facts'
+            elif score < 5.0:
+                root_cause = 'VERY_LOW_QUALITY'
+                cause_detail = 'Response failed to address the query adequately'
+            elif score < QUALITY_THRESHOLD:
+                root_cause = 'LOW_QUALITY'
+                cause_detail = 'Response quality below threshold'
             else:
-                categories['Poor Quality'] += 1
+                root_cause = 'UNKNOWN'
+                cause_detail = 'Quality issue detected'
+            
+            failures.append({
+                'call': call,
+                'score': score,
+                'has_hallucination': has_hallucination,
+                'has_error': has_error,
+                'root_cause': root_cause,
+                'cause_detail': cause_detail,
+                'judge_feedback': qual.get('reasoning', qual.get('judge_feedback', 'No feedback available')),
+                'failure_reason': qual.get('failure_reason', root_cause),
+                'improvement_suggestion': qual.get('improvement_suggestion', ''),
+            })
     
-    return dict(categories)
+    # Sort by severity (lowest score first)
+    failures.sort(key=lambda x: x['score'])
+    
+    return failures
 
 
-def get_best_and_worst_examples(calls: List[Dict], count: int = 5) -> Tuple[List[Dict], List[Dict]]:
-    """Get best and worst evaluated examples."""
-    evaluated_calls = []
+def find_hallucinations(calls: List[Dict]) -> List[Dict]:
+    """Find calls with hallucination flags."""
+    
+    hallucinations = []
     
     for call in calls:
-        qual_eval = call.get('quality_evaluation', {})
-        if isinstance(qual_eval, dict) and qual_eval.get('score') is not None:
-            evaluated_calls.append(call)
+        qual = call.get('quality_evaluation', {})
+        if qual.get('hallucination'):
+            hallucinations.append({
+                'call': call,
+                'score': qual.get('score', 0),
+                'judge_feedback': qual.get('reasoning', qual.get('judge_feedback', 'No details available')),
+                'hallucination_details': qual.get('hallucination_details', ''),
+            })
     
-    if not evaluated_calls:
-        return [], []
-    
-    # Sort by score
-    sorted_calls = sorted(evaluated_calls, key=lambda c: c['quality_evaluation']['score'], reverse=True)
-    
-    best = sorted_calls[:count]
-    worst = sorted_calls[-count:][::-1]  # Reverse to show worst first
-    
-    return best, worst
+    return hallucinations
 
 
-def render_evaluation_drilldown(call: Dict, index: int):
-    """Render detailed drilldown for a single evaluation."""
-    qual_eval = call.get('quality_evaluation', {})
+def find_coverage_gaps(calls: List[Dict]) -> List[Dict]:
+    """Find operations without quality evaluation."""
     
-    if not isinstance(qual_eval, dict) or qual_eval.get('score') is None:
-        st.warning("No quality evaluation data")
-        return
+    by_operation = defaultdict(lambda: {'total': 0, 'evaluated': 0, 'calls': []})
     
-    with st.expander(f"📋 Evaluation #{index} - Score: {qual_eval.get('score', 0):.1f}/10", expanded=False):
-        col1, col2 = st.columns([2, 1])
+    for call in calls:
+        op = call.get('operation', 'unknown')
+        by_operation[op]['total'] += 1
+        by_operation[op]['calls'].append(call)
         
-        with col1:
-            st.write("**1. Prompt**")
-            prompt = call.get('prompt', 'N/A')
-            st.code(truncate_text(prompt, 300), language="text")
+        if call.get('quality_evaluation', {}).get('score') is not None:
+            by_operation[op]['evaluated'] += 1
+    
+    gaps = []
+    for op, stats in by_operation.items():
+        coverage = stats['evaluated'] / stats['total'] if stats['total'] > 0 else 0
+        
+        if coverage < 0.5:  # Less than 50% coverage
+            # Analyze why this should be evaluated
+            sample_calls = stats['calls'][:5]
+            avg_cost = sum(c.get('total_cost', 0) for c in stats['calls']) / len(stats['calls'])
+            avg_tokens = sum(c.get('total_tokens', 0) for c in stats['calls']) / len(stats['calls'])
             
-            st.write("**2. Model Output**")
-            response = call.get('response_text', 'N/A')
-            st.code(truncate_text(response, 400), language="text")
-            
-            st.write("**3. Judge Evaluation**")
-            
-            score = qual_eval.get('score', 0)
-            if score >= 9:
-                st.success(f"**Score:** {score}/10 - Excellent")
-            elif score >= 7:
-                st.info(f"**Score:** {score}/10 - Good")
-            elif score >= 5:
-                st.warning(f"**Score:** {score}/10 - Acceptable")
+            # Determine importance
+            if avg_cost > 0.05:
+                importance = 'HIGH'
+                reason = 'High cost per call — quality issues are expensive'
+            elif 'sql' in op.lower() or 'code' in op.lower():
+                importance = 'HIGH'
+                reason = 'Code/SQL generation — errors have high impact'
+            elif 'analysis' in op.lower() or 'match' in op.lower():
+                importance = 'MEDIUM'
+                reason = 'Analysis task — quality affects decisions'
             else:
-                st.error(f"**Score:** {score}/10 - Poor")
+                importance = 'MEDIUM'
+                reason = 'Should monitor for quality consistency'
             
-            reasoning = qual_eval.get('reasoning', 'No reasoning provided')
-            st.write(f"**Reasoning:** {reasoning}")
-            
-            # Flags
-            if qual_eval.get('hallucination'):
-                st.error("🚨 **Hallucination Detected**")
-            if qual_eval.get('factual_error'):
-                st.error("❌ **Factual Error Detected**")
-            
-            # Error category
-            category = qual_eval.get('error_category') or qual_eval.get('category')
-            if category:
-                st.write(f"**Error Category:** {category}")
-            
-            # Suggestions
-            suggestions = qual_eval.get('suggestions', [])
-            if suggestions:
-                st.write("**Suggestions for Improvement:**")
-                for suggestion in suggestions:
-                    st.write(f"• {suggestion}")
-        
-        with col2:
-            st.write("**4. Metadata**")
-            
-            st.metric("Model", format_model_name(call.get('model_name', 'Unknown')))
-            st.metric("Agent", call.get('agent_name', 'Unknown'))
-            st.metric("Cost", format_cost(call.get('total_cost', 0)))
-            st.metric("Latency", format_latency(call.get('latency_ms', 0)))
-            st.metric("Tokens", format_tokens(call.get('total_tokens', 0)))
-            
-            confidence = qual_eval.get('confidence', 0)
-            if confidence > 0:
-                st.metric("Judge Confidence", f"{confidence:.2f}")
-            
-            timestamp = call.get('timestamp')
-            if timestamp:
-                st.write(f"**Timestamp:** {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+            gaps.append({
+                'operation': op,
+                'total_calls': stats['total'],
+                'evaluated': stats['evaluated'],
+                'coverage': coverage,
+                'importance': importance,
+                'reason': reason,
+                'avg_cost': avg_cost,
+                'avg_tokens': avg_tokens,
+                'sample_calls': sample_calls,
+            })
+    
+    gaps.sort(key=lambda x: (x['importance'] != 'HIGH', -x['total_calls']))
+    
+    return gaps
 
 
-def render_ab_comparison(call_a: Dict, call_b: Dict):
-    """Render A/B comparison between two evaluated calls."""
-    st.subheader("🔀 A/B Comparison")
+def calculate_quality_kpis(calls: List[Dict]) -> Dict[str, Any]:
+    """Calculate quality KPIs."""
     
-    qual_a = call_a.get('quality_evaluation', {})
-    qual_b = call_b.get('quality_evaluation', {})
+    evaluated = [c for c in calls if c.get('quality_evaluation', {}).get('score') is not None]
     
-    if not qual_a.get('score') or not qual_b.get('score'):
-        st.info("Select two evaluated calls to compare")
-        return
+    if not evaluated:
+        return {
+            'avg_score': 0,
+            'hallucination_rate': 0,
+            'error_rate': 0,
+            'low_quality_rate': 0,
+            'total_evaluated': 0,
+        }
     
-    col1, col2 = st.columns(2)
+    scores = [c['quality_evaluation']['score'] for c in evaluated]
+    hallucinations = sum(1 for c in evaluated if c['quality_evaluation'].get('hallucination'))
+    errors = sum(1 for c in evaluated if c['quality_evaluation'].get('factual_error'))
+    low_quality = sum(1 for c in evaluated if c['quality_evaluation']['score'] < QUALITY_THRESHOLD)
+    
+    return {
+        'avg_score': sum(scores) / len(scores),
+        'hallucination_rate': hallucinations / len(evaluated),
+        'error_rate': errors / len(evaluated),
+        'low_quality_rate': low_quality / len(evaluated),
+        'total_evaluated': len(evaluated),
+    }
+
+
+# =============================================================================
+# RENDERING FUNCTIONS
+# =============================================================================
+
+def render_quality_status_banner(coverage: Dict, kpis: Dict):
+    """Render quality status banner."""
+    
+    coverage_rate = coverage['coverage_rate']
+    
+    issues_count = sum(1 for op in coverage['operations'] if op['status'] in ['LOW_QUALITY', 'HAS_ISSUES'])
+    gaps_count = sum(1 for op in coverage['operations'] if op['status'] == 'NOT_EVALUATED')
+    
+    if coverage_rate < 0.3:
+        st.error(f"🔴 **Low Coverage** — Only {format_percentage(coverage_rate)} of calls evaluated. {gaps_count} operations not monitored.")
+    elif issues_count > 0:
+        st.warning(f"🟡 **{coverage['evaluated_calls']} calls evaluated** — {issues_count} operations have quality issues")
+    else:
+        st.success(f"🟢 **Quality Healthy** — {format_percentage(coverage_rate)} coverage, avg score {kpis['avg_score']:.1f}/10")
+
+
+def render_failure_card(failure: Dict, index: int):
+    """Render a quality failure card."""
+    
+    call = failure['call']
+    
+    severity_icon = "🔴" if failure['score'] < 5.0 else "🟡"
+    
+    st.markdown(f"### {severity_icon} #{index} — Score: {failure['score']:.1f}/10 — {call.get('operation', 'unknown')}")
+    st.caption(f"{call.get('agent_name', 'unknown')} • {format_model_name(call.get('model_name', ''))} • {format_cost(call.get('total_cost', 0))}")
+    
+    col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.write("### Option A")
-        st.write(f"**Model:** {format_model_name(call_a.get('model_name', 'Unknown'))}")
-        st.write(f"**Agent:** {call_a.get('agent_name', 'Unknown')}")
+        st.markdown("**Root Cause:**")
+        st.error(f"{failure['root_cause']}: {failure['cause_detail']}")
         
-        st.write("**Output:**")
-        st.code(truncate_text(call_a.get('response_text', 'N/A'), 200), language="text")
-        
-        st.metric("Judge Score", f"{qual_a.get('score', 0):.1f}/10")
-        st.metric("Tokens", format_tokens(call_a.get('total_tokens', 0)))
-        st.metric("Cost", format_cost(call_a.get('total_cost', 0)))
-        st.metric("Latency", format_latency(call_a.get('latency_ms', 0)))
-        
-        if qual_a.get('hallucination'):
-            st.error("🚨 Hallucination")
-        if qual_a.get('factual_error'):
-            st.error("❌ Factual Error")
+        if failure['has_hallucination']:
+            st.markdown("🚨 **Hallucination detected**")
+        if failure['has_error']:
+            st.markdown("❌ **Factual error detected**")
     
     with col2:
-        st.write("### Option B")
-        st.write(f"**Model:** {format_model_name(call_b.get('model_name', 'Unknown'))}")
-        st.write(f"**Agent:** {call_b.get('agent_name', 'Unknown')}")
-        
-        st.write("**Output:**")
-        st.code(truncate_text(call_b.get('response_text', 'N/A'), 200), language="text")
-        
-        st.metric("Judge Score", f"{qual_b.get('score', 0):.1f}/10")
-        st.metric("Tokens", format_tokens(call_b.get('total_tokens', 0)))
-        st.metric("Cost", format_cost(call_b.get('total_cost', 0)))
-        st.metric("Latency", format_latency(call_b.get('latency_ms', 0)))
-        
-        if qual_b.get('hallucination'):
-            st.error("🚨 Hallucination")
-        if qual_b.get('factual_error'):
-            st.error("❌ Factual Error")
+        st.markdown("**Judge Feedback:**")
+        st.info(failure['judge_feedback'][:300] if failure['judge_feedback'] else "No feedback available")
     
-    # Winner determination
-    score_a = qual_a.get('score', 0)
-    score_b = qual_b.get('score', 0)
+    with st.expander("📝 View Prompt & Response"):
+        st.markdown("**Prompt:**")
+        st.code(truncate_text(call.get('prompt', 'N/A'), 400), language="text")
+        
+        st.markdown("**Response:**")
+        st.code(truncate_text(call.get('response_text', call.get('response', 'N/A')), 400), language="text")
     
-    st.divider()
-    
-    if score_a > score_b:
-        st.success(f"✅ **Winner: Option A** (Score: {score_a:.1f} vs {score_b:.1f})")
-    elif score_b > score_a:
-        st.success(f"✅ **Winner: Option B** (Score: {score_b:.1f} vs {score_a:.1f})")
-    else:
-        st.info(f"🤝 **Tie** (Both scored {score_a:.1f})")
+    if failure['improvement_suggestion']:
+        st.markdown("**🛠️ Suggested Fix:**")
+        st.success(failure['improvement_suggestion'])
 
 
-def render():
-    """Render the LLM Judge page."""
+def render_hallucination_card(item: Dict, index: int):
+    """Render a hallucination card."""
     
-    st.title("⚖️ LLM Judge - Quality Evaluation")
+    call = item['call']
     
-    # Get selected project
-    selected_project = st.session_state.get('selected_project')
+    st.markdown(f"### 🚨 #{index} — {call.get('operation', 'unknown')} — Score: {item['score']:.1f}/10")
+    st.caption(f"{call.get('agent_name', 'unknown')} • {format_model_name(call.get('model_name', ''))}")
     
-    # Project indicator
-    if selected_project:
-        st.info(f"📊 Analyzing quality for: **{selected_project}**")
-    else:
-        st.info("📊 Analyzing quality for: **All Projects**")
+    col1, col2 = st.columns([1, 1])
     
-    st.divider()
+    with col1:
+        st.markdown("**What was hallucinated:**")
+        st.error(item['hallucination_details'] if item['hallucination_details'] else "Fabricated or unsupported information in response")
     
-    # Filters
+    with col2:
+        st.markdown("**Judge Feedback:**")
+        st.info(item['judge_feedback'][:300] if item['judge_feedback'] else "No details")
+    
+    with st.expander("📝 View Response"):
+        st.code(truncate_text(call.get('response_text', call.get('response', 'N/A')), 500), language="text")
+    
+    st.markdown("**🛠️ Fix Suggestions:**")
+    st.write("- Add grounding context (RAG, retrieved documents)")
+    st.write("- Include source citations requirement in prompt")
+    st.write("- Use a more factual model for this task")
+
+
+def render_gap_card(gap: Dict, index: int):
+    """Render a coverage gap card."""
+    
+    importance_color = {'HIGH': '🔴', 'MEDIUM': '🟡', 'LOW': '🟢'}
+    
+    st.markdown(f"### {importance_color.get(gap['importance'], '⚪')} #{index} — {gap['operation']} — {gap['total_calls']} calls")
+    st.caption(f"{format_percentage(gap['coverage'])} coverage • {format_cost(gap['avg_cost'])}/call avg")
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("**Why evaluate this?**")
+        st.info(gap['reason'])
+        
+        st.write(f"- Total calls: {gap['total_calls']}")
+        st.write(f"- Currently evaluated: {gap['evaluated']}")
+        st.write(f"- Avg tokens: {format_tokens(int(gap['avg_tokens']))}")
+    
+    with col2:
+        st.markdown("**Suggested criteria:**")
+        
+        op = gap['operation'].lower()
+        if 'sql' in op:
+            st.write("- Is SQL syntactically valid?")
+            st.write("- Does it answer the question?")
+            st.write("- Are table/column names correct?")
+        elif 'extract' in op:
+            st.write("- Are all entities found?")
+            st.write("- Is formatting correct?")
+            st.write("- Any false positives?")
+        elif 'chat' in op:
+            st.write("- Is response helpful?")
+            st.write("- Is tone appropriate?")
+            st.write("- Any hallucinations?")
+        else:
+            st.write("- Does output match intent?")
+            st.write("- Is quality consistent?")
+            st.write("- Any factual errors?")
+
+
+def render_overview_tab(calls: List[Dict], coverage: Dict, kpis: Dict):
+    """Render Overview tab."""
+    
+    st.subheader("📊 Quality Overview")
+    
+    # KPIs
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        try:
-            agents = get_available_agents(selected_project)
-            filter_agent = st.selectbox(
-                "Agent",
-                options=["All"] + agents,
-                key="judge_agent_filter"
-            )
-        except:
-            filter_agent = "All"
-    
+        st.metric("Evaluated", f"{coverage['evaluated_calls']}/{coverage['total_calls']}", 
+                  help=f"{format_percentage(coverage['coverage_rate'])} coverage")
     with col2:
-        try:
-            models = get_available_models(selected_project)
-            filter_model = st.selectbox(
-                "Model",
-                options=["All"] + models,
-                key="judge_model_filter"
-            )
-        except:
-            filter_model = "All"
-    
+        st.metric("Avg Score", f"{kpis['avg_score']:.1f}/10" if kpis['avg_score'] > 0 else "—")
     with col3:
-        time_period = st.selectbox(
-            "Time Period",
-            options=["1h", "24h", "7d", "30d"],
-            index=2,
-            key="judge_time_period"
-        )
-    
+        st.metric("Hallucination Rate", format_percentage(kpis['hallucination_rate']))
     with col4:
-        limit = st.selectbox(
-            "Max Results",
-            options=[50, 100, 200, 500],
-            index=1,
-            key="judge_limit"
-        )
+        st.metric("Error Rate", format_percentage(kpis['error_rate']))
     
     st.divider()
     
-    # Fetch data
-    try:
-        with st.spinner("Loading quality evaluation data..."):
-            calls = get_llm_calls(
-                project_name=selected_project,
-                agent_name=None if filter_agent == "All" else filter_agent,
-                model_name=None if filter_model == "All" else filter_model,
-                limit=limit
-            )
-            
-            if not calls:
-                render_empty_state(
-                    message="No data available for quality analysis",
-                    icon="⚖️",
-                    suggestion="Run your AI agents with Observatory enabled to track quality"
-                )
-                return
+    # By operation table
+    st.subheader("🎯 Quality by Operation")
     
-    except Exception as e:
-        st.error(f"Error loading quality data: {str(e)}")
-        return
-    
-    # Detect quality mode
-    has_quality, quality_mode, eval_count = detect_quality_mode(calls)
-    
-    # Show quality status
-    if has_quality:
-        st.success(f"✅ {quality_mode} - {eval_count} evaluations analyzed")
-    else:
-        st.warning(f"⚠️ {quality_mode} - Implementation guidance below")
-    
-    if not has_quality:
-        # Show implementation guidance
-        st.divider()
-        
-        st.subheader("💡 How to Enable Quality Evaluation")
-        
-        st.markdown("""
-        Quality evaluation requires implementing an LLM-as-a-Judge system.
-        
-        **Steps to Implement:**
-        
-        1. **Create Judge Prompt**
-        ```python
-        judge_prompt = f'''
-        Evaluate the following AI response for quality, accuracy, and safety.
-        
-        Prompt: {original_prompt}
-        Response: {ai_response}
-        
-        Provide:
-        - Score (0-10)
-        - Reasoning for score
-        - Hallucination detection (true/false)
-        - Factual error detection (true/false)
-        - Suggestions for improvement
-        
-        Return as JSON.
-        '''
-        ```
-        
-        2. **Call Judge Model**
-        ```python
-        judge_response = call_llm(judge_prompt, model="gpt-4o")
-        evaluation = parse_json(judge_response)
-        ```
-        
-        3. **Create QualityEvaluation Object**
-        ```python
-        from observatory.models import QualityEvaluation
-        
-        quality_eval = QualityEvaluation(
-            score=evaluation['score'],
-            reasoning=evaluation['reasoning'],
-            hallucination=evaluation['hallucination'],
-            factual_error=evaluation['factual_error'],
-            confidence=0.85,
-            suggestions=evaluation['suggestions']
-        )
-        ```
-        
-        4. **Track with Observatory**
-        ```python
-        track_llm_call(
-            model_name=model,
-            ...,
-            quality_evaluation=quality_eval
-        )
-        ```
-        
-        **Benefits:**
-        - Detect hallucinations automatically
-        - Track quality trends over time
-        - Compare model/agent performance
-        - Identify problematic patterns
-        - A/B test prompts and models
-        
-        **Cost Consideration:**
-        - Judge calls add ~$0.002-0.01 per evaluation
-        - Use sampling (evaluate 10-20% of calls)
-        - Use cheaper models for judging when appropriate
-        
-        [→ View Full Implementation Guide]
-        """)
-        
-        return
-    
-    st.divider()
-    
-    # Calculate KPIs
-    kpis = calculate_quality_kpis(calls)
-    
-    # Section 1: KPI Cards
-    st.subheader("📊 Quality Metrics")
-    
-    metrics = [
-        {
-            "label": "Avg Judge Score",
-            "value": f"{kpis['avg_score']:.1f}/10",
-            "help_text": f"{kpis['total_evaluated']} evaluations"
-        },
-        {
-            "label": "Hallucination Rate",
-            "value": format_percentage(kpis['hallucination_rate']),
-            "delta": "🚨" if kpis['hallucination_rate'] > 0.05 else "✅"
-        },
-        {
-            "label": "Factual Error Rate",
-            "value": format_percentage(kpis['factual_error_rate']),
-            "delta": "⚠️" if kpis['factual_error_rate'] > 0.10 else "✅"
-        },
-        {
-            "label": "Confidence Gap",
-            "value": f"{kpis['confidence_gap']:.2f}",
-            "help_text": "Difference between model confidence and actual score"
+    op_data = []
+    for op in coverage['operations']:
+        status_display = {
+            'NOT_EVALUATED': '⚪ Not evaluated',
+            'LOW_QUALITY': '🔴 Low quality',
+            'HAS_ISSUES': '🟡 Has issues',
+            'HEALTHY': '🟢 Healthy',
         }
-    ]
+        
+        op_data.append({
+            'Operation': op['operation'],
+            'Evaluated': f"{op['evaluated']}/{op['total']}",
+            'Avg Score': f"{op['avg_score']:.1f}/10" if op['avg_score'] else "—",
+            'Issues': op['issues'] if op['issues'] > 0 else "—",
+            'Status': status_display.get(op['status'], op['status']),
+        })
     
-    render_metric_row(metrics, columns=4)
+    st.dataframe(pd.DataFrame(op_data), width='stretch', hide_index=True)
+
+
+def render_failures_tab(failures: List[Dict]):
+    """Render Failures tab."""
     
-    st.divider()
+    if not failures:
+        st.success("✅ No quality failures detected!")
+        st.caption("All evaluated calls meet quality threshold")
+        return
     
-    # Section 2: Quality Trend Chart
-    st.subheader("📈 Quality Trends Over Time")
+    st.subheader(f"🔴 {len(failures)} Quality Failures")
+    st.caption(f"Calls with score < {QUALITY_THRESHOLD} or errors")
+    
+    for i, failure in enumerate(failures[:15], 1):
+        with st.container():
+            render_failure_card(failure, i)
+            st.divider()
+    
+    if len(failures) > 15:
+        st.caption(f"Showing top 15 of {len(failures)} failures")
+
+
+def render_hallucinations_tab(hallucinations: List[Dict]):
+    """Render Hallucinations tab."""
+    
+    if not hallucinations:
+        st.success("✅ No hallucinations detected!")
+        return
+    
+    st.subheader(f"🚨 {len(hallucinations)} Hallucinations Detected")
+    
+    for i, item in enumerate(hallucinations[:10], 1):
+        with st.container():
+            render_hallucination_card(item, i)
+            st.divider()
+
+
+def render_gaps_tab(gaps: List[Dict]):
+    """Render Coverage Gaps tab."""
+    
+    if not gaps:
+        st.success("✅ All operations have quality evaluation!")
+        return
+    
+    st.subheader(f"📍 {len(gaps)} Operations Need Evaluation")
+    st.caption("Operations with < 50% quality evaluation coverage")
+    
+    for i, gap in enumerate(gaps[:10], 1):
+        with st.container():
+            render_gap_card(gap, i)
+            st.divider()
+
+
+# =============================================================================
+# MAIN RENDER
+# =============================================================================
+
+def render():
+    """Main render function for LLM Judge page."""
+    
+    st.title("⚖️ Quality Diagnostics")
+    st.caption("Find quality issues and how to fix them")
+    
+    selected_project = st.session_state.get('selected_project')
+    
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        if selected_project:
+            st.info(f"Analyzing: **{selected_project}**")
+    with col2:
+        if st.button("🔄 Refresh", width='stretch'):
+            st.cache_data.clear()
+            st.rerun()
     
     try:
-        # Group by time
-        hourly_data = defaultdict(lambda: {'scores': [], 'hallucinations': 0, 'total': 0})
+        calls = get_llm_calls(project_name=selected_project, limit=500)
         
-        for call in calls:
-            qual_eval = call.get('quality_evaluation', {})
-            if not isinstance(qual_eval, dict) or qual_eval.get('score') is None:
-                continue
-            
-            timestamp = call.get('timestamp')
-            if timestamp:
-                hour = timestamp.replace(minute=0, second=0, microsecond=0)
-                hourly_data[hour]['scores'].append(qual_eval.get('score', 0))
-                hourly_data[hour]['hallucinations'] += 1 if qual_eval.get('hallucination') else 0
-                hourly_data[hour]['total'] += 1
-        
-        if hourly_data:
-            sorted_hours = sorted(hourly_data.keys())
-            
-            avg_scores = [sum(hourly_data[h]['scores']) / len(hourly_data[h]['scores']) for h in sorted_hours]
-            hall_rates = [hourly_data[h]['hallucinations'] / hourly_data[h]['total'] * 100 for h in sorted_hours]
-            
-            # Create chart
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=sorted_hours,
-                y=avg_scores,
-                mode='lines+markers',
-                name='Avg Score',
-                yaxis='y',
-                line=dict(color='blue', width=2)
-            ))
-            fig.add_trace(go.Scatter(
-                x=sorted_hours,
-                y=hall_rates,
-                mode='lines+markers',
-                name='Hallucination Rate (%)',
-                yaxis='y2',
-                line=dict(color='red', width=2)
-            ))
-            
-            fig.update_layout(
-                title="Quality Score and Hallucination Rate Over Time",
-                xaxis_title="Time",
-                yaxis=dict(title="Avg Score (0-10)", side='left'),
-                yaxis2=dict(title="Hallucination Rate (%)", side='right', overlaying='y'),
-                hovermode='x unified'
+        if not calls:
+            render_empty_state(
+                message="No LLM calls found",
+                icon="⚖️",
+                suggestion="Start making LLM calls with Observatory tracking enabled"
             )
-            
-            st.plotly_chart(fig, width='stretch')
-        else:
-            st.info("Not enough temporal data for trend analysis")
+            return
+        
+        # Analyze
+        with st.spinner("Analyzing quality..."):
+            coverage = analyze_quality_coverage(calls)
+            kpis = calculate_quality_kpis(calls)
+            failures = find_quality_failures(calls)
+            hallucinations = find_hallucinations(calls)
+            gaps = find_coverage_gaps(calls)
+        
+        # Status banner
+        render_quality_status_banner(coverage, kpis)
+        
+        st.divider()
+        
+        # Tabs
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📊 Overview",
+            f"🔴 Failures ({len(failures)})",
+            f"🚨 Hallucinations ({len(hallucinations)})",
+            f"📍 Gaps ({len(gaps)})"
+        ])
+        
+        with tab1:
+            render_overview_tab(calls, coverage, kpis)
+        
+        with tab2:
+            render_failures_tab(failures)
+        
+        with tab3:
+            render_hallucinations_tab(hallucinations)
+        
+        with tab4:
+            render_gaps_tab(gaps)
     
     except Exception as e:
-        st.warning(f"Could not generate trend chart: {str(e)}")
-    
-    st.divider()
-    
-    # Section 3: Leaderboard
-    st.subheader("🏆 Performance Leaderboard")
-    
-    tab1, tab2 = st.tabs(["By Model", "By Agent"])
-    
-    with tab1:
-        model_leaderboard = calculate_model_leaderboard(calls)
-        
-        if model_leaderboard:
-            leaderboard_data = []
-            for entry in model_leaderboard:
-                leaderboard_data.append({
-                    'Model': format_model_name(entry['model']),
-                    'Avg Score': f"{entry['avg_score']:.1f}/10",
-                    'Hallucinations': format_percentage(entry['hallucination_rate']),
-                    'Errors': format_percentage(entry['factual_error_rate']),
-                    'Avg Cost': format_cost(entry['avg_cost']),
-                    'Avg Latency': format_latency(entry['avg_latency']),
-                    'Avg Tokens': format_tokens(int(entry['avg_tokens'])),
-                    'Evaluations': entry['count']
-                })
-            
-            df = pd.DataFrame(leaderboard_data)
-            st.dataframe(df, width='stretch', hide_index=True)
-        else:
-            st.info("No model leaderboard data")
-    
-    with tab2:
-        agent_leaderboard = calculate_agent_leaderboard(calls)
-        
-        if agent_leaderboard:
-            leaderboard_data = []
-            for entry in agent_leaderboard:
-                leaderboard_data.append({
-                    'Agent': entry['agent'],
-                    'Avg Score': f"{entry['avg_score']:.1f}/10",
-                    'Hallucinations': format_percentage(entry['hallucination_rate']),
-                    'Errors': format_percentage(entry['factual_error_rate']),
-                    'Avg Cost': format_cost(entry['avg_cost']),
-                    'Avg Latency': format_latency(entry['avg_latency']),
-                    'Avg Tokens': format_tokens(int(entry['avg_tokens'])),
-                    'Evaluations': entry['count']
-                })
-            
-            df = pd.DataFrame(leaderboard_data)
-            st.dataframe(df, width='stretch', hide_index=True)
-        else:
-            st.info("No agent leaderboard data")
-    
-    st.divider()
-    
-    # Section 4: Error Category Breakdown
-    st.subheader("📊 Error Category Breakdown")
-    
-    error_categories = get_error_category_breakdown(calls)
-    
-    if error_categories:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            fig = create_cost_breakdown_pie(error_categories, "Error Distribution")
-            st.plotly_chart(fig, width='stretch')
-        
-        with col2:
-            fig = create_bar_chart(
-                error_categories,
-                x_label="Category",
-                y_label="Count",
-                title="Error Categories"
-            )
-            st.plotly_chart(fig, width='stretch')
-    else:
-        st.info("No error category data")
-    
-    st.divider()
-    
-    # Section 5: Best vs Worst Examples
-    st.subheader("⭐ Best vs Worst Examples")
-    
-    best_examples, worst_examples = get_best_and_worst_examples(calls, count=5)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.write("### 🌟 Top 5 Best Outputs")
-        
-        if best_examples:
-            for i, call in enumerate(best_examples, 1):
-                qual_eval = call.get('quality_evaluation', {})
-                score = qual_eval.get('score', 0)
-                
-                with st.expander(f"#{i} - Score: {score:.1f}/10", expanded=(i==1)):
-                    st.write(f"**Model:** {format_model_name(call.get('model_name', 'Unknown'))}")
-                    st.write(f"**Agent:** {call.get('agent_name', 'Unknown')}")
-                    
-                    st.write("**Output:**")
-                    st.code(truncate_text(call.get('response_text', 'N/A'), 200), language="text")
-                    
-                    st.write("**Why it's good:**")
-                    st.info(qual_eval.get('reasoning', 'No reasoning provided'))
-        else:
-            st.info("No best examples available")
-    
-    with col2:
-        st.write("### 🔻 Top 5 Worst Outputs")
-        
-        if worst_examples:
-            for i, call in enumerate(worst_examples, 1):
-                qual_eval = call.get('quality_evaluation', {})
-                score = qual_eval.get('score', 0)
-                
-                with st.expander(f"#{i} - Score: {score:.1f}/10", expanded=(i==1)):
-                    st.write(f"**Model:** {format_model_name(call.get('model_name', 'Unknown'))}")
-                    st.write(f"**Agent:** {call.get('agent_name', 'Unknown')}")
-                    
-                    st.write("**Output:**")
-                    st.code(truncate_text(call.get('response_text', 'N/A'), 200), language="text")
-                    
-                    st.write("**Issues:**")
-                    st.warning(qual_eval.get('reasoning', 'No reasoning provided'))
-                    
-                    if qual_eval.get('hallucination'):
-                        st.error("🚨 Hallucination detected")
-                    if qual_eval.get('factual_error'):
-                        st.error("❌ Factual error detected")
-        else:
-            st.info("No worst examples available")
-    
-    st.divider()
-    
-    # Section 6: LLM Judge Event Log
-    st.subheader("📋 Evaluation Event Log")
-    
-    # Filter to evaluated calls only
-    evaluated_calls = [
-        c for c in calls
-        if c.get('quality_evaluation', {}).get('score') is not None
-    ]
-    
-    if evaluated_calls:
-        st.caption(f"Showing {len(evaluated_calls)} evaluated calls")
-        
-        # Create event table
-        event_data = []
-        for call in evaluated_calls[:50]:  # Show top 50
-            qual_eval = call.get('quality_evaluation', {})
-            
-            event_data.append({
-                'Prompt': truncate_text(call.get('prompt', 'N/A'), 50),
-                'Model': format_model_name(call.get('model_name', 'Unknown')),
-                'Agent': call.get('agent_name', 'Unknown'),
-                'Score': f"{qual_eval.get('score', 0):.1f}/10",
-                'Hallucinated': '🚨' if qual_eval.get('hallucination') else '✅',
-                'Error': '❌' if qual_eval.get('factual_error') else '✅',
-                'Category': qual_eval.get('error_category', 'N/A'),
-                'Tokens': format_tokens(call.get('total_tokens', 0)),
-                'Cost': format_cost(call.get('total_cost', 0))
-            })
-        
-        df = pd.DataFrame(event_data)
-        st.dataframe(df, width='stretch', hide_index=True)
-        
-        # Drilldown section
-        st.divider()
-        st.subheader("🔍 Detailed Evaluation Drilldown")
-        
-        for i, call in enumerate(evaluated_calls[:20], 1):  # Top 20 for drilldown
-            render_evaluation_drilldown(call, i)
-    else:
-        st.info("No evaluated calls to display")
-    
-    # Section 7: A/B Comparison (Optional)
-    if len(evaluated_calls) >= 2:
-        st.divider()
-        
-        with st.expander("🔀 A/B Comparison Tool", expanded=False):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                call_a_idx = st.selectbox(
-                    "Select Option A",
-                    options=range(len(evaluated_calls[:20])),
-                    format_func=lambda i: f"Call #{i+1} - {format_model_name(evaluated_calls[i].get('model_name', 'Unknown'))} - Score: {evaluated_calls[i].get('quality_evaluation', {}).get('score', 0):.1f}",
-                    key="ab_call_a"
-                )
-            
-            with col2:
-                call_b_idx = st.selectbox(
-                    "Select Option B",
-                    options=range(len(evaluated_calls[:20])),
-                    format_func=lambda i: f"Call #{i+1} - {format_model_name(evaluated_calls[i].get('model_name', 'Unknown'))} - Score: {evaluated_calls[i].get('quality_evaluation', {}).get('score', 0):.1f}",
-                    key="ab_call_b"
-                )
-            
-            if call_a_idx != call_b_idx:
-                render_ab_comparison(evaluated_calls[call_a_idx], evaluated_calls[call_b_idx])
-
-
-# Import plotly for charts
-import plotly.graph_objects as go
+        st.error(f"Error loading data: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())

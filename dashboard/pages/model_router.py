@@ -1,24 +1,29 @@
 """
-Model Router Page - Routing Analysis and Optimization
+Model Router - Developer Diagnostic Dashboard
 Location: dashboard/pages/model_router.py
 
-Analyzes routing decisions, effectiveness, and optimization opportunities.
-Works with both direct model selection and smart routing implementations.
+Developer-focused diagnostic tool that surfaces:
+- WHERE inefficiencies exist in your LLM calls
+- WHY they're happening (root cause with prompt breakdown)
+- HOW to fix them (specific routing recommendations with code)
+
+Tabs:
+1. Overview - Aggregated patterns and quick wins
+2. Latency - Slow calls and why
+3. Cost - Expensive calls and why
+4. Quality - Failed/poor calls and why
 """
 
 import streamlit as st
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List, Tuple
 import pandas as pd
-import plotly.graph_objects as go
+from datetime import datetime
+from typing import Dict, Any, List, Tuple, Optional
 from collections import defaultdict
+import re
 
 from dashboard.utils.data_fetcher import (
     get_project_overview,
     get_llm_calls,
-    get_available_agents,
-    get_available_models,
-    get_routing_analysis,
 )
 from dashboard.utils.formatters import (
     format_cost,
@@ -28,675 +33,696 @@ from dashboard.utils.formatters import (
     format_model_name,
     truncate_text,
 )
-from dashboard.components.metric_cards import (
-    render_metric_row,
-    render_empty_state,
-)
-from dashboard.components.charts import (
-    create_cost_breakdown_pie,
-    create_scatter_plot,
-    create_bar_chart,
-    create_heatmap,
-)
-from dashboard.components.tables import (
-    render_dataframe,
-)
+from dashboard.components.metric_cards import render_empty_state
+from dashboard.components.charts import create_bar_chart
 
 
-def detect_routing_mode(calls: List[Dict]) -> Tuple[bool, str]:
+# =============================================================================
+# CONSTANTS
+# =============================================================================
+
+PREMIUM_MODELS = ['gpt-4o', 'gpt-4', 'gpt-4-turbo', 'claude-3-opus', 'claude-3-5-sonnet']
+MID_TIER_MODELS = ['gpt-3.5-turbo', 'claude-3-sonnet', 'claude-3-haiku']
+BUDGET_MODELS = ['mistral-small', 'mistral-tiny', 'mixtral']
+
+LATENCY_THRESHOLD_MS = 10000  # 10 seconds
+COST_THRESHOLD = 0.05  # $0.05
+QUALITY_THRESHOLD = 7.0  # Score out of 10
+
+
+# =============================================================================
+# PROMPT PARSING & ANALYSIS
+# =============================================================================
+
+def parse_prompt_components(call: Dict) -> Dict[str, Any]:
     """
-    Detect if real routing is active or just direct selection.
+    Parse prompt into components: system prompt, chat history, user message.
     
-    Returns:
-        Tuple of (has_real_routing, mode_description)
+    Attempts to extract from metadata first, then estimates from prompt text.
     """
-    if not calls:
-        return False, "No data"
+    metadata = call.get('metadata', {}) or {}
+    prompt_text = call.get('prompt', '') or ''
+    prompt_tokens = call.get('prompt_tokens', 0)
     
-    # Check for alternative models in routing decisions
-    routing_decisions = [
-        c.get('routing_decision', {}) for c in calls
-        if c.get('routing_decision')
-    ]
-    
-    if not routing_decisions:
-        return False, "No routing data"
-    
-    # Real routing has alternatives
-    has_alternatives = any(
-        rd.get('alternative_models', []) for rd in routing_decisions
-        if isinstance(rd, dict)
-    )
-    
-    if has_alternatives:
-        return True, "Smart routing active"
-    else:
-        return False, "Direct model selection"
-
-
-def calculate_routing_kpis(calls: List[Dict], has_real_routing: bool) -> Dict[str, Any]:
-    """Calculate routing performance KPIs."""
-    if not calls:
+    # Try to get from metadata (ideal case - instrumented code)
+    if metadata.get('system_prompt_tokens'):
         return {
-            'routing_accuracy': 0,
-            'avg_latency': 0,
-            'avg_cost': 0,
-            'avg_quality': 0,
-            'total_decisions': 0
+            'system_prompt': metadata.get('system_prompt', '')[:500],
+            'system_prompt_tokens': metadata.get('system_prompt_tokens', 0),
+            'chat_history': metadata.get('chat_history', []),
+            'chat_history_tokens': metadata.get('chat_history_tokens', 0),
+            'chat_history_count': metadata.get('chat_history_count', 0),
+            'user_message': metadata.get('user_message', '')[:500],
+            'user_message_tokens': metadata.get('user_message_tokens', 0),
+            'parsed_from': 'metadata'
         }
     
-    total_latency = sum(c.get('latency_ms', 0) for c in calls)
-    total_cost = sum(c.get('total_cost', 0) for c in calls)
+    # Estimate from prompt text
+    return estimate_prompt_components(prompt_text, prompt_tokens)
+
+
+def estimate_prompt_components(prompt_text: str, total_prompt_tokens: int) -> Dict[str, Any]:
+    """Estimate prompt components when not available in metadata."""
     
-    # Quality scores from evaluations
-    quality_scores = [
-        (c.get('quality_evaluation') or {}).get('score', 0)
-        for c in calls
-        if (c.get('quality_evaluation') or {}).get('score')
+    if not prompt_text:
+        return {
+            'system_prompt': '',
+            'system_prompt_tokens': 0,
+            'chat_history': [],
+            'chat_history_tokens': 0,
+            'chat_history_count': 0,
+            'user_message': '',
+            'user_message_tokens': total_prompt_tokens,
+            'parsed_from': 'estimated_no_prompt'
+        }
+    
+    # Count message patterns to estimate chat history
+    message_patterns = [
+        r'Human:|User:|Assistant:|AI:|\[User\]|\[Assistant\]',
+        r'Message \d+:',
+        r'<human>|<assistant>|<user>',
     ]
-    avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0
     
-    if has_real_routing:
-        # Calculate actual routing accuracy
-        # Accuracy = decisions where chosen model had best score
-        accurate_decisions = 0
-        total_decisions = 0
+    message_count = 0
+    for pattern in message_patterns:
+        matches = re.findall(pattern, prompt_text, re.IGNORECASE)
+        message_count = max(message_count, len(matches))
+    
+    # Estimate token distribution
+    # Rough heuristic: 1 token ≈ 4 characters
+    total_chars = len(prompt_text)
+    
+    # Look for system prompt markers
+    system_markers = ['You are', 'System:', '<system>', 'Instructions:']
+    has_system = any(marker in prompt_text[:1000] for marker in system_markers)
+    
+    if message_count > 1:
+        # Has chat history
+        # Estimate: system = 25%, history = proportional to message count, user = remainder
+        system_pct = 0.25 if has_system else 0.10
+        history_pct = min(0.60, message_count * 0.08)
+        user_pct = 1 - system_pct - history_pct
         
-        for call in calls:
-            routing = call.get('routing_decision', {})
-            if not isinstance(routing, dict):
-                continue
-            
-            alternatives = routing.get('alternative_models', [])
-            if alternatives:
-                total_decisions += 1
-                # For now, assume routing was accurate (can be refined with judge scores)
-                accurate_decisions += 1
-        
-        routing_accuracy = accurate_decisions / total_decisions if total_decisions > 0 else 0
+        system_tokens = int(total_prompt_tokens * system_pct)
+        history_tokens = int(total_prompt_tokens * history_pct)
+        user_tokens = int(total_prompt_tokens * user_pct)
     else:
-        # No real routing - N/A
-        routing_accuracy = 0
-        total_decisions = 0
+        # No chat history detected
+        system_tokens = int(total_prompt_tokens * 0.30) if has_system else 0
+        history_tokens = 0
+        user_tokens = total_prompt_tokens - system_tokens
+    
+    # Extract preview text
+    system_preview = prompt_text[:500] if has_system else ''
+    user_preview = prompt_text[-500:] if len(prompt_text) > 500 else prompt_text
     
     return {
-        'routing_accuracy': routing_accuracy,
-        'avg_latency': total_latency / len(calls),
-        'avg_cost': total_cost / len(calls),
-        'avg_quality': avg_quality,
-        'total_decisions': total_decisions if has_real_routing else len(calls)
+        'system_prompt': system_preview,
+        'system_prompt_tokens': system_tokens,
+        'chat_history': [],
+        'chat_history_tokens': history_tokens,
+        'chat_history_count': message_count,
+        'user_message': user_preview,
+        'user_message_tokens': user_tokens,
+        'parsed_from': 'estimated'
     }
 
 
-def calculate_routing_distribution(calls: List[Dict]) -> Dict[str, int]:
-    """Calculate how requests are distributed across models."""
-    distribution = defaultdict(int)
+def analyze_call(call: Dict) -> Dict[str, Any]:
+    """Analyze a single call and identify issues."""
     
-    for call in calls:
-        model = call.get('model_name', 'Unknown')
-        distribution[model] += 1
+    components = parse_prompt_components(call)
+    total_tokens = call.get('total_tokens', 0)
+    prompt_tokens = call.get('prompt_tokens', 0)
+    completion_tokens = call.get('completion_tokens', 0)
+    latency_ms = call.get('latency_ms', 0)
+    cost = call.get('total_cost', 0)
+    success = call.get('success', True)
+    model = call.get('model_name', 'unknown')
     
-    return dict(distribution)
-
-
-def analyze_routing_effectiveness(calls: List[Dict], has_real_routing: bool) -> Dict[str, Any]:
-    """
-    Analyze routing effectiveness - shows which models should have been used.
-    Creates a confusion matrix style analysis.
-    """
-    if not has_real_routing or not calls:
-        return None
+    # Get quality score if available
+    quality_eval = call.get('quality_evaluation') or {}
+    quality_score = quality_eval.get('judge_score') or quality_eval.get('score')
+    hallucination = quality_eval.get('hallucination_flag', False)
     
-    # Categorize models by cost tier
-    model_tiers = {
-        'small': ['mistral', 'flash', 'mini', 'small'],
-        'medium': ['sonnet', 'haiku', '3.5', 'turbo'],
-        'large': ['gpt-4', 'opus', '4o', 'o1']
-    }
+    # Calculate percentages
+    system_pct = (components['system_prompt_tokens'] / prompt_tokens * 100) if prompt_tokens > 0 else 0
+    history_pct = (components['chat_history_tokens'] / prompt_tokens * 100) if prompt_tokens > 0 else 0
+    user_pct = (components['user_message_tokens'] / prompt_tokens * 100) if prompt_tokens > 0 else 0
+    response_pct = (completion_tokens / total_tokens * 100) if total_tokens > 0 else 0
     
-    def get_tier(model_name: str) -> str:
-        model_lower = model_name.lower()
-        for tier, keywords in model_tiers.items():
-            if any(keyword in model_lower for keyword in keywords):
-                return tier
-        return 'medium'
+    # Identify issues
+    issues = []
     
-    # Build confusion matrix
-    matrix = defaultdict(lambda: defaultdict(int))
+    # LATENCY ISSUES
+    if latency_ms > LATENCY_THRESHOLD_MS:
+        if components['chat_history_count'] > 6:
+            issues.append({
+                'type': 'LATENCY',
+                'cause': 'LONG_CONVERSATION_HISTORY',
+                'severity': 'high',
+                'detail': f"{components['chat_history_count']} messages in history ({history_pct:.0f}% of prompt)",
+                'fix': 'sliding_window',
+                'fix_description': 'Implement sliding window to keep only last 6 messages',
+            })
+        elif components['system_prompt_tokens'] > 3000:
+            issues.append({
+                'type': 'LATENCY',
+                'cause': 'LARGE_SYSTEM_PROMPT',
+                'severity': 'medium',
+                'detail': f"System prompt is {components['system_prompt_tokens']:,} tokens ({system_pct:.0f}%)",
+                'fix': 'prompt_compression',
+                'fix_description': 'Compress or cache system prompt, use references instead of full context',
+            })
+        elif model in PREMIUM_MODELS and total_tokens < 2000:
+            issues.append({
+                'type': 'LATENCY',
+                'cause': 'SLOW_MODEL_SIMPLE_TASK',
+                'severity': 'medium',
+                'detail': f"Using {model} for small request ({total_tokens:,} tokens)",
+                'fix': 'model_routing',
+                'fix_description': 'Route simple tasks to faster models (Mistral, Haiku)',
+            })
     
-    for call in calls:
-        routing = call.get('routing_decision', {})
-        if not isinstance(routing, dict):
-            continue
+    # COST ISSUES
+    if cost > COST_THRESHOLD:
+        is_premium = any(p in model.lower() for p in ['gpt-4', 'opus', 'sonnet'])
         
-        chosen = routing.get('chosen_model', '')
-        alternatives = routing.get('alternative_models', [])
-        
-        if not alternatives:
-            continue
-        
-        chosen_tier = get_tier(chosen)
-        
-        # Determine if choice was optimal based on quality score
-        quality = (call.get('quality_evaluation') or {}).get('score', 0)
-        
-        if quality >= 9.0:
-            optimal_tier = 'small'  # High quality achieved, could have used cheap
-        elif quality >= 7.0:
-            optimal_tier = 'medium'
+        if components['user_message_tokens'] < 200 and is_premium:
+            issues.append({
+                'type': 'COST',
+                'cause': 'SIMPLE_MESSAGE_EXPENSIVE_MODEL',
+                'severity': 'high',
+                'detail': f"Simple message ({components['user_message_tokens']} tokens) using {model}",
+                'fix': 'intent_routing',
+                'fix_description': 'Detect simple messages and route to budget models',
+            })
+        elif components['chat_history_tokens'] > 5000:
+            issues.append({
+                'type': 'COST',
+                'cause': 'EXPENSIVE_HISTORY',
+                'severity': 'high',
+                'detail': f"Chat history consuming {components['chat_history_tokens']:,} tokens ({history_pct:.0f}%)",
+                'fix': 'sliding_window',
+                'fix_description': 'Limit conversation history to reduce token usage',
+            })
+        elif is_premium and total_tokens < 3000:
+            issues.append({
+                'type': 'COST',
+                'cause': 'PREMIUM_MODEL_SIMPLE_TASK',
+                'severity': 'medium',
+                'detail': f"Using {model} for {total_tokens:,} token request",
+                'fix': 'model_routing',
+                'fix_description': 'Route to GPT-3.5 or Claude Haiku for simple tasks',
+            })
+    
+    # QUALITY ISSUES
+    if not success:
+        issues.append({
+            'type': 'QUALITY',
+            'cause': 'CALL_FAILED',
+            'severity': 'high',
+            'detail': f"Call failed: {call.get('error', 'Unknown error')[:100]}",
+            'fix': 'error_handling',
+            'fix_description': 'Add retry logic or fallback to different model',
+        })
+    elif quality_score is not None and quality_score < QUALITY_THRESHOLD:
+        is_budget = any(b in model.lower() for b in ['mistral', 'haiku', '3.5'])
+        if is_budget:
+            issues.append({
+                'type': 'QUALITY',
+                'cause': 'MODEL_TOO_WEAK',
+                'severity': 'high',
+                'detail': f"Quality score {quality_score:.1f}/10 with {model}",
+                'fix': 'upgrade_model',
+                'fix_description': 'Use stronger model for complex tasks',
+            })
         else:
-            optimal_tier = 'large'
-        
-        matrix[chosen_tier][optimal_tier] += 1
+            issues.append({
+                'type': 'QUALITY',
+                'cause': 'LOW_QUALITY_OUTPUT',
+                'severity': 'medium',
+                'detail': f"Quality score {quality_score:.1f}/10",
+                'fix': 'prompt_improvement',
+                'fix_description': 'Review and improve prompt structure',
+            })
     
-    return dict(matrix)
+    if hallucination:
+        issues.append({
+            'type': 'QUALITY',
+            'cause': 'HALLUCINATION',
+            'severity': 'high',
+            'detail': 'Hallucination detected in response',
+            'fix': 'grounding',
+            'fix_description': 'Add grounding context or use RAG',
+        })
+    
+    return {
+        'call': call,
+        'components': components,
+        'issues': issues,
+        'metrics': {
+            'latency_ms': latency_ms,
+            'cost': cost,
+            'total_tokens': total_tokens,
+            'prompt_tokens': prompt_tokens,
+            'completion_tokens': completion_tokens,
+            'quality_score': quality_score,
+            'success': success,
+        },
+        'percentages': {
+            'system': system_pct,
+            'history': history_pct,
+            'user': user_pct,
+            'response': response_pct,
+        }
+    }
 
 
-def calculate_routing_savings(calls: List[Dict], has_real_routing: bool) -> Dict[str, Any]:
-    """Calculate actual or potential routing savings."""
-    if not calls:
+def calculate_fix_impact(analysis: Dict, fix_type: str) -> Dict[str, Any]:
+    """Calculate the potential impact of applying a fix."""
+    
+    metrics = analysis['metrics']
+    components = analysis['components']
+    model = analysis['call'].get('model_name', '')
+    
+    if fix_type == 'sliding_window':
+        # Estimate: keep 6 messages, remove the rest
+        current_history = components['chat_history_count']
+        if current_history > 6:
+            reduction_ratio = 6 / current_history
+            new_history_tokens = int(components['chat_history_tokens'] * reduction_ratio)
+            tokens_saved = components['chat_history_tokens'] - new_history_tokens
+            
+            token_reduction = tokens_saved / metrics['total_tokens'] if metrics['total_tokens'] > 0 else 0
+            new_cost = metrics['cost'] * (1 - token_reduction)
+            new_latency = metrics['latency_ms'] * (1 - token_reduction * 0.8)  # Latency doesn't scale linearly
+            
+            return {
+                'tokens_saved': tokens_saved,
+                'new_cost': new_cost,
+                'cost_savings': metrics['cost'] - new_cost,
+                'cost_savings_pct': token_reduction * 100,
+                'new_latency_ms': new_latency,
+                'latency_improvement_pct': (1 - new_latency / metrics['latency_ms']) * 100 if metrics['latency_ms'] > 0 else 0,
+            }
+    
+    elif fix_type in ['model_routing', 'intent_routing']:
+        # Estimate switching to cheaper/faster model
+        current_cost_per_token = metrics['cost'] / metrics['total_tokens'] if metrics['total_tokens'] > 0 else 0
+        
+        # Rough estimates for model costs
+        if 'gpt-4' in model.lower() or 'opus' in model.lower():
+            new_cost = metrics['cost'] * 0.15  # Switch to Mistral/Haiku
+            new_latency = metrics['latency_ms'] * 0.4
+        elif 'sonnet' in model.lower():
+            new_cost = metrics['cost'] * 0.25
+            new_latency = metrics['latency_ms'] * 0.5
+        else:
+            new_cost = metrics['cost'] * 0.5
+            new_latency = metrics['latency_ms'] * 0.6
+        
         return {
-            'enabled': False,
-            'total_savings': 0,
-            'potential_savings': 0
+            'new_cost': new_cost,
+            'cost_savings': metrics['cost'] - new_cost,
+            'cost_savings_pct': (1 - new_cost / metrics['cost']) * 100 if metrics['cost'] > 0 else 0,
+            'new_latency_ms': new_latency,
+            'latency_improvement_pct': (1 - new_latency / metrics['latency_ms']) * 100 if metrics['latency_ms'] > 0 else 0,
         }
     
-    total_cost = sum(c.get('total_cost', 0) for c in calls)
+    elif fix_type == 'upgrade_model':
+        # Quality fix - costs more but improves quality
+        return {
+            'new_cost': metrics['cost'] * 2,
+            'cost_increase': metrics['cost'],
+            'expected_quality_improvement': '+1-2 points',
+        }
     
-    if has_real_routing:
-        # Calculate actual savings from routing decisions
-        actual_savings = 0
-        
-        for call in calls:
-            routing = call.get('routing_decision', {})
-            if isinstance(routing, dict):
-                # Get cost of alternatives
-                alternatives = routing.get('alternative_models', [])
-                if alternatives:
-                    # Estimate savings (simplified - would need model pricing lookup)
-                    chosen_cost = call.get('total_cost', 0)
-                    # Assume most expensive alternative would have cost 2x more
-                    potential_max_cost = chosen_cost * 2
-                    actual_savings += (potential_max_cost - chosen_cost)
-        
-        return {
-            'enabled': True,
-            'total_savings': actual_savings,
-            'savings_percentage': (actual_savings / (total_cost + actual_savings)) if total_cost > 0 else 0,
-            'total_calls': len(calls)
-        }
-    else:
-        # Calculate potential savings
-        # Assume 40% of calls could use cheaper models, saving 60%
-        routeable_calls = len(calls) * 0.40
-        avg_cost_per_call = total_cost / len(calls)
-        potential_savings = routeable_calls * avg_cost_per_call * 0.60
-        
-        return {
-            'enabled': False,
-            'potential_savings': potential_savings,
-            'routeable_calls': int(routeable_calls),
-            'savings_percentage': 0.40 * 0.60  # 24% total savings
-        }
+    return {}
 
 
-def render_routing_opportunity(calls: List[Dict], total_cost: float):
-    """Render analysis of routing opportunities when not implemented."""
-    st.subheader("💡 Routing Opportunity Analysis")
+# =============================================================================
+# RENDERING FUNCTIONS
+# =============================================================================
+
+def render_token_breakdown_bar(components: Dict, total_tokens: int):
+    """Render a visual token breakdown bar."""
     
-    st.info("🔀 Smart Routing Not Enabled Yet - See Potential Below")
+    system_pct = components['system_prompt_tokens'] / total_tokens * 100 if total_tokens > 0 else 0
+    history_pct = components['chat_history_tokens'] / total_tokens * 100 if total_tokens > 0 else 0
+    user_pct = components['user_message_tokens'] / total_tokens * 100 if total_tokens > 0 else 0
     
-    # Analyze current model usage
-    model_dist = calculate_routing_distribution(calls)
+    st.markdown(f"""
+    **Token Breakdown:**
     
-    # Find most expensive model
-    expensive_models = [m for m in model_dist.keys() if any(x in m.lower() for x in ['gpt-4', 'opus', '4o'])]
-    cheap_models = [m for m in model_dist.keys() if any(x in m.lower() for x in ['mistral', 'flash', 'mini'])]
+    | Component | Tokens | % |
+    |-----------|--------|---|
+    | System Prompt | {components['system_prompt_tokens']:,} | {system_pct:.0f}% |
+    | Chat History ({components['chat_history_count']} msgs) | {components['chat_history_tokens']:,} | {history_pct:.0f}% |
+    | User Message | {components['user_message_tokens']:,} | {user_pct:.0f}% |
+    """)
+
+
+def render_issue_card(analysis: Dict, issue: Dict, show_prompt: bool = True):
+    """Render a detailed issue card with prompt breakdown and fix."""
     
-    expensive_pct = sum(model_dist.get(m, 0) for m in expensive_models) / len(calls) if calls else 0
+    call = analysis['call']
+    components = analysis['components']
+    metrics = analysis['metrics']
     
-    col1, col2, col3 = st.columns(3)
+    # Header
+    severity_icon = "🔴" if issue['severity'] == 'high' else "🟡"
+    
+    st.markdown(f"### {severity_icon} {issue['cause'].replace('_', ' ').title()}")
+    st.caption(f"{call.get('operation', 'unknown')} • {call.get('agent_name', 'unknown')} • {format_model_name(call.get('model_name', ''))}")
+    
+    col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.metric(
-            "Calls Using Premium Models",
-            format_percentage(expensive_pct),
-            help="Percentage using GPT-4, Opus, etc."
-        )
+        # Metrics
+        st.markdown("**Metrics:**")
+        st.write(f"- Latency: {format_latency(metrics['latency_ms'])}")
+        st.write(f"- Cost: {format_cost(metrics['cost'])}")
+        st.write(f"- Tokens: {metrics['total_tokens']:,}")
+        if metrics['quality_score']:
+            st.write(f"- Quality: {metrics['quality_score']:.1f}/10")
+        
+        # Root cause
+        st.markdown("**Root Cause:**")
+        st.error(issue['detail'])
     
     with col2:
-        routeable_pct = 0.40 if expensive_pct > 0.5 else 0.25
-        st.metric(
-            "Routeable to Cheaper Models",
-            format_percentage(routeable_pct),
-            help="Estimated % that could use cheaper models"
-        )
+        # Token breakdown
+        render_token_breakdown_bar(components, metrics['prompt_tokens'])
     
+    # Prompt preview
+    if show_prompt:
+        with st.expander("📝 View Prompt Details"):
+            if components['system_prompt']:
+                st.markdown("**System Prompt Preview:**")
+                st.code(truncate_text(components['system_prompt'], 300), language="text")
+            
+            if components['chat_history_count'] > 0:
+                st.markdown(f"**Chat History:** {components['chat_history_count']} messages")
+                st.caption(f"({components['chat_history_tokens']:,} tokens)")
+            
+            if components['user_message']:
+                st.markdown("**User Message:**")
+                st.code(truncate_text(components['user_message'], 300), language="text")
+            
+            if call.get('response_text'):
+                st.markdown("**Response Preview:**")
+                st.code(truncate_text(call['response_text'], 300), language="text")
+    
+    # Fix recommendation
+    impact = calculate_fix_impact(analysis, issue['fix'])
+    
+    st.markdown("**🛠️ Recommended Fix:**")
+    st.info(issue['fix_description'])
+    
+    if impact:
+        if 'cost_savings' in impact:
+            st.success(f"**Impact:** Save {format_cost(impact['cost_savings'])} ({impact['cost_savings_pct']:.0f}% reduction)")
+        if 'latency_improvement_pct' in impact and impact['latency_improvement_pct'] > 0:
+            st.success(f"**Latency:** {impact['latency_improvement_pct']:.0f}% faster")
+    
+    # Code snippet
+    with st.expander("📋 Implementation Code"):
+        if issue['fix'] == 'sliding_window':
+            st.code('''
+def get_chat_history(messages: list, max_messages: int = 6) -> list:
+    """Keep only the most recent messages."""
+    if len(messages) <= max_messages:
+        return messages
+    # Keep first message (context) + last N-1 messages
+    return [messages[0]] + messages[-(max_messages-1):]
+
+# Usage in your chat function:
+history = get_chat_history(conversation.messages, max_messages=6)
+            ''', language='python')
+        
+        elif issue['fix'] in ['model_routing', 'intent_routing']:
+            st.code(f'''
+def select_model(user_message: str, operation: str, token_count: int) -> str:
+    """Route to appropriate model based on task complexity."""
+    
+    # Simple messages → budget model
+    simple_patterns = ["thanks", "ok", "got it", "yes", "no", "hello"]
+    if any(p in user_message.lower() for p in simple_patterns):
+        return "mistral-small"
+    
+    # Structured tasks → mid-tier
+    if operation in ["generate_sql", "extract_entities", "classify"]:
+        return "gpt-3.5-turbo"
+    
+    # Low token count → don't need premium
+    if token_count < 1500:
+        return "claude-3-haiku"
+    
+    # Complex tasks → premium
+    return "gpt-4o"
+
+# Current call would route: {call.get('model_name')} → mistral-small
+            ''', language='python')
+        
+        elif issue['fix'] == 'upgrade_model':
+            st.code('''
+def select_model_for_complex_task(task_type: str, previous_failures: int = 0) -> str:
+    """Upgrade model for complex tasks or after failures."""
+    
+    if previous_failures > 0:
+        return "gpt-4o"  # Fallback to strongest
+    
+    complexity_map = {
+        "simple_sql": "mistral-small",
+        "complex_sql": "gpt-3.5-turbo",  
+        "analysis": "claude-3-sonnet",
+        "reasoning": "gpt-4o",
+    }
+    
+    return complexity_map.get(task_type, "claude-3-sonnet")
+            ''', language='python')
+
+
+def render_overview_tab(analyses: List[Dict]):
+    """Render the Overview tab with aggregated patterns."""
+    
+    st.subheader("📊 Routing Opportunities Overview")
+    
+    # Count issues by type
+    latency_issues = [a for a in analyses if any(i['type'] == 'LATENCY' for i in a['issues'])]
+    cost_issues = [a for a in analyses if any(i['type'] == 'COST' for i in a['issues'])]
+    quality_issues = [a for a in analyses if any(i['type'] == 'QUALITY' for i in a['issues'])]
+    optimized = [a for a in analyses if not a['issues']]
+    
+    # Calculate total potential savings
+    total_cost_savings = 0
+    for analysis in analyses:
+        for issue in analysis['issues']:
+            if issue['type'] in ['COST', 'LATENCY']:
+                impact = calculate_fix_impact(analysis, issue['fix'])
+                total_cost_savings += impact.get('cost_savings', 0)
+    
+    # Summary KPIs
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("🐌 Latency Issues", len(latency_issues), help="Calls > 10s")
+    with col2:
+        st.metric("💸 Cost Issues", len(cost_issues), help="Calls > $0.05")
     with col3:
-        potential_savings = total_cost * routeable_pct * 0.60
-        st.metric(
-            "Potential Monthly Savings",
-            format_cost(potential_savings * 30),
-            delta=f"-{format_percentage(routeable_pct * 0.6)} cost"
-        )
+        st.metric("⚠️ Quality Issues", len(quality_issues), help="Failed or low quality")
+    with col4:
+        st.metric("✅ Optimized", len(optimized), help="No issues detected")
     
-    with st.expander("📋 Recommended Routing Strategy"):
-        st.markdown("""
-        **Task-Based Routing Rules:**
+    if total_cost_savings > 0:
+        st.success(f"💰 **Total Savings Opportunity:** {format_cost(total_cost_savings)}/period (~{format_cost(total_cost_savings * 30)}/month)")
+    
+    st.divider()
+    
+    # Aggregate patterns
+    st.subheader("🔍 Common Patterns")
+    
+    pattern_counts = defaultdict(lambda: {'count': 0, 'total_cost': 0, 'calls': []})
+    
+    for analysis in analyses:
+        for issue in analysis['issues']:
+            key = issue['cause']
+            pattern_counts[key]['count'] += 1
+            pattern_counts[key]['total_cost'] += analysis['metrics']['cost']
+            pattern_counts[key]['calls'].append(analysis)
+    
+    if pattern_counts:
+        pattern_data = []
+        for cause, data in sorted(pattern_counts.items(), key=lambda x: x[1]['count'], reverse=True):
+            # Calculate potential savings for this pattern
+            pattern_savings = 0
+            for analysis in data['calls']:
+                for issue in analysis['issues']:
+                    if issue['cause'] == cause:
+                        impact = calculate_fix_impact(analysis, issue['fix'])
+                        pattern_savings += impact.get('cost_savings', 0)
+            
+            pattern_data.append({
+                'Pattern': cause.replace('_', ' ').title(),
+                'Calls': data['count'],
+                'Total Cost': format_cost(data['total_cost']),
+                'Fix Savings': format_cost(pattern_savings),
+                'Fix': data['calls'][0]['issues'][0]['fix'] if data['calls'] and data['calls'][0]['issues'] else '',
+            })
         
-        1. **Simple Classification/Categorization** → Mistral Small
-           - Yes/no questions
-           - Category selection
-           - Simple extraction
-           - 70% cost savings vs GPT-4
-        
-        2. **Analysis/Summary Tasks** → Claude Sonnet
-           - Document summarization
-           - Content analysis
-           - Reasoning tasks
-           - 40% cost savings vs GPT-4
-        
-        3. **Complex Reasoning/Generation** → GPT-4o
-           - Creative writing
-           - Complex problem solving
-           - Multi-step reasoning
-           - Use when quality is critical
-        
-        **Implementation Steps:**
-        1. Analyze query complexity (token count, keywords)
-        2. Classify task type (classification, analysis, generation)
-        3. Route to appropriate model
-        4. Track quality scores to validate routing
-        5. Adjust rules based on performance
-        
-        [→ View Routing Implementation Guide]
-        """)
+        df = pd.DataFrame(pattern_data)
+        st.dataframe(df, width='stretch', hide_index=True)
+    else:
+        st.info("No patterns detected - your calls look well optimized!")
+    
+    st.divider()
+    
+    # Quick wins
+    st.subheader("🎯 Quick Wins")
+    st.caption("Highest impact fixes you can implement now")
+    
+    # Find top 3 opportunities
+    opportunities = []
+    for analysis in analyses:
+        for issue in analysis['issues']:
+            impact = calculate_fix_impact(analysis, issue['fix'])
+            savings = impact.get('cost_savings', 0)
+            if savings > 0:
+                opportunities.append({
+                    'analysis': analysis,
+                    'issue': issue,
+                    'savings': savings,
+                })
+    
+    opportunities.sort(key=lambda x: x['savings'], reverse=True)
+    
+    for i, opp in enumerate(opportunities[:3], 1):
+        call = opp['analysis']['call']
+        st.markdown(f"**{i}. {opp['issue']['fix_description']}**")
+        st.caption(f"{call.get('operation')} • Save {format_cost(opp['savings'])}")
+        st.divider()
 
 
-def render_routing_examples(calls: List[Dict], limit: int = 10):
-    """Render real routing decision examples."""
-    st.subheader("📝 Routing Decision Examples")
+def render_issue_tab(analyses: List[Dict], issue_type: str, threshold_label: str):
+    """Render a tab showing issues of a specific type."""
     
-    if not calls:
-        st.info("No routing decisions to display")
+    # Filter to issues of this type
+    filtered = [a for a in analyses if any(i['type'] == issue_type for i in a['issues'])]
+    
+    if not filtered:
+        st.success(f"✅ No {issue_type.lower()} issues detected!")
+        st.caption(f"All calls are within acceptable {threshold_label} thresholds.")
         return
     
-    for i, call in enumerate(calls[:limit], 1):
-        routing = call.get('routing_decision', {})
-        if not isinstance(routing, dict):
-            continue
-        
-        chosen_model = routing.get('chosen_model', call.get('model_name', 'Unknown'))
-        alternatives = routing.get('alternative_models', [])
-        reasoning = routing.get('reasoning', 'Direct model selection (no routing logic applied)')
-        
-        cost = call.get('total_cost', 0)
-        latency = call.get('latency_ms', 0)
-        quality = (call.get('quality_evaluation') or {}).get('score') if call.get('quality_evaluation') else None
-        
-        with st.expander(f"Decision #{i}: {format_model_name(chosen_model)}", expanded=(i == 1)):
-            col1, col2 = st.columns([2, 1])
+    st.subheader(f"{len(filtered)} calls with {issue_type.lower()} issues")
+    
+    # Sort by severity and impact
+    def sort_key(a):
+        issue = next((i for i in a['issues'] if i['type'] == issue_type), None)
+        if not issue:
+            return 0
+        if issue_type == 'LATENCY':
+            return a['metrics']['latency_ms']
+        elif issue_type == 'COST':
+            return a['metrics']['cost']
+        else:
+            return 10 - (a['metrics'].get('quality_score') or 10)
+    
+    filtered.sort(key=sort_key, reverse=True)
+    
+    # Show top issues
+    for i, analysis in enumerate(filtered[:10], 1):
+        issue = next((i for i in analysis['issues'] if i['type'] == issue_type), None)
+        if issue:
+            call = analysis['call']
             
-            with col1:
-                st.write("**Request:**")
-                if call.get('prompt'):
-                    st.code(truncate_text(call['prompt'], 150), language="text")
-                else:
-                    st.caption("Prompt not available")
-                
-                st.write("**Routing Decision:**")
-                st.info(reasoning)
-                
-                if alternatives:
-                    st.write("**Alternative Models Considered:**")
-                    st.write(", ".join(format_model_name(m) for m in alternatives[:3]))
+            # Summary line
+            if issue_type == 'LATENCY':
+                summary = f"#{i} — {format_latency(analysis['metrics']['latency_ms'])} — {call.get('operation', 'unknown')}"
+            elif issue_type == 'COST':
+                summary = f"#{i} — {format_cost(analysis['metrics']['cost'])} — {call.get('operation', 'unknown')}"
+            else:
+                score = analysis['metrics'].get('quality_score', 'N/A')
+                summary = f"#{i} — Score: {score}/10 — {call.get('operation', 'unknown')}"
             
-            with col2:
-                st.metric("Model Chosen", format_model_name(chosen_model))
-                st.metric("Cost", format_cost(cost))
-                st.metric("Latency", format_latency(latency))
-                if quality:
-                    st.metric("Quality Score", f"{quality:.1f}/10")
+            with st.expander(summary, expanded=(i == 1)):
+                render_issue_card(analysis, issue, show_prompt=True)
+            
+            st.divider()
+    
+    if len(filtered) > 10:
+        st.caption(f"Showing top 10 of {len(filtered)} issues")
 
+
+# =============================================================================
+# MAIN RENDER
+# =============================================================================
 
 def render():
-    """Render the Model Router page."""
+    """Main render function for Model Router page."""
     
-    st.title("🔀 Model Router - Routing Analysis")
+    st.title("🔀 Model Router — Diagnostics")
+    st.caption("Find inefficiencies in your LLM calls and how to fix them")
     
     # Get selected project
     selected_project = st.session_state.get('selected_project')
     
-    # Project indicator
-    if selected_project:
-        st.info(f"📊 Analyzing routing for: **{selected_project}**")
-    else:
-        st.info("📊 Analyzing routing for: **All Projects**")
-    
-    st.divider()
-    
-    # Section 1: Top-Level Filters
-    st.subheader("🔍 Filters")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
+    # Controls
+    col1, col2 = st.columns([3, 1])
     with col1:
-        try:
-            agents = get_available_agents(selected_project)
-            filter_agent = st.selectbox(
-                "Agent",
-                options=["All"] + agents,
-                key="router_agent_filter"
-            )
-        except:
-            filter_agent = "All"
-    
+        if selected_project:
+            st.info(f"Analyzing: **{selected_project}**")
     with col2:
-        try:
-            models = get_available_models(selected_project)
-            filter_model = st.selectbox(
-                "Model",
-                options=["All"] + models,
-                key="router_model_filter"
-            )
-        except:
-            filter_model = "All"
-    
-    with col3:
-        time_period = st.selectbox(
-            "Time Period",
-            options=["1h", "24h", "7d", "30d"],
-            index=2,
-            key="router_time_period"
-        )
-    
-    with col4:
-        limit = st.selectbox(
-            "Max Results",
-            options=[50, 100, 200, 500],
-            index=1,
-            key="router_limit"
-        )
+        if st.button("🔄 Refresh", width='stretch'):
+            st.cache_data.clear()
+            st.rerun()
     
     st.divider()
     
-    # Fetch data
+    # Load and analyze data
     try:
-        with st.spinner("Loading routing data..."):
-            calls = get_llm_calls(
-                project_name=selected_project,
-                agent_name=None if filter_agent == "All" else filter_agent,
-                model_name=None if filter_model == "All" else filter_model,
-                limit=limit
+        calls = get_llm_calls(project_name=selected_project, limit=500)
+        
+        if not calls:
+            render_empty_state(
+                message="No LLM calls found",
+                icon="🔀",
+                suggestion="Start making LLM calls with Observatory tracking enabled"
             )
-            
-            if not calls:
-                render_empty_state(
-                    message="No routing data available",
-                    icon="🔀",
-                    suggestion="Run your AI agents with Observatory enabled to track routing decisions"
-                )
-                return
+            return
+        
+        # Analyze all calls
+        with st.spinner("Analyzing calls..."):
+            analyses = [analyze_call(call) for call in calls]
+        
+        # Create tabs
+        tab1, tab2, tab3, tab4 = st.tabs([
+            f"📊 Overview",
+            f"🐌 Latency",
+            f"💸 Cost",
+            f"⚠️ Quality"
+        ])
+        
+        with tab1:
+            render_overview_tab(analyses)
+        
+        with tab2:
+            st.subheader("🐌 Latency Issues")
+            st.caption(f"Calls taking longer than {LATENCY_THRESHOLD_MS/1000:.0f} seconds")
+            render_issue_tab(analyses, 'LATENCY', 'latency')
+        
+        with tab3:
+            st.subheader("💸 Cost Issues")
+            st.caption(f"Calls costing more than {format_cost(COST_THRESHOLD)}")
+            render_issue_tab(analyses, 'COST', 'cost')
+        
+        with tab4:
+            st.subheader("⚠️ Quality Issues")
+            st.caption(f"Calls with quality score < {QUALITY_THRESHOLD} or failures")
+            render_issue_tab(analyses, 'QUALITY', 'quality')
     
     except Exception as e:
-        st.error(f"Error loading routing data: {str(e)}")
-        return
-    
-    # Detect routing mode
-    has_real_routing, routing_mode = detect_routing_mode(calls)
-    
-    # Show routing status
-    if has_real_routing:
-        st.success(f"✅ {routing_mode} - {len(calls)} decisions analyzed")
-    else:
-        st.warning(f"⚠️ {routing_mode} - Showing opportunity analysis")
-    
-    st.divider()
-    
-    # Calculate metrics
-    kpis = calculate_routing_kpis(calls, has_real_routing)
-    savings = calculate_routing_savings(calls, has_real_routing)
-    
-    # Section 2: KPI Cards
-    st.subheader("📊 Routing Performance")
-    
-    if has_real_routing:
-        metrics = [
-            {
-                "label": "Routing Accuracy",
-                "value": format_percentage(kpis['routing_accuracy']),
-                "help": "% of routing decisions that were optimal"
-            },
-            {
-                "label": "Avg Latency",
-                "value": format_latency(kpis['avg_latency']),
-            },
-            {
-                "label": "Avg Cost per Request",
-                "value": format_cost(kpis['avg_cost']),
-            },
-            {
-                "label": "Avg Quality Score",
-                "value": f"{kpis['avg_quality']:.1f}/10" if kpis['avg_quality'] > 0 else "N/A",
-            },
-            {
-                "label": "Total Routing Decisions",
-                "value": f"{kpis['total_decisions']:,}",
-            },
-            {
-                "label": "Total Savings",
-                "value": format_cost(savings['total_savings']),
-                "delta": f"-{format_percentage(savings['savings_percentage'])}"
-            }
-        ]
-    else:
-        # Show opportunity metrics
-        overview = get_project_overview(selected_project)
-        total_cost = overview.get('kpis', {}).get('total_cost', 0)
-        
-        metrics = [
-            {
-                "label": "Current Avg Latency",
-                "value": format_latency(kpis['avg_latency']),
-            },
-            {
-                "label": "Current Avg Cost",
-                "value": format_cost(kpis['avg_cost']),
-            },
-            {
-                "label": "Total Requests",
-                "value": f"{len(calls):,}",
-            },
-            {
-                "label": "Potential Savings",
-                "value": format_cost(savings['potential_savings']),
-                "delta": f"-{format_percentage(savings['savings_percentage'])} cost",
-                "help": "Estimated with smart routing"
-            }
-        ]
-    
-    render_metric_row(metrics, columns=3)
-    
-    st.divider()
-    
-    # Section 3: Routing Breakdown Chart
-    st.subheader("📈 Model Distribution")
-    
-    model_distribution = calculate_routing_distribution(calls)
-    
-    if model_distribution:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            fig = create_cost_breakdown_pie(
-                model_distribution,
-                title="Requests by Model"
-            )
-            st.plotly_chart(fig, width='stretch')
-        
-        with col2:
-            # Bar chart version
-            fig = create_bar_chart(
-                model_distribution,
-                x_label="Model",
-                y_label="Request Count",
-                title="Model Usage Breakdown"
-            )
-            st.plotly_chart(fig, width='stretch')
-    else:
-        st.info("No model distribution data")
-    
-    st.divider()
-    
-    # Section 4: Routing Effectiveness / Confusion Matrix
-    if has_real_routing:
-        st.subheader("🎯 Routing Effectiveness Matrix")
-        
-        effectiveness = analyze_routing_effectiveness(calls, has_real_routing)
-        
-        if effectiveness:
-            # Convert to DataFrame for heatmap
-            tiers = ['small', 'medium', 'large']
-            matrix_data = []
-            
-            for chosen in tiers:
-                row = []
-                for optimal in tiers:
-                    row.append(effectiveness.get(chosen, {}).get(optimal, 0))
-                matrix_data.append(row)
-            
-            fig = create_heatmap(
-                matrix_data,
-                x_labels=[f"Should Use {t.title()}" for t in tiers],
-                y_labels=[f"Router Chose {t.title()}" for t in tiers],
-                title="Routing Decision Matrix"
-            )
-            st.plotly_chart(fig, width='stretch')
-            
-            st.caption("""
-            **How to Read:**
-            - Diagonal (green) = Correct routing decisions
-            - Off-diagonal (yellow/red) = Misrouting
-            - Top-right = Overspending (chose expensive when cheap would work)
-            - Bottom-left = Quality risk (chose cheap when expensive needed)
-            """)
-        else:
-            st.info("Not enough routing data for effectiveness analysis")
-    
-        st.divider()
-    
-    # Section 5: Cost vs Quality Scatter Plot
-    st.subheader("💰 Cost vs Quality Analysis")
-    
-    # Prepare scatter data
-    scatter_data = []
-    for call in calls:
-        quality = (call.get('quality_evaluation') or {}).get('score') if call.get('quality_evaluation') else None
-        if quality:
-            scatter_data.append({
-                'cost': call.get('total_cost', 0),
-                'quality': quality,
-                'model': call.get('model_name', 'Unknown'),
-                'label': f"{format_model_name(call.get('model_name', ''))}: ${call.get('total_cost', 0):.4f}, Q={quality:.1f}"
-            })
-    
-    if scatter_data:
-        costs = [d['cost'] for d in scatter_data]
-        qualities = [d['quality'] for d in scatter_data]
-        labels = [d['label'] for d in scatter_data]
-        
-        fig = create_scatter_plot(
-            x_values=costs,
-            y_values=qualities,
-            labels=labels,
-            x_label="Cost ($)",
-            y_label="Quality Score (0-10)",
-            title="Cost vs Quality Tradeoff"
-        )
-        st.plotly_chart(fig, width='stretch')
-        
-        st.caption("""
-        **Ideal Region:** Low cost, high quality (top-left quadrant)
-        **Overspending:** High cost but quality not proportionally better
-        **Quality Risk:** Low cost but quality suffering
-        """)
-    else:
-        st.info("Quality scores not available - enable LLM Judge to see cost/quality tradeoffs")
-    
-    st.divider()
-    
-    # Section 6: Routing Opportunity (if not enabled)
-    if not has_real_routing:
-        total_cost = sum(c.get('total_cost', 0) for c in calls)
-        render_routing_opportunity(calls, total_cost)
-        st.divider()
-    
-    # Section 7: Routing Decision Examples
-    render_routing_examples(calls, limit=10)
-    
-    st.divider()
-    
-    # Section 8: Routing Savings Summary
-    st.subheader("💵 Routing Savings Summary")
-    
-    if has_real_routing:
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("Total Savings", format_cost(savings['total_savings']))
-        with col2:
-            st.metric("Savings %", format_percentage(savings['savings_percentage']))
-        with col3:
-            daily_savings = savings['total_savings'] / 7  # Assuming 7 day period
-            st.metric("Daily Savings", format_cost(daily_savings))
-        with col4:
-            monthly_projection = daily_savings * 30
-            st.metric("Monthly Projection", format_cost(monthly_projection))
-    else:
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric(
-                "Potential Savings",
-                format_cost(savings['potential_savings']),
-                help="From implementing smart routing"
-            )
-        with col2:
-            st.metric(
-                "Routeable Calls",
-                f"{savings.get('routeable_calls', 0):,}",
-                help="Calls that could use cheaper models"
-            )
-        with col3:
-            monthly_savings = savings['potential_savings'] * 30
-            st.metric(
-                "Monthly Opportunity",
-                format_cost(monthly_savings),
-                delta=f"-{format_percentage(savings['savings_percentage'])} cost"
-            )
-    
-    st.divider()
-    
-    # Section 9: Detailed Routing Log
-    with st.expander("📋 Detailed Routing Log", expanded=False):
-        st.caption("Complete log of all routing decisions")
-        
-        log_data = []
-        for call in calls:
-            routing = call.get('routing_decision', {})
-            if isinstance(routing, dict):
-                log_data.append({
-                    'Timestamp': call.get('timestamp', '').strftime('%Y-%m-%d %H:%M:%S') if call.get('timestamp') else 'N/A',
-                    'Agent': call.get('agent_name', 'Unknown'),
-                    'Chosen Model': format_model_name(routing.get('chosen_model', call.get('model_name', ''))),
-                    'Alternatives': ', '.join(format_model_name(m) for m in routing.get('alternative_models', [])[:2]),
-                    'Cost': format_cost(call.get('total_cost', 0)),
-                    'Latency': format_latency(call.get('latency_ms', 0)),
-                    'Reasoning': truncate_text(routing.get('reasoning', ''), 50)
-                })
-        
-        if log_data:
-            df = pd.DataFrame(log_data)
-            st.dataframe(df, width='stretch', hide_index=True)
-        else:
-            st.info("No routing log data available")
+        st.error(f"Error loading data: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())

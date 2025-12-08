@@ -38,6 +38,7 @@ from dashboard.utils.data_fetcher import (
     get_available_projects,
     get_available_models,
     get_available_agents,
+    get_available_operations,
     get_sessions,
     get_llm_calls,
     get_project_overview,
@@ -46,7 +47,9 @@ from dashboard.utils.data_fetcher import (
     get_routing_analysis,
     get_cache_analysis,
     get_quality_analysis,
-    get_cost_forecast
+    get_prompt_analysis,
+    get_cost_forecast,
+    get_database_stats,
 )
 
 __all__ = [
@@ -81,6 +84,7 @@ __all__ = [
     'get_available_projects',
     'get_available_models',
     'get_available_agents',
+    'get_available_operations',
     'get_sessions',
     'get_llm_calls',
     'get_project_overview',
@@ -89,5 +93,7 @@ __all__ = [
     'get_routing_analysis',
     'get_cache_analysis',
     'get_quality_analysis',
+    'get_prompt_analysis',
     'get_cost_forecast',
+    'get_database_stats',
 ]

@@ -2,6 +2,8 @@
 Cache Analyzer Page - Semantic Caching Analysis
 Location: dashboard/pages/cache_analyzer.py
 
+UPDATED: Discovery mode detection - keeps all original robust functionality
+
 Advanced cache performance analysis with prompt clustering, semantic similarity,
 cacheability scoring, and optimization recommendations.
 """
@@ -44,6 +46,7 @@ from dashboard.components.tables import (
 def detect_cache_mode(calls: List[Dict]) -> Tuple[bool, str]:
     """
     Detect if real caching is active or not implemented.
+    UPDATED: Now detects None cache_metadata (discovery mode)
     
     Returns:
         Tuple of (has_real_cache, mode_description)
@@ -51,23 +54,25 @@ def detect_cache_mode(calls: List[Dict]) -> Tuple[bool, str]:
     if not calls:
         return False, "No data"
     
-    # Check for cache hits in metadata
-    cache_hits = sum(
-        1 for c in calls
-        if c.get('cache_metadata', {}).get('cache_hit', False)
-    )
+    # UPDATED: Check if cache_metadata is None (discovery mode)
+    calls_with_cache_metadata = [
+        c for c in calls 
+        if c.get('cache_metadata') is not None
+    ]
     
-    cache_keys = sum(
-        1 for c in calls
-        if c.get('cache_metadata', {}).get('cache_key') is not None
+    if len(calls_with_cache_metadata) == 0:
+        return False, "Discovery mode - cache not implemented yet"
+    
+    # Check for actual cache hits
+    cache_hits = sum(
+        1 for c in calls_with_cache_metadata
+        if c.get('cache_metadata', {}).get('cache_hit', False)
     )
     
     if cache_hits > 0:
         return True, f"Cache active - {cache_hits} hits detected"
-    elif cache_keys > 0:
-        return True, "Cache enabled - waiting for hits"
     else:
-        return False, "Cache not implemented"
+        return True, "Cache enabled - waiting for hits"
 
 
 def normalize_prompt(prompt: str) -> str:
@@ -495,11 +500,11 @@ def render():
     # Detect cache mode
     has_cache, cache_mode = detect_cache_mode(calls)
     
-    # Show cache status
+    # Show cache status (UPDATED)
     if has_cache:
         st.success(f"✅ {cache_mode}")
     else:
-        st.warning(f"⚠️ {cache_mode} - Showing opportunity analysis")
+        st.info(f"📊 **DISCOVERY MODE** - {cache_mode}. Analyzing prompt patterns to identify caching opportunities.")
     
     st.divider()
     
@@ -832,8 +837,10 @@ def render():
         with col2:
             st.write("**Cache Key Distribution:**")
             st.caption(f"Total unique cache keys: {len(clusters)}")
-            st.caption(f"Average calls per key: {len(calls) / len(clusters):.1f}")
-            st.caption(f"Most frequent cluster: {clusters[0]['name'] if clusters else 'N/A'} ({len(clusters[0]['calls'])} calls)" if clusters else "")
+            avg_calls_per_key = len(calls) / len(clusters) if clusters else 0
+            st.caption(f"Average calls per key: {avg_calls_per_key:.1f}")
+            if clusters:
+                st.caption(f"Most frequent cluster: {clusters[0]['name']} ({len(clusters[0]['calls'])} calls)")
 
 
 # Import plotly for timeline
