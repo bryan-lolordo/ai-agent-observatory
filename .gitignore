@@ -66,6 +66,9 @@ htmlcov/
 observatory.db
 data/
 outputs/
+x.md
+x.md
+
 
 # Test outputs  # ← ADD THIS SECTION
 test_*.py  # ← OPTIONAL: if you don't want test scripts public
