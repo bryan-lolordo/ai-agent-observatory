@@ -1,17 +1,17 @@
 # observatory/storage.py
-# UPDATED: Added prompt_breakdown and prompt_metadata JSON columns
+# UPDATED: Added get_distinct_operations, enhanced get_llm_calls with time/operation filters
 
 import os
 import json
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, DateTime, JSON, Text
+from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, DateTime, JSON, Text, distinct
 from sqlalchemy.orm import declarative_base, sessionmaker, Session as DBSession
 
 from observatory.models import (
     Session, LLMCall, ModelProvider, AgentRole,
     RoutingDecision, CacheMetadata, QualityEvaluation,
-    PromptBreakdown, PromptMetadata,  # NEW imports
+    PromptBreakdown, PromptMetadata,
     RoutingMetrics, CacheMetrics
 )
 
@@ -95,7 +95,7 @@ class LLMCallDB(Base):
     # Enhanced fields - Quality (stored as JSON)
     quality_evaluation = Column(JSON, nullable=True)
     
-    # NEW: Enhanced fields - Prompt Analysis (stored as JSON)
+    # Enhanced fields - Prompt Analysis (stored as JSON)
     prompt_breakdown = Column(JSON, nullable=True)
     prompt_metadata = Column(JSON, nullable=True)
     
@@ -114,6 +114,10 @@ class Storage:
         self.engine = create_engine(database_url)
         Base.metadata.create_all(self.engine)
         self.SessionLocal = sessionmaker(bind=self.engine)
+
+    # =========================================================================
+    # SESSION CONVERSION
+    # =========================================================================
 
     def _to_session_db(self, session: Session) -> SessionDB:
         return SessionDB(
@@ -163,13 +167,17 @@ class Storage:
             metadata=session_db.meta_data or {},
         )
 
+    # =========================================================================
+    # LLM CALL CONVERSION
+    # =========================================================================
+
     def _to_llm_call_db(self, llm_call: LLMCall) -> LLMCallDB:
         # Convert nested Pydantic models to dict for JSON storage
         routing_data = llm_call.routing_decision.model_dump() if llm_call.routing_decision else None
         cache_data = llm_call.cache_metadata.model_dump() if llm_call.cache_metadata else None
         quality_data = llm_call.quality_evaluation.model_dump() if llm_call.quality_evaluation else None
         
-        # NEW: Convert prompt analysis models
+        # Convert prompt analysis models
         breakdown_data = llm_call.prompt_breakdown.model_dump() if llm_call.prompt_breakdown else None
         metadata_data = llm_call.prompt_metadata.model_dump() if llm_call.prompt_metadata else None
         
@@ -197,8 +205,8 @@ class Storage:
             routing_decision=routing_data,
             cache_metadata=cache_data,
             quality_evaluation=quality_data,
-            prompt_breakdown=breakdown_data,  # NEW
-            prompt_metadata=metadata_data,  # NEW
+            prompt_breakdown=breakdown_data,
+            prompt_metadata=metadata_data,
             prompt_variant_id=llm_call.prompt_variant_id,
             test_dataset_id=llm_call.test_dataset_id,
             meta_data=llm_call.metadata,
@@ -218,7 +226,7 @@ class Storage:
         if llm_call_db.quality_evaluation:
             quality_evaluation = QualityEvaluation(**llm_call_db.quality_evaluation)
         
-        # NEW: Convert prompt analysis models
+        # Convert prompt analysis models
         prompt_breakdown = None
         if llm_call_db.prompt_breakdown:
             prompt_breakdown = PromptBreakdown(**llm_call_db.prompt_breakdown)
@@ -251,12 +259,16 @@ class Storage:
             routing_decision=routing_decision,
             cache_metadata=cache_metadata,
             quality_evaluation=quality_evaluation,
-            prompt_breakdown=prompt_breakdown,  # NEW
-            prompt_metadata=prompt_metadata,  # NEW
+            prompt_breakdown=prompt_breakdown,
+            prompt_metadata=prompt_metadata,
             prompt_variant_id=llm_call_db.prompt_variant_id,
             test_dataset_id=llm_call_db.test_dataset_id,
             metadata=llm_call_db.meta_data or {},
         )
+
+    # =========================================================================
+    # SESSION CRUD
+    # =========================================================================
 
     def save_session(self, session: Session):
         db: DBSession = self.SessionLocal()
@@ -287,15 +299,6 @@ class Storage:
         finally:
             db.close()
 
-    def save_llm_call(self, llm_call: LLMCall):
-        db: DBSession = self.SessionLocal()
-        try:
-            llm_call_db = self._to_llm_call_db(llm_call)
-            db.merge(llm_call_db)
-            db.commit()
-        finally:
-            db.close()
-
     def get_sessions(
         self,
         project_name: Optional[str] = None,
@@ -320,6 +323,19 @@ class Storage:
         finally:
             db.close()
 
+    # =========================================================================
+    # LLM CALL CRUD
+    # =========================================================================
+
+    def save_llm_call(self, llm_call: LLMCall):
+        db: DBSession = self.SessionLocal()
+        try:
+            llm_call_db = self._to_llm_call_db(llm_call)
+            db.merge(llm_call_db)
+            db.commit()
+        finally:
+            db.close()
+
     def get_llm_calls(
         self,
         session_id: Optional[str] = None,
@@ -327,26 +343,64 @@ class Storage:
         provider: Optional[ModelProvider] = None,
         model_name: Optional[str] = None,
         agent_name: Optional[str] = None,
+        operation: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        success_only: Optional[bool] = None,
         limit: int = 1000,
     ) -> List[LLMCall]:
+        """
+        Get LLM calls with optional filters.
+        
+        Args:
+            session_id: Filter by session ID
+            project_name: Filter by project name (requires join with sessions)
+            provider: Filter by model provider
+            model_name: Filter by model name
+            agent_name: Filter by agent name
+            operation: Filter by operation name
+            start_time: Filter calls on or after this time
+            end_time: Filter calls on or before this time
+            success_only: If True, only return successful calls
+            limit: Maximum number of calls to return
+        
+        Returns:
+            List of LLMCall objects matching the filters
+        """
         db: DBSession = self.SessionLocal()
         try:
             query = db.query(LLMCallDB)
             
+            # Session filter
             if session_id:
                 query = query.filter(LLMCallDB.session_id == session_id)
             
-            # Filter by project name (requires join with sessions)
+            # Project name filter (requires join with sessions)
             if project_name:
                 query = query.join(SessionDB, LLMCallDB.session_id == SessionDB.id)
                 query = query.filter(SessionDB.project_name == project_name)
             
+            # Basic filters
             if provider:
                 query = query.filter(LLMCallDB.provider == provider.value)
             if model_name:
                 query = query.filter(LLMCallDB.model_name == model_name)
             if agent_name:
                 query = query.filter(LLMCallDB.agent_name == agent_name)
+            if operation:
+                query = query.filter(LLMCallDB.operation == operation)
+            
+            # Time filters
+            if start_time:
+                query = query.filter(LLMCallDB.timestamp >= start_time)
+            if end_time:
+                query = query.filter(LLMCallDB.timestamp <= end_time)
+            
+            # Success filter
+            if success_only is True:
+                query = query.filter(LLMCallDB.success == True)
+            elif success_only is False:
+                query = query.filter(LLMCallDB.success == False)
             
             query = query.order_by(LLMCallDB.timestamp.desc()).limit(limit)
             
@@ -354,21 +408,23 @@ class Storage:
         finally:
             db.close()
 
+    # =========================================================================
+    # DISTINCT VALUE QUERIES
+    # =========================================================================
+
     def get_distinct_projects(self) -> List[str]:
-        """Get list of all unique project names"""
+        """Get list of all unique project names."""
         db: DBSession = self.SessionLocal()
         try:
-            from sqlalchemy import distinct
             projects = db.query(distinct(SessionDB.project_name)).all()
             return sorted([p[0] for p in projects if p[0]])
         finally:
             db.close()
 
     def get_distinct_models(self, project_name: Optional[str] = None) -> List[str]:
-        """Get list of all unique model names, optionally filtered by project"""
+        """Get list of all unique model names, optionally filtered by project."""
         db: DBSession = self.SessionLocal()
         try:
-            from sqlalchemy import distinct
             query = db.query(distinct(LLMCallDB.model_name))
             
             if project_name:
@@ -381,10 +437,9 @@ class Storage:
             db.close()
 
     def get_distinct_agents(self, project_name: Optional[str] = None) -> List[str]:
-        """Get list of all unique agent names, optionally filtered by project"""
+        """Get list of all unique agent names, optionally filtered by project."""
         db: DBSession = self.SessionLocal()
         try:
-            from sqlalchemy import distinct
             query = db.query(distinct(LLMCallDB.agent_name))
             
             if project_name:
@@ -393,5 +448,87 @@ class Storage:
             
             agents = query.all()
             return sorted([a[0] for a in agents if a[0]])
+        finally:
+            db.close()
+
+    def get_distinct_operations(self, project_name: Optional[str] = None) -> List[str]:
+        """Get list of all unique operation names, optionally filtered by project."""
+        db: DBSession = self.SessionLocal()
+        try:
+            query = db.query(distinct(LLMCallDB.operation))
+            
+            if project_name:
+                query = query.join(SessionDB, LLMCallDB.session_id == SessionDB.id)
+                query = query.filter(SessionDB.project_name == project_name)
+            
+            operations = query.all()
+            return sorted([o[0] for o in operations if o[0]])
+        finally:
+            db.close()
+
+    # =========================================================================
+    # UTILITY METHODS
+    # =========================================================================
+
+    def delete_session(self, session_id: str) -> bool:
+        """Delete a session and all its LLM calls."""
+        db: DBSession = self.SessionLocal()
+        try:
+            # Delete LLM calls first
+            db.query(LLMCallDB).filter(LLMCallDB.session_id == session_id).delete()
+            # Delete session
+            result = db.query(SessionDB).filter(SessionDB.id == session_id).delete()
+            db.commit()
+            return result > 0
+        finally:
+            db.close()
+
+    def get_call_count(
+        self,
+        project_name: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+    ) -> int:
+        """Get count of LLM calls matching filters."""
+        db: DBSession = self.SessionLocal()
+        try:
+            from sqlalchemy import func
+            query = db.query(func.count(LLMCallDB.id))
+            
+            if project_name:
+                query = query.join(SessionDB, LLMCallDB.session_id == SessionDB.id)
+                query = query.filter(SessionDB.project_name == project_name)
+            
+            if start_time:
+                query = query.filter(LLMCallDB.timestamp >= start_time)
+            if end_time:
+                query = query.filter(LLMCallDB.timestamp <= end_time)
+            
+            return query.scalar() or 0
+        finally:
+            db.close()
+
+    def get_total_cost(
+        self,
+        project_name: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+    ) -> float:
+        """Get total cost of LLM calls matching filters."""
+        db: DBSession = self.SessionLocal()
+        try:
+            from sqlalchemy import func
+            query = db.query(func.sum(LLMCallDB.total_cost))
+            
+            if project_name:
+                query = query.join(SessionDB, LLMCallDB.session_id == SessionDB.id)
+                query = query.filter(SessionDB.project_name == project_name)
+            
+            if start_time:
+                query = query.filter(LLMCallDB.timestamp >= start_time)
+            if end_time:
+                query = query.filter(LLMCallDB.timestamp <= end_time)
+            
+            return query.scalar() or 0.0
         finally:
             db.close()

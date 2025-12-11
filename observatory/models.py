@@ -17,6 +17,10 @@ class ModelProvider(str, Enum):
 class AgentRole(str, Enum):
     ANALYST = "analyst"
     REVIEWER = "reviewer"
+    WRITER = "writer"
+    RETRIEVER = "retriever"
+    PLANNER = "planner"
+    FORMATTER = "formatter"
     FIXER = "fixer"
     ORCHESTRATOR = "orchestrator"
     CUSTOM = "custom"

@@ -243,43 +243,66 @@ See `dashboard/templates/integration_patterns.py` for more examples!
 ```
 ai-agent-observatory/
 │
-├── observatory/                    # Core tracking library (4 files)
+├── observatory/                    # Core tracking library (7 files)
 │   ├── __init__.py                 # Main exports
+│   ├── cache.py                    # Caching logic
 │   ├── collector.py                # Tracks sessions & LLM calls
+│   ├── judge.py                    # LLM-as-judge logic
 │   ├── models.py                   # Data models (Pydantic)
+│   ├── prompts.py                  # Prompt utilities
+│   ├── router.py                   # Model routing logic
 │   └── storage.py                  # Database layer (SQLAlchemy)
 │
-├── dashboard/                      # Analytics dashboard (21 files)
+├── dashboard/                      # Analytics dashboard
 │   ├── app.py                      # Main entry point
+│   ├── optimizer_state.py          # Optimizer state logic
 │   │
 │   ├── templates/                  # Integration templates
 │   │   ├── observatory_config.py   # Full config (copy to projects)
 │   │   └── integration_patterns.py # Quick reference patterns
 │   │
-│   ├── pages/                      # 8 dashboard pages
-│   │   ├── home.py
-│   │   ├── live_demo.py
-│   │   ├── cost_estimator.py
-│   │   ├── model_router.py
+│   ├── pages/                      # Dashboard pages
+│   │   ├── __init__.py
+│   │   ├── activity_monitor.py
 │   │   ├── cache_analyzer.py
+│   │   ├── cost_estimator.py
+│   │   ├── home.py
 │   │   ├── llm_judge.py
+│   │   ├── model_router.py
+│   │   ├── optimization_impact.py
 │   │   ├── prompt_optimizer.py
 │   │   └── settings.py
 │   │
 │   ├── components/                 # Reusable UI components
-│   │   ├── metric_cards.py
+│   │   ├── __init__.py
 │   │   ├── charts.py
-│   │   ├── tables.py
-│   │   └── filters.py
+│   │   ├── filters.py
+│   │   ├── metric_cards.py
+│   │   └── tables.py
 │   │
-│   └── utils/                      # Dashboard utilities
-│       ├── data_fetcher.py         # Query layer
-│       ├── aggregators.py          # Metric calculations
-│       └── formatters.py           # Display formatting
+│   ├── utils/                      # Dashboard utilities
+│   │   ├── __init__.py
+│   │   ├── aggregators.py
+│   │   ├── data_fetcher.py
+│   │   └── formatters.py
+│   │
+│   └── .streamlit/
+│       └── config.toml
 │
+├── tests/                          # Test suite
+│   ├── __init__.py
+│   └── diagnose_db.py
+│
+├── OBSERVATORY_DATA_MAPPING.md     # Data mapping reference
+├── ARCHITECTURE.md                 # System architecture docs
+├── LICENSE
 ├── observatory.db                  # Centralized metrics database
 ├── pyproject.toml                  # Package configuration
-└── README.md
+├── pytest.ini
+├── README.md
+├── requirements.txt
+├── setup.py
+└── .env.example / .env             # Environment config 
 ```
 
 ### **Design Philosophy**

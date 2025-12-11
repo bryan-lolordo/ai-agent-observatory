@@ -4,6 +4,8 @@ Location: observatory/cache.py
 
 Provides caching for LLM responses with automatic Observatory metadata tracking.
 Applications configure which operations to cache and TTL settings.
+
+UPDATED: Added public compute_content_hash function for external use
 """
 
 import hashlib
@@ -17,6 +19,33 @@ from observatory.models import CacheMetadata
 
 if TYPE_CHECKING:
     from observatory.collector import Observatory
+
+
+# =============================================================================
+# STANDALONE HELPER FUNCTIONS
+# =============================================================================
+
+def compute_content_hash(content: str, length: int = 16) -> str:
+    """
+    Compute MD5 hash of content for deduplication/caching.
+    
+    This is a public utility function for use in observatory_config.py
+    and other client code that needs to generate content hashes.
+    
+    Args:
+        content: Text content to hash
+        length: Length of hash to return (default 16 characters)
+    
+    Returns:
+        Hex string hash of the content
+    
+    Example:
+        >>> compute_content_hash("Hello, world!")
+        '6cd3556deb0da54b'
+    """
+    if not content:
+        return ""
+    return hashlib.md5(content.encode()).hexdigest()[:length]
 
 
 # =============================================================================
@@ -198,8 +227,8 @@ class CacheManager:
         return text.strip()
     
     def _compute_content_hash(self, content: str) -> str:
-        """Compute hash of content for deduplication."""
-        return hashlib.md5(content.encode()).hexdigest()[:16]
+        """Compute hash of content for deduplication (internal use)."""
+        return compute_content_hash(content)
     
     # =========================================================================
     # CACHE OPERATIONS

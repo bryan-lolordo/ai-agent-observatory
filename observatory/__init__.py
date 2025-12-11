@@ -26,9 +26,11 @@ Usage:
     cache = CacheManager(observatory=obs, operations={"search": {"ttl": 3600}})
     router = ModelRouter(observatory=obs, default_model="gpt-4o-mini")
     prompts = PromptManager(observatory=obs)
+
+UPDATED: Added compute_content_hash export for cache key generation
 """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 # =============================================================================
 # CORE IMPORTS
@@ -87,6 +89,7 @@ from observatory.cache import (
     CacheManager,
     CacheEntry,
     create_cache_metadata,
+    compute_content_hash,  # NEW: Public hash function
 )
 
 from observatory.router import (
@@ -107,6 +110,9 @@ from observatory.prompts import (
 # CONVENIENCE FUNCTION: track_llm_call
 # =============================================================================
 
+from typing import Optional, Dict, List, Any
+
+
 def track_llm_call(
     observatory: Observatory,
     model_name: str,
@@ -114,18 +120,39 @@ def track_llm_call(
     completion_tokens: int,
     latency_ms: float,
     provider: ModelProvider = ModelProvider.OPENAI,
+    
+    # Context
     agent_name: str = None,
+    agent_role: AgentRole = None,
     operation: str = None,
-    prompt: str = None,
-    response_text: str = None,
+    
+    # Status
     success: bool = True,
     error: str = None,
+    
+    # Prompt content
+    prompt: str = None,
+    response_text: str = None,
+    
+    # Separate prompt components
+    system_prompt: str = None,
+    user_message: str = None,
+    messages: List[Dict[str, str]] = None,
+    
+    # Optimization tracking
     routing_decision: RoutingDecision = None,
     cache_metadata: CacheMetadata = None,
     quality_evaluation: QualityEvaluation = None,
+    
+    # Prompt analysis
     prompt_breakdown: PromptBreakdown = None,
     prompt_metadata: PromptMetadata = None,
+    
+    # A/B Testing
     prompt_variant_id: str = None,
+    test_dataset_id: str = None,
+    
+    # Custom metadata
     metadata: dict = None,
 ) -> LLMCall:
     """
@@ -139,17 +166,22 @@ def track_llm_call(
         latency_ms: Response time in milliseconds
         provider: Model provider (OPENAI, AZURE, ANTHROPIC)
         agent_name: Name of the agent/plugin
+        agent_role: Role of the agent (analyst, reviewer, writer, etc.)
         operation: Operation name
-        prompt: Prompt text
-        response_text: Response text
         success: Whether call succeeded
         error: Error message if failed
+        prompt: Combined prompt text
+        response_text: Response text
+        system_prompt: System prompt text (tracked separately)
+        user_message: User message text (tracked separately)
+        messages: Full conversation history as list of {role, content} dicts
         routing_decision: Routing metadata
         cache_metadata: Cache metadata
         quality_evaluation: Quality evaluation
         prompt_breakdown: Prompt component breakdown
         prompt_metadata: Prompt template metadata
         prompt_variant_id: A/B test variant ID
+        test_dataset_id: Test dataset ID for evaluation
         metadata: Additional metadata dict
     
     Returns:
@@ -162,17 +194,22 @@ def track_llm_call(
         completion_tokens=completion_tokens,
         latency_ms=latency_ms,
         agent_name=agent_name,
+        agent_role=agent_role,
         operation=operation,
-        prompt=prompt,
-        response_text=response_text,
         success=success,
         error=error,
+        prompt=prompt,
+        response_text=response_text,
+        system_prompt=system_prompt,
+        user_message=user_message,
+        messages=messages,
         routing_decision=routing_decision,
         cache_metadata=cache_metadata,
         quality_evaluation=quality_evaluation,
         prompt_breakdown=prompt_breakdown,
         prompt_metadata=prompt_metadata,
         prompt_variant_id=prompt_variant_id,
+        test_dataset_id=test_dataset_id,
         metadata=metadata or {},
     )
 
@@ -228,4 +265,5 @@ __all__ = [
     "estimate_tokens",
     "calculate_cost",
     "generate_prompt_hash",
+    "compute_content_hash",  # NEW
 ]

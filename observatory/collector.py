@@ -14,7 +14,7 @@ Collects and manages metrics for AI agent sessions with support for:
 
 import os
 import uuid
-import hashlib  # NEW: For prompt hash generation
+import hashlib
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from contextlib import contextmanager
@@ -56,7 +56,6 @@ def generate_prompt_hash(prompt: str, prefix_length: int = 500) -> str:
 
 def calculate_cost(provider: ModelProvider, model_name: str, prompt_tokens: int, completion_tokens: int) -> tuple:
     """Calculate cost for LLM call. Returns (prompt_cost, completion_cost)."""
-    # Simplified pricing (add more models as needed)
     pricing = {
         "gpt-4": (0.03 / 1000, 0.06 / 1000),
         "gpt-4o": (0.0025 / 1000, 0.01 / 1000),
@@ -69,7 +68,6 @@ def calculate_cost(provider: ModelProvider, model_name: str, prompt_tokens: int,
         "mistral-small": (0.0002 / 1000, 0.0006 / 1000),
     }
     
-    # Find pricing (case insensitive, partial match)
     model_lower = model_name.lower()
     prompt_price, completion_price = 0.001 / 1000, 0.002 / 1000  # Default
     
@@ -110,16 +108,7 @@ class MetricsCollector:
         operation_type: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Session:
-        """
-        Start a new tracking session.
-        
-        Args:
-            operation_type: Type of operation (e.g., "job_search", "code_review")
-            metadata: Additional session metadata
-        
-        Returns:
-            Session object
-        """
+        """Start a new tracking session."""
         if not self.enabled:
             return Session(
                 id="disabled",
@@ -144,17 +133,7 @@ class MetricsCollector:
         success: bool = True,
         error: Optional[str] = None
     ) -> Session:
-        """
-        End a tracking session and finalize metrics.
-        
-        Args:
-            session: Session to end (uses current if None)
-            success: Whether session completed successfully
-            error: Optional error message
-        
-        Returns:
-            Completed session
-        """
+        """End a tracking session and finalize metrics."""
         if not self.enabled:
             return session or Session(id="disabled", project_name=self.project_name)
         
@@ -166,7 +145,7 @@ class MetricsCollector:
         target_session.success = success
         target_session.error = error
         
-        # Calculate average quality score if we have quality evaluations
+        # Calculate average quality score
         if target_session.llm_calls:
             quality_scores = [
                 call.quality_evaluation.judge_score
@@ -203,25 +182,30 @@ class MetricsCollector:
         error: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         
-        # Enhanced fields - Prompts (optional)
+        # Prompt content (optional)
         prompt: Optional[str] = None,
         prompt_normalized: Optional[str] = None,
         response_text: Optional[str] = None,
         
-        # Enhanced fields - Routing (None in discovery mode)
+        # NEW: Separate prompt components for detailed tracking
+        system_prompt: Optional[str] = None,
+        user_message: Optional[str] = None,
+        messages: Optional[List[Dict[str, str]]] = None,
+        
+        # Routing (None in discovery mode)
         routing_decision: Optional[RoutingDecision] = None,
         
-        # Enhanced fields - Caching (None in discovery mode)
+        # Caching (None in discovery mode)
         cache_metadata: Optional[CacheMetadata] = None,
         
-        # Enhanced fields - Quality (optional)
+        # Quality (optional)
         quality_evaluation: Optional[QualityEvaluation] = None,
         
-        # Enhanced fields - Prompt Analysis (optional)
+        # Prompt Analysis (optional)
         prompt_breakdown: Optional[PromptBreakdown] = None,
         prompt_metadata: Optional[PromptMetadata] = None,
         
-        # Enhanced fields - A/B Testing (optional)
+        # A/B Testing (optional)
         prompt_variant_id: Optional[str] = None,
         test_dataset_id: Optional[str] = None,
     ) -> LLMCall:
@@ -235,18 +219,21 @@ class MetricsCollector:
             completion_tokens: Number of completion tokens
             latency_ms: Request latency in milliseconds
             agent_name: Name of the agent making the call
-            agent_role: Role of the agent
+            agent_role: Role of the agent (analyst, reviewer, writer, etc.)
             operation: Type of operation
             session: Session to attach to (uses current if None)
             success: Whether the call succeeded
             error: Error message if failed
-            metadata: Additional metadata
-            prompt: Raw prompt text
-            prompt_normalized: Normalized/cleaned prompt for caching
+            metadata: Additional metadata dict
+            prompt: Raw prompt text (combined)
+            prompt_normalized: Normalized prompt for caching
             response_text: Response text from the model
-            routing_decision: Routing decision metadata (None in discovery mode)
-            cache_metadata: Cache hit/miss metadata (None in discovery mode)
-            quality_evaluation: Quality/judge evaluation (optional)
+            system_prompt: System prompt text (tracked separately)
+            user_message: User message text (tracked separately)
+            messages: Full conversation history as list of {role, content} dicts
+            routing_decision: Routing decision metadata
+            cache_metadata: Cache hit/miss metadata
+            quality_evaluation: Quality/judge evaluation
             prompt_breakdown: Structured breakdown of prompt components
             prompt_metadata: Prompt template versioning metadata
             prompt_variant_id: ID for A/B testing
@@ -254,14 +241,6 @@ class MetricsCollector:
         
         Returns:
             LLMCall object
-            
-        Note:
-            DISCOVERY MODE: routing_decision and cache_metadata are None by default.
-            This enables pattern discovery from observables (tokens, cost, latency, operation).
-            Populate these fields once you implement routing/caching logic.
-            
-            AUTO-HASH: If prompt is provided and prompt_metadata has no prompt_hash,
-            one will be automatically generated from the first 500 characters.
         """
         if not self.enabled:
             return LLMCall(
@@ -279,43 +258,57 @@ class MetricsCollector:
             )
         
         target_session = session or self.current_session
+        
+        # Auto-start session if needed
         if not target_session:
-            # Auto-create session if needed
-            target_session = self.start_session(operation)
+            target_session = self.start_session(operation_type=operation)
         
         # Calculate costs
         prompt_cost, completion_cost = calculate_cost(
             provider, model_name, prompt_tokens, completion_tokens
         )
-        total_tokens = prompt_tokens + completion_tokens
         total_cost = prompt_cost + completion_cost
+        total_tokens = prompt_tokens + completion_tokens
         
-        # NEW: Auto-generate prompt_hash if prompt provided
-        if prompt:
-            if prompt_metadata is None:
-                prompt_metadata = PromptMetadata(
-                    prompt_hash=generate_prompt_hash(prompt)
-                )
-            elif not prompt_metadata.prompt_hash:
-                # Create new instance with hash (Pydantic models are immutable by default)
-                prompt_metadata = PromptMetadata(
-                    prompt_template_id=prompt_metadata.prompt_template_id,
-                    prompt_version=prompt_metadata.prompt_version,
-                    prompt_hash=generate_prompt_hash(prompt),
-                    experiment_id=prompt_metadata.experiment_id,
-                    compressible_sections=prompt_metadata.compressible_sections,
-                    optimization_flags=prompt_metadata.optimization_flags,
-                    config_version=prompt_metadata.config_version,
-                )
+        # Build combined prompt if not provided but components are
+        if not prompt and (system_prompt or user_message):
+            prompt_parts = []
+            if system_prompt:
+                prompt_parts.append(f"[SYSTEM]\n{system_prompt}")
+            if user_message:
+                prompt_parts.append(f"[USER]\n{user_message}")
+            prompt = "\n\n".join(prompt_parts)
+        elif not prompt and messages:
+            prompt = "\n\n".join([
+                f"[{m.get('role', 'unknown').upper()}]\n{m.get('content', '')}"
+                for m in messages
+            ])
         
+        # Auto-generate prompt hash
+        if prompt and prompt_metadata and not prompt_metadata.prompt_hash:
+            prompt_metadata.prompt_hash = generate_prompt_hash(prompt)
+        elif prompt and not prompt_metadata:
+            prompt_metadata = PromptMetadata(
+                prompt_hash=generate_prompt_hash(prompt)
+            )
+        
+        # Build metadata with prompt components
+        full_metadata = metadata or {}
+        if system_prompt:
+            full_metadata['system_prompt'] = system_prompt[:2000]
+        if user_message:
+            full_metadata['user_message'] = user_message[:1000]
+        if messages:
+            full_metadata['messages'] = messages
+            full_metadata['message_count'] = len(messages)
+        
+        # Create the LLM call record
         llm_call = LLMCall(
             id=str(uuid.uuid4()),
             session_id=target_session.id,
+            timestamp=datetime.utcnow(),
             provider=provider,
             model_name=model_name,
-            prompt=prompt,
-            prompt_normalized=prompt_normalized,
-            response_text=response_text,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
@@ -328,6 +321,10 @@ class MetricsCollector:
             operation=operation,
             success=success,
             error=error,
+            metadata=full_metadata,
+            prompt=prompt,
+            prompt_normalized=prompt_normalized,
+            response_text=response_text,
             routing_decision=routing_decision,
             cache_metadata=cache_metadata,
             quality_evaluation=quality_evaluation,
@@ -335,15 +332,14 @@ class MetricsCollector:
             prompt_metadata=prompt_metadata,
             prompt_variant_id=prompt_variant_id,
             test_dataset_id=test_dataset_id,
-            metadata=metadata or {},
         )
         
-        # Update session aggregates
+        # Update session metrics
+        target_session.llm_calls.append(llm_call)
         target_session.total_llm_calls += 1
         target_session.total_tokens += total_tokens
         target_session.total_cost += total_cost
         target_session.total_latency_ms += latency_ms
-        target_session.llm_calls.append(llm_call)
         
         # Update routing metrics
         if routing_decision:
@@ -362,8 +358,10 @@ class MetricsCollector:
         if quality_evaluation:
             if quality_evaluation.hallucination_flag:
                 target_session.total_hallucinations += 1
-            if not success or (quality_evaluation.judge_score and quality_evaluation.judge_score < 5.0):
-                target_session.total_errors += 1
+        
+        # Update error count
+        if not success:
+            target_session.total_errors += 1
         
         # Persist
         self.storage.save_llm_call(llm_call)
@@ -371,47 +369,31 @@ class MetricsCollector:
         
         return llm_call
 
+    # =========================================================================
+    # CONVENIENCE RECORDING METHODS
+    # =========================================================================
+
     def record_with_routing(
         self,
         chosen_model: str,
-        alternative_models: Optional[List[str]] = None,
-        reasoning: str = "",
+        alternative_models: List[str],
+        routing_reason: str,
         complexity_score: Optional[float] = None,
         estimated_cost_savings: Optional[float] = None,
         routing_strategy: Optional[str] = None,
-        model_scores: Optional[Dict[str, float]] = None,
         **kwargs
     ) -> LLMCall:
-        """
-        Convenience method for recording a call with routing decision.
-        
-        Args:
-            chosen_model: Model selected for this call
-            alternative_models: Other models that could have been used
-            reasoning: Why this model was chosen
-            complexity_score: Estimated task complexity (0-1)
-            estimated_cost_savings: Estimated savings from this routing choice
-            routing_strategy: Strategy used for routing
-            model_scores: Scores for each model considered
-            **kwargs: Other arguments for record_llm_call
-        
-        Returns:
-            LLMCall object
-        """
+        """Convenience method for recording a call with routing decision."""
         routing_decision = RoutingDecision(
             chosen_model=chosen_model,
-            alternative_models=alternative_models or [],
-            reasoning=reasoning,
+            alternative_models=alternative_models,
+            reasoning=routing_reason,
             complexity_score=complexity_score,
             estimated_cost_savings=estimated_cost_savings,
             routing_strategy=routing_strategy,
-            model_scores=model_scores or {},
         )
         
-        return self.record_llm_call(
-            routing_decision=routing_decision,
-            **kwargs
-        )
+        return self.record_llm_call(routing_decision=routing_decision, **kwargs)
 
     def record_with_cache(
         self,
@@ -419,133 +401,53 @@ class MetricsCollector:
         cache_key: Optional[str] = None,
         cache_cluster_id: Optional[str] = None,
         similarity_score: Optional[float] = None,
-        cache_key_candidates: Optional[List[str]] = None,
-        content_hash: Optional[str] = None,
-        ttl_seconds: Optional[int] = None,
         **kwargs
     ) -> LLMCall:
-        """
-        Convenience method for recording a call with cache metadata.
-        
-        Args:
-            cache_hit: Whether this was a cache hit
-            cache_key: Cache key used
-            cache_cluster_id: Cluster ID for prompt clustering
-            similarity_score: Similarity score (0-1)
-            cache_key_candidates: Alternative keys considered
-            content_hash: Hash of cacheable content
-            ttl_seconds: Time-to-live for cache entry
-            **kwargs: Other arguments for record_llm_call
-        
-        Returns:
-            LLMCall object
-        """
+        """Convenience method for recording a call with cache metadata."""
         cache_metadata = CacheMetadata(
             cache_hit=cache_hit,
             cache_key=cache_key,
             cache_cluster_id=cache_cluster_id,
             similarity_score=similarity_score,
-            cache_key_candidates=cache_key_candidates,
-            content_hash=content_hash,
-            ttl_seconds=ttl_seconds,
         )
         
-        return self.record_llm_call(
-            cache_metadata=cache_metadata,
-            **kwargs
-        )
+        return self.record_llm_call(cache_metadata=cache_metadata, **kwargs)
 
     def record_with_quality(
         self,
-        judge_score: Optional[float] = None,
+        judge_score: float,
+        judge_reasoning: str,
         hallucination_flag: bool = False,
-        error_category: Optional[str] = None,
-        reasoning: Optional[str] = None,
-        confidence_score: Optional[float] = None,
-        judge_model: Optional[str] = None,
-        failure_reason: Optional[str] = None,
-        improvement_suggestion: Optional[str] = None,
-        criteria_scores: Optional[Dict[str, float]] = None,
+        confidence: Optional[float] = None,
         **kwargs
     ) -> LLMCall:
-        """
-        Convenience method for recording a call with quality evaluation.
-        
-        Args:
-            judge_score: Judge score (0-10)
-            hallucination_flag: Whether hallucination detected
-            error_category: Category of error if any
-            reasoning: Judge's reasoning
-            confidence_score: Judge's confidence (0-1)
-            judge_model: Model used for judging
-            failure_reason: Failure category
-            improvement_suggestion: How to improve
-            criteria_scores: Individual criteria scores
-            **kwargs: Other arguments for record_llm_call
-        
-        Returns:
-            LLMCall object
-        """
+        """Convenience method for recording a call with quality evaluation."""
         quality_evaluation = QualityEvaluation(
             judge_score=judge_score,
+            reasoning=judge_reasoning,
             hallucination_flag=hallucination_flag,
-            error_category=error_category,
-            reasoning=reasoning,
-            confidence_score=confidence_score,
-            judge_model=judge_model,
-            failure_reason=failure_reason,
-            improvement_suggestion=improvement_suggestion,
-            criteria_scores=criteria_scores,
+            confidence_score=confidence,  # <-- LINE 429: FIXED
         )
         
-        return self.record_llm_call(
-            quality_evaluation=quality_evaluation,
-            **kwargs
-        )
+        return self.record_llm_call(quality_evaluation=quality_evaluation, **kwargs)
 
     def record_with_prompt_analysis(
         self,
-        # Prompt breakdown fields
         system_prompt: Optional[str] = None,
         system_prompt_tokens: Optional[int] = None,
         user_message: Optional[str] = None,
         user_message_tokens: Optional[int] = None,
         chat_history: Optional[List[Dict]] = None,
         chat_history_tokens: Optional[int] = None,
-        # Prompt metadata fields
         prompt_template_id: Optional[str] = None,
         prompt_version: Optional[str] = None,
-        prompt_hash: Optional[str] = None,      # NEW: Manual hash override
-        experiment_id: Optional[str] = None,    # NEW: A/B test grouping
+        prompt_hash: Optional[str] = None,
+        experiment_id: Optional[str] = None,
         compressible_sections: Optional[List[str]] = None,
         optimization_flags: Optional[Dict[str, bool]] = None,
         **kwargs
     ) -> LLMCall:
-        """
-        Convenience method for recording a call with prompt analysis.
-        
-        Args:
-            system_prompt: System prompt text
-            system_prompt_tokens: Token count for system prompt
-            user_message: User message text
-            user_message_tokens: Token count for user message
-            chat_history: Chat history list
-            chat_history_tokens: Token count for chat history
-            prompt_template_id: Template identifier
-            prompt_version: Template version (manual label)
-            prompt_hash: Manual hash override (auto-generated if not provided)
-            experiment_id: A/B test experiment grouping
-            compressible_sections: Sections that can be compressed
-            optimization_flags: Optimization flags
-            **kwargs: Other arguments for record_llm_call
-        
-        Returns:
-            LLMCall object
-        
-        Note:
-            If prompt_hash is not provided but 'prompt' is in kwargs,
-            a hash will be auto-generated in record_llm_call.
-        """
+        """Convenience method for recording a call with prompt analysis."""
         prompt_breakdown = None
         if any([system_prompt, user_message, chat_history]):
             prompt_breakdown = PromptBreakdown(
@@ -570,24 +472,15 @@ class MetricsCollector:
             )
         
         return self.record_llm_call(
+            system_prompt=system_prompt,
+            user_message=user_message,
             prompt_breakdown=prompt_breakdown,
             prompt_metadata=prompt_metadata,
             **kwargs
         )
 
     def get_report(self, session: Optional[Session] = None) -> SessionReport:
-        """
-        Generate a basic report for a session.
-        
-        Note: Dashboard uses aggregators.py for detailed analysis.
-        This method provides basic session summary.
-        
-        Args:
-            session: Session to report on (uses current if None)
-        
-        Returns:
-            SessionReport with basic metrics
-        """
+        """Generate a basic report for a session."""
         if not self.enabled:
             return None
         
@@ -595,17 +488,14 @@ class MetricsCollector:
         if not target_session:
             raise ValueError("No session to report on")
         
-        # Load full session data if needed
         if not target_session.llm_calls:
             target_session = self.storage.get_session(target_session.id)
         
-        # Calculate basic metrics from session
         total_cost = target_session.total_cost
         total_tokens = target_session.total_tokens
         total_latency = target_session.total_latency_ms
         num_calls = target_session.total_llm_calls
         
-        # Create basic breakdown dictionaries
         cost_breakdown = {
             'total_cost': total_cost,
             'avg_cost_per_call': total_cost / num_calls if num_calls > 0 else 0
@@ -626,11 +516,10 @@ class MetricsCollector:
             'total_calls': num_calls
         }
         
-        # Basic suggestions
         suggestions = []
         if total_cost > 1.0:
             suggestions.append("Consider using cheaper models for simple tasks")
-        if total_latency / num_calls > 5000 if num_calls > 0 else False:
+        if num_calls > 0 and total_latency / num_calls > 5000:
             suggestions.append("High average latency detected")
         
         return SessionReport(
@@ -648,21 +537,7 @@ class MetricsCollector:
         operation_type: str,
         metadata: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Context manager for tracking a session.
-        
-        Usage:
-            with collector.track("job_search"):
-                # Your code here
-                collector.record_llm_call(...)
-        
-        Args:
-            operation_type: Type of operation
-            metadata: Additional metadata
-        
-        Yields:
-            Session object
-        """
+        """Context manager for tracking a session."""
         session = self.start_session(operation_type, metadata)
         try:
             yield session
@@ -688,16 +563,8 @@ class Observatory:
         enabled: Optional[bool] = None,
         storage: Optional[Storage] = None,
     ):
-        """
-        Initialize Observatory.
-        
-        Args:
-            project_name: Name of the project being tracked
-            enabled: Enable/disable tracking (defaults to ENABLE_OBSERVATORY env var)
-            storage: Custom storage instance
-        """
         if enabled is None:
-            enabled = os.getenv("ENABLE_OBSERVATORY", "false").lower() == "true"
+            enabled = os.getenv("ENABLE_OBSERVATORY", "true").lower() == "true"
         
         self.collector = MetricsCollector(
             project_name=project_name,
@@ -709,9 +576,9 @@ class Observatory:
         """Start a tracking session."""
         return self.collector.start_session(operation_type, kwargs)
     
-    def end_session(self, session: Optional[Session] = None) -> Session:
+    def end_session(self, session: Optional[Session] = None, success: bool = True, error: Optional[str] = None) -> Session:
         """End a tracking session."""
-        return self.collector.end_session(session)
+        return self.collector.end_session(session, success=success, error=error)
     
     def record_call(self, **kwargs) -> LLMCall:
         """Record an LLM call. Accepts all record_llm_call arguments."""

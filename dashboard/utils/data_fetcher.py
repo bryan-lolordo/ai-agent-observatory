@@ -5,7 +5,9 @@ Location: dashboard/utils/data_fetcher.py
 All database queries and data retrieval functions.
 Pages should use these functions instead of querying storage directly.
 
-UPDATED: Fixed field name mappings for QualityEvaluation (confidence_score, not confidence)
+UPDATED: 
+- Fixed field name mappings for QualityEvaluation (confidence_score, not confidence)
+- Now properly passes all filters (operation, start_time, end_time, success_only) to storage layer
 """
 
 import streamlit as st
@@ -146,17 +148,61 @@ def get_llm_calls(
     has_cache: Optional[bool] = None,
     limit: int = 1000
 ) -> List[Dict[str, Any]]:
-    """Get LLM calls with optional filters."""
+    """
+    Get LLM calls with optional filters.
+    
+    Args:
+        project_name: Filter by project name
+        session_id: Filter by session ID
+        model_name: Filter by model name
+        agent_name: Filter by agent name
+        operation: Filter by operation name
+        start_time: Filter calls on or after this time
+        end_time: Filter calls on or before this time
+        success_only: If True, only return successful calls
+        has_quality_eval: If True, only return calls with quality evaluation
+        has_routing: If True, only return calls with routing decision
+        has_cache: If True, only return calls with cache metadata
+        limit: Maximum number of calls to return
+    
+    Returns:
+        List of LLM call dictionaries
+    """
     storage = get_storage()
+    
+    # Pass all supported filters to storage layer
     calls = storage.get_llm_calls(
         project_name=project_name,
         session_id=session_id,
         model_name=model_name,
         agent_name=agent_name,
+        operation=operation,
+        start_time=start_time,
+        end_time=end_time,
+        success_only=success_only,
         limit=limit
     )
     
-    return [_llm_call_to_dict(call) for call in calls]
+    # Convert to dicts
+    result = [_llm_call_to_dict(call) for call in calls]
+    
+    # Apply additional filters that storage doesn't support natively
+    if has_quality_eval is True:
+        result = [c for c in result if c.get('quality_evaluation') is not None]
+    elif has_quality_eval is False:
+        result = [c for c in result if c.get('quality_evaluation') is None]
+    
+    if has_routing is True:
+        result = [c for c in result if c.get('routing_decision') is not None]
+    elif has_routing is False:
+        result = [c for c in result if c.get('routing_decision') is None]
+    
+    if has_cache is True:
+        result = [c for c in result if c.get('cache_metadata') is not None]
+    elif has_cache is False:
+        result = [c for c in result if c.get('cache_metadata') is None]
+    
+    return result
 
 
 # =============================================================================
@@ -213,7 +259,6 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
             'rule_triggered': call.routing_decision.rule_triggered,
             'complexity_score': call.routing_decision.complexity_score,
             'estimated_cost_savings': call.routing_decision.estimated_cost_savings,
-            # NEW field
             'routing_strategy': getattr(call.routing_decision, 'routing_strategy', None),
         }
     else:
@@ -228,7 +273,6 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
             'normalization_strategy': call.cache_metadata.normalization_strategy,
             'similarity_score': call.cache_metadata.similarity_score,
             'eviction_info': call.cache_metadata.eviction_info,
-            # NEW fields
             'cache_key_candidates': getattr(call.cache_metadata, 'cache_key_candidates', None),
             'dynamic_fields': getattr(call.cache_metadata, 'dynamic_fields', None),
             'content_hash': getattr(call.cache_metadata, 'content_hash', None),
@@ -244,9 +288,7 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
             'reasoning': call.quality_evaluation.reasoning,
             'hallucination_flag': call.quality_evaluation.hallucination_flag,
             'error_category': getattr(call.quality_evaluation, 'error_category', None),
-            # FIXED: Use confidence_score (not confidence)
             'confidence_score': getattr(call.quality_evaluation, 'confidence_score', None),
-            # NEW fields
             'judge_model': getattr(call.quality_evaluation, 'judge_model', None),
             'criteria_scores': getattr(call.quality_evaluation, 'criteria_scores', None),
             'failure_reason': getattr(call.quality_evaluation, 'failure_reason', None),
@@ -258,7 +300,7 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
     else:
         data['quality_evaluation'] = None
     
-    # Prompt Breakdown (NEW)
+    # Prompt Breakdown
     if hasattr(call, 'prompt_breakdown') and call.prompt_breakdown:
         data['prompt_breakdown'] = {
             'system_prompt': call.prompt_breakdown.system_prompt,
@@ -273,7 +315,7 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
     else:
         data['prompt_breakdown'] = None
     
-    # Prompt Metadata (NEW)
+    # Prompt Metadata
     if hasattr(call, 'prompt_metadata') and call.prompt_metadata:
         data['prompt_metadata'] = {
             'prompt_template_id': call.prompt_metadata.prompt_template_id,
@@ -449,10 +491,18 @@ def get_routing_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
     for strategy in by_strategy:
         by_strategy[strategy]['models_used'] = list(by_strategy[strategy]['models_used'])
     
+    # Complexity distribution
+    complexity_scores = [
+        c['routing_decision'].get('complexity_score')
+        for c in routed_calls
+        if c['routing_decision'].get('complexity_score') is not None
+    ]
+    
     return {
         'metrics': routing_metrics,
         'by_strategy': by_strategy,
-        'total_with_routing': len(routed_calls),
+        'complexity_scores': complexity_scores,
+        'total_routed': len(routed_calls),
         'total_calls': len(llm_calls),
     }
 
@@ -467,48 +517,55 @@ def get_cache_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
     # Get calls with cache metadata
     cached_calls = [c for c in llm_calls if c.get('cache_metadata')]
     
-    # Analyze cache patterns
-    cache_patterns = {}
-    for call in cached_calls:
-        cluster_id = call['cache_metadata'].get('cache_cluster_id') or 'default'
-        if cluster_id not in cache_patterns:
-            cache_patterns[cluster_id] = {
-                'hits': 0,
-                'misses': 0,
-                'operations': set(),
-                'avg_similarity': [],
-            }
-        
-        if call['cache_metadata']['cache_hit']:
-            cache_patterns[cluster_id]['hits'] += 1
-        else:
-            cache_patterns[cluster_id]['misses'] += 1
-        
-        if call.get('operation'):
-            cache_patterns[cluster_id]['operations'].add(call['operation'])
-        
-        sim = call['cache_metadata'].get('similarity_score')
-        if sim is not None:
-            cache_patterns[cluster_id]['avg_similarity'].append(sim)
+    # Analyze cache hits vs misses
+    hits = [c for c in cached_calls if (c.get('cache_metadata') or {}).get('cache_hit')]
+    misses = [c for c in cached_calls if not (c.get('cache_metadata') or {}).get('cache_hit')]
     
-    # Calculate averages and convert sets
-    for cluster in cache_patterns:
-        sims = cache_patterns[cluster]['avg_similarity']
-        cache_patterns[cluster]['avg_similarity'] = (
-            sum(sims) / len(sims) if sims else 0
-        )
-        cache_patterns[cluster]['operations'] = list(
-            cache_patterns[cluster]['operations']
-        )
-        total = cache_patterns[cluster]['hits'] + cache_patterns[cluster]['misses']
-        cache_patterns[cluster]['hit_rate'] = (
-            cache_patterns[cluster]['hits'] / total if total > 0 else 0
-        )
+    # Group by cluster
+    by_cluster = {}
+    for call in cached_calls:
+        cluster = (call.get('cache_metadata') or {}).get('cache_cluster_id') or 'unknown'
+        if cluster not in by_cluster:
+            by_cluster[cluster] = {'hits': 0, 'misses': 0, 'total_cost': 0}
+        if (call.get('cache_metadata') or {}).get('cache_hit'):
+            by_cluster[cluster]['hits'] += 1
+        else:
+            by_cluster[cluster]['misses'] += 1
+        by_cluster[cluster]['total_cost'] += call['total_cost']
+    
+    # Find duplicate prompts (potential cache opportunities)
+    prompt_counts = {}
+    for call in llm_calls:
+        prompt = call.get('prompt_normalized') or call.get('prompt')
+        if prompt:
+            prompt_key = prompt[:200]  # Use first 200 chars as key
+            if prompt_key not in prompt_counts:
+                prompt_counts[prompt_key] = {'count': 0, 'total_cost': 0, 'operations': set()}
+            prompt_counts[prompt_key]['count'] += 1
+            prompt_counts[prompt_key]['total_cost'] += call['total_cost']
+            if call.get('operation'):
+                prompt_counts[prompt_key]['operations'].add(call['operation'])
+    
+    # Find duplicates (count > 1)
+    duplicates = [
+        {
+            'prompt_preview': k[:100],
+            'count': v['count'],
+            'total_cost': v['total_cost'],
+            'operations': list(v['operations']),
+        }
+        for k, v in prompt_counts.items()
+        if v['count'] > 1
+    ]
+    duplicates.sort(key=lambda x: x['total_cost'], reverse=True)
     
     return {
         'metrics': cache_metrics,
-        'patterns': cache_patterns,
-        'total_with_cache': sum(1 for c in llm_calls if c.get('cache_metadata')),
+        'by_cluster': by_cluster,
+        'hits': len(hits),
+        'misses': len(misses),
+        'duplicates': duplicates[:20],  # Top 20 duplicates
+        'total_with_cache': len(cached_calls),
         'total_calls': len(llm_calls),
     }
 
@@ -523,30 +580,37 @@ def get_quality_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
     # Get calls with quality evaluation
     evaluated_calls = [c for c in llm_calls if c.get('quality_evaluation')]
     
-    # Sort by score
-    evaluated_calls.sort(
-        key=lambda x: x['quality_evaluation'].get('judge_score', 0) if x.get('quality_evaluation') else 0,
-        reverse=True
-    )
+    # Find best and worst examples
+    scored_calls = [
+        c for c in evaluated_calls 
+        if c.get('quality_evaluation', {}).get('judge_score') is not None
+    ]
+    scored_calls.sort(key=lambda x: x['quality_evaluation']['judge_score'], reverse=True)
     
-    best_examples = evaluated_calls[:5]
-    worst_examples = evaluated_calls[-5:][::-1] if len(evaluated_calls) >= 5 else []
+    best_examples = scored_calls[:5]
+    worst_examples = scored_calls[-5:] if len(scored_calls) >= 5 else scored_calls
     
-    # Failure reasons breakdown
+    # Analyze failure reasons
     failure_reasons = {}
     for call in evaluated_calls:
-        qe = call.get('quality_evaluation', {})
-        reason = qe.get('failure_reason')
+        reason = (call.get('quality_evaluation') or {}).get('failure_reason')
         if reason:
-            failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
+            if reason not in failure_reasons:
+                failure_reasons[reason] = {'count': 0, 'examples': []}
+            failure_reasons[reason]['count'] += 1
+            if len(failure_reasons[reason]['examples']) < 3:
+                failure_reasons[reason]['examples'].append({
+                    'prompt': call.get('prompt', '')[:200],
+                    'response': call.get('response_text', '')[:200],
+                    'score': call['quality_evaluation'].get('judge_score'),
+                })
     
-    # Criteria scores analysis
+    # Analyze by criteria
     criteria_analysis = {}
     for call in evaluated_calls:
-        qe = call.get('quality_evaluation', {})
-        criteria = qe.get('criteria_scores')
-        if criteria:
-            for criterion, score in criteria.items():
+        criteria_scores = (call.get('quality_evaluation') or {}).get('criteria_scores')
+        if criteria_scores:
+            for criterion, score in criteria_scores.items():
                 if criterion not in criteria_analysis:
                     criteria_analysis[criterion] = []
                 criteria_analysis[criterion].append(score)
@@ -677,7 +741,7 @@ def get_prompt_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
             by_operation[op]['total_prompt_tokens'] / by_operation[op]['count']
         )
     
-    # By template analysis (NEW)
+    # By template analysis
     by_template = {}
     for call in calls_with_metadata:
         template_id = call['prompt_metadata'].get('prompt_template_id') or 'unknown'
