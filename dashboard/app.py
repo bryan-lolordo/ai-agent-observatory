@@ -111,24 +111,34 @@ except Exception as e:
 st.sidebar.markdown("---")
 
 # Navigation
+nav_target = st.session_state.pop('_nav_to', None)
+
+nav_options = [
+    "🏠 Home",
+    "📡 Activity Monitor", 
+    "💰 Cost Estimator",
+    "🔀 Model Router",
+    "💾 Cache Analyzer",
+    "⚖️ LLM Judge",
+    "✨ Prompt Optimizer",
+    "📈 Optimization Impact",
+    "⚙️ Settings"
+]
+
+# Determine which page to show
+if nav_target and nav_target in nav_options:
+    st.session_state['current_page'] = nav_target
+
+current_page = st.session_state.get('current_page', '🏠 Home')
+
 page = st.sidebar.radio(
     "Navigation",
-    [
-        "🏠 Home",
-        "📡 Activity Monitor",
-        "💰 Cost Estimator",
-        "🔀 Model Router",
-        "💾 Cache Analyzer",
-        "⚖️ LLM Judge",
-        "✨ Prompt Optimizer",
-        "📈 Optimization Impact",  # NEW PAGE
-        "⚙️ Settings"
-    ]
+    nav_options,
+    index=nav_options.index(current_page)
 )
 
-# System status in sidebar
-st.sidebar.markdown("---")
-st.sidebar.subheader("System Status")
+# Update if user clicked a different page
+st.session_state['current_page'] = page
 
 try:
     storage = get_storage()
@@ -140,7 +150,6 @@ try:
         limit=1
     )
     
-    st.sidebar.success("✅ Observatory Active")
     
     # Show project count
     if available_projects:

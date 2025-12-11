@@ -278,6 +278,8 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
         data['prompt_metadata'] = {
             'prompt_template_id': call.prompt_metadata.prompt_template_id,
             'prompt_version': call.prompt_metadata.prompt_version,
+            'prompt_hash': getattr(call.prompt_metadata, 'prompt_hash', None),         
+            'experiment_id': getattr(call.prompt_metadata, 'experiment_id', None),     
             'compressible_sections': call.prompt_metadata.compressible_sections,
             'optimization_flags': call.prompt_metadata.optimization_flags,
             'config_version': call.prompt_metadata.config_version,

@@ -8,11 +8,13 @@ Collects and manages metrics for AI agent sessions with support for:
 - Cache metadata
 - Quality evaluations
 - Prompt/response tracking
-- NEW: Prompt breakdown and metadata
+- Prompt breakdown and metadata
+- Auto-generated prompt hash for version detection
 """
 
 import os
 import uuid
+import hashlib  # NEW: For prompt hash generation
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from contextlib import contextmanager
@@ -26,13 +28,32 @@ from observatory.models import (
     RoutingDecision,
     CacheMetadata,
     QualityEvaluation,
-    PromptBreakdown,  # NEW
-    PromptMetadata,   # NEW
+    PromptBreakdown,
+    PromptMetadata,
 )
 from observatory.storage import Storage
 
 
-# Simple cost calculation (replaces cost_analyzer)
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+def generate_prompt_hash(prompt: str, prefix_length: int = 500) -> str:
+    """
+    Generate a short hash from prompt prefix for version detection.
+    
+    Args:
+        prompt: Full prompt text
+        prefix_length: Number of characters to hash (default 500)
+    
+    Returns:
+        8-character hex hash
+    """
+    if not prompt:
+        return ""
+    return hashlib.md5(prompt[:prefix_length].encode()).hexdigest()[:8]
+
+
 def calculate_cost(provider: ModelProvider, model_name: str, prompt_tokens: int, completion_tokens: int) -> tuple:
     """Calculate cost for LLM call. Returns (prompt_cost, completion_cost)."""
     # Simplified pricing (add more models as needed)
@@ -62,6 +83,10 @@ def calculate_cost(provider: ModelProvider, model_name: str, prompt_tokens: int,
     
     return prompt_cost, completion_cost
 
+
+# =============================================================================
+# METRICS COLLECTOR
+# =============================================================================
 
 class MetricsCollector:
     """
@@ -192,7 +217,7 @@ class MetricsCollector:
         # Enhanced fields - Quality (optional)
         quality_evaluation: Optional[QualityEvaluation] = None,
         
-        # NEW: Enhanced fields - Prompt Analysis (optional)
+        # Enhanced fields - Prompt Analysis (optional)
         prompt_breakdown: Optional[PromptBreakdown] = None,
         prompt_metadata: Optional[PromptMetadata] = None,
         
@@ -222,8 +247,8 @@ class MetricsCollector:
             routing_decision: Routing decision metadata (None in discovery mode)
             cache_metadata: Cache hit/miss metadata (None in discovery mode)
             quality_evaluation: Quality/judge evaluation (optional)
-            prompt_breakdown: Structured breakdown of prompt components (NEW)
-            prompt_metadata: Prompt template versioning metadata (NEW)
+            prompt_breakdown: Structured breakdown of prompt components
+            prompt_metadata: Prompt template versioning metadata
             prompt_variant_id: ID for A/B testing
             test_dataset_id: Test dataset ID for evaluation
         
@@ -234,6 +259,9 @@ class MetricsCollector:
             DISCOVERY MODE: routing_decision and cache_metadata are None by default.
             This enables pattern discovery from observables (tokens, cost, latency, operation).
             Populate these fields once you implement routing/caching logic.
+            
+            AUTO-HASH: If prompt is provided and prompt_metadata has no prompt_hash,
+            one will be automatically generated from the first 500 characters.
         """
         if not self.enabled:
             return LLMCall(
@@ -262,6 +290,24 @@ class MetricsCollector:
         total_tokens = prompt_tokens + completion_tokens
         total_cost = prompt_cost + completion_cost
         
+        # NEW: Auto-generate prompt_hash if prompt provided
+        if prompt:
+            if prompt_metadata is None:
+                prompt_metadata = PromptMetadata(
+                    prompt_hash=generate_prompt_hash(prompt)
+                )
+            elif not prompt_metadata.prompt_hash:
+                # Create new instance with hash (Pydantic models are immutable by default)
+                prompt_metadata = PromptMetadata(
+                    prompt_template_id=prompt_metadata.prompt_template_id,
+                    prompt_version=prompt_metadata.prompt_version,
+                    prompt_hash=generate_prompt_hash(prompt),
+                    experiment_id=prompt_metadata.experiment_id,
+                    compressible_sections=prompt_metadata.compressible_sections,
+                    optimization_flags=prompt_metadata.optimization_flags,
+                    config_version=prompt_metadata.config_version,
+                )
+        
         llm_call = LLMCall(
             id=str(uuid.uuid4()),
             session_id=target_session.id,
@@ -285,8 +331,8 @@ class MetricsCollector:
             routing_decision=routing_decision,
             cache_metadata=cache_metadata,
             quality_evaluation=quality_evaluation,
-            prompt_breakdown=prompt_breakdown,  # NEW
-            prompt_metadata=prompt_metadata,    # NEW
+            prompt_breakdown=prompt_breakdown,
+            prompt_metadata=prompt_metadata,
             prompt_variant_id=prompt_variant_id,
             test_dataset_id=test_dataset_id,
             metadata=metadata or {},
@@ -332,8 +378,8 @@ class MetricsCollector:
         reasoning: str = "",
         complexity_score: Optional[float] = None,
         estimated_cost_savings: Optional[float] = None,
-        routing_strategy: Optional[str] = None,  # NEW
-        model_scores: Optional[Dict[str, float]] = None,  # NEW
+        routing_strategy: Optional[str] = None,
+        model_scores: Optional[Dict[str, float]] = None,
         **kwargs
     ) -> LLMCall:
         """
@@ -345,8 +391,8 @@ class MetricsCollector:
             reasoning: Why this model was chosen
             complexity_score: Estimated task complexity (0-1)
             estimated_cost_savings: Estimated savings from this routing choice
-            routing_strategy: Strategy used for routing (NEW)
-            model_scores: Scores for each model considered (NEW)
+            routing_strategy: Strategy used for routing
+            model_scores: Scores for each model considered
             **kwargs: Other arguments for record_llm_call
         
         Returns:
@@ -373,9 +419,9 @@ class MetricsCollector:
         cache_key: Optional[str] = None,
         cache_cluster_id: Optional[str] = None,
         similarity_score: Optional[float] = None,
-        cache_key_candidates: Optional[List[str]] = None,  # NEW
-        content_hash: Optional[str] = None,  # NEW
-        ttl_seconds: Optional[int] = None,  # NEW
+        cache_key_candidates: Optional[List[str]] = None,
+        content_hash: Optional[str] = None,
+        ttl_seconds: Optional[int] = None,
         **kwargs
     ) -> LLMCall:
         """
@@ -386,9 +432,9 @@ class MetricsCollector:
             cache_key: Cache key used
             cache_cluster_id: Cluster ID for prompt clustering
             similarity_score: Similarity score (0-1)
-            cache_key_candidates: Alternative keys considered (NEW)
-            content_hash: Hash of cacheable content (NEW)
-            ttl_seconds: Time-to-live for cache entry (NEW)
+            cache_key_candidates: Alternative keys considered
+            content_hash: Hash of cacheable content
+            ttl_seconds: Time-to-live for cache entry
             **kwargs: Other arguments for record_llm_call
         
         Returns:
@@ -416,10 +462,10 @@ class MetricsCollector:
         error_category: Optional[str] = None,
         reasoning: Optional[str] = None,
         confidence_score: Optional[float] = None,
-        judge_model: Optional[str] = None,  # NEW
-        failure_reason: Optional[str] = None,  # NEW
-        improvement_suggestion: Optional[str] = None,  # NEW
-        criteria_scores: Optional[Dict[str, float]] = None,  # NEW
+        judge_model: Optional[str] = None,
+        failure_reason: Optional[str] = None,
+        improvement_suggestion: Optional[str] = None,
+        criteria_scores: Optional[Dict[str, float]] = None,
         **kwargs
     ) -> LLMCall:
         """
@@ -431,10 +477,10 @@ class MetricsCollector:
             error_category: Category of error if any
             reasoning: Judge's reasoning
             confidence_score: Judge's confidence (0-1)
-            judge_model: Model used for judging (NEW)
-            failure_reason: Failure category (NEW)
-            improvement_suggestion: How to improve (NEW)
-            criteria_scores: Individual criteria scores (NEW)
+            judge_model: Model used for judging
+            failure_reason: Failure category
+            improvement_suggestion: How to improve
+            criteria_scores: Individual criteria scores
             **kwargs: Other arguments for record_llm_call
         
         Returns:
@@ -469,12 +515,14 @@ class MetricsCollector:
         # Prompt metadata fields
         prompt_template_id: Optional[str] = None,
         prompt_version: Optional[str] = None,
+        prompt_hash: Optional[str] = None,      # NEW: Manual hash override
+        experiment_id: Optional[str] = None,    # NEW: A/B test grouping
         compressible_sections: Optional[List[str]] = None,
         optimization_flags: Optional[Dict[str, bool]] = None,
         **kwargs
     ) -> LLMCall:
         """
-        NEW: Convenience method for recording a call with prompt analysis.
+        Convenience method for recording a call with prompt analysis.
         
         Args:
             system_prompt: System prompt text
@@ -484,13 +532,19 @@ class MetricsCollector:
             chat_history: Chat history list
             chat_history_tokens: Token count for chat history
             prompt_template_id: Template identifier
-            prompt_version: Template version
+            prompt_version: Template version (manual label)
+            prompt_hash: Manual hash override (auto-generated if not provided)
+            experiment_id: A/B test experiment grouping
             compressible_sections: Sections that can be compressed
             optimization_flags: Optimization flags
             **kwargs: Other arguments for record_llm_call
         
         Returns:
             LLMCall object
+        
+        Note:
+            If prompt_hash is not provided but 'prompt' is in kwargs,
+            a hash will be auto-generated in record_llm_call.
         """
         prompt_breakdown = None
         if any([system_prompt, user_message, chat_history]):
@@ -505,10 +559,12 @@ class MetricsCollector:
             )
         
         prompt_metadata = None
-        if any([prompt_template_id, prompt_version]):
+        if any([prompt_template_id, prompt_version, prompt_hash, experiment_id]):
             prompt_metadata = PromptMetadata(
                 prompt_template_id=prompt_template_id,
                 prompt_version=prompt_version,
+                prompt_hash=prompt_hash,
+                experiment_id=experiment_id,
                 compressible_sections=compressible_sections,
                 optimization_flags=optimization_flags,
             )
@@ -616,6 +672,10 @@ class MetricsCollector:
             raise
 
 
+# =============================================================================
+# OBSERVATORY WRAPPER
+# =============================================================================
+
 class Observatory:
     """
     Main Observatory interface for applications.
@@ -670,7 +730,7 @@ class Observatory:
         return self.collector.record_with_quality(**kwargs)
     
     def record_with_prompt_analysis(self, **kwargs) -> LLMCall:
-        """NEW: Record a call with prompt breakdown and metadata."""
+        """Record a call with prompt breakdown and metadata."""
         return self.collector.record_with_prompt_analysis(**kwargs)
     
     def get_report(self, session: Optional[Session] = None) -> SessionReport:

@@ -1,25 +1,26 @@
 """
-Prompt Optimizer - Prompt Diagnostics Dashboard
+Prompt Optimizer - Token Analysis & Optimization
 Location: dashboard/pages/prompt_optimizer.py
 
-Developer-focused prompt analysis:
-1. Overview - Prompt health summary
-2. Long Prompts - Token reduction opportunities
-3. Low Performers - Quality-correlated prompt issues
-4. Compare - Side-by-side prompt comparison
+Single-scroll layout:
+1. Summary KPIs
+2. Prompts by Operation (System/History/User breakdown)
+3. Expansion with issue detection and fixes
+4. Prompt Versions (auto-detected via hash)
+5. A/B Testing setup guide
 """
 
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple, Optional
 from collections import defaultdict
-import difflib
+import hashlib
 import re
 
 from dashboard.utils.data_fetcher import (
-    get_project_overview,
     get_llm_calls,
+    get_project_overview,
 )
 from dashboard.utils.formatters import (
     format_cost,
@@ -36,547 +37,846 @@ from dashboard.components.metric_cards import render_empty_state
 # CONSTANTS
 # =============================================================================
 
-LONG_PROMPT_THRESHOLD = 4000  # tokens
-VERY_LONG_PROMPT_THRESHOLD = 8000  # tokens
-LOW_QUALITY_THRESHOLD = 7.0
+LONG_PROMPT_THRESHOLD = 4000      # tokens
+VERY_LONG_PROMPT_THRESHOLD = 6000 # tokens
+LONG_HISTORY_PCT = 0.40           # 40% of tokens in history
+LONG_SYSTEM_THRESHOLD = 3000      # tokens
+
+
+# =============================================================================
+# PROMPT PARSING
+# =============================================================================
+
+def parse_prompt_components(call: Dict) -> Dict[str, Any]:
+    """Parse prompt into System/History/User components."""
+    
+    metadata = call.get('metadata', {}) or {}
+    prompt = call.get('prompt', '') or ''
+    prompt_tokens = call.get('prompt_tokens', 0)
+    
+    # Try metadata first (if properly instrumented)
+    if metadata.get('system_prompt_tokens'):
+        return {
+            'system_tokens': metadata.get('system_prompt_tokens', 0),
+            'history_tokens': metadata.get('chat_history_tokens', 0),
+            'history_count': metadata.get('chat_history_count', 0),
+            'user_tokens': metadata.get('user_message_tokens', 0),
+            'system_text': metadata.get('system_prompt', '')[:500],
+            'history_text': metadata.get('chat_history', '')[:500],
+            'user_text': metadata.get('user_message', '')[:300],
+            'has_breakdown': True,
+        }
+    
+    # Estimate from prompt text
+    return estimate_prompt_components(prompt, prompt_tokens)
+
+
+def estimate_prompt_components(prompt: str, total_tokens: int) -> Dict[str, Any]:
+    """Estimate prompt components when not available in metadata."""
+    
+    if not prompt or total_tokens == 0:
+        return {
+            'system_tokens': 0,
+            'history_tokens': 0,
+            'history_count': 0,
+            'user_tokens': total_tokens,
+            'system_text': '',
+            'history_text': '',
+            'user_text': prompt[:300] if prompt else '',
+            'has_breakdown': False,
+        }
+    
+    # Detect chat history patterns
+    history_patterns = [
+        r'Human:|User:|Assistant:|AI:',
+        r'\[User\]|\[Assistant\]',
+        r'<human>|<assistant>',
+    ]
+    
+    message_count = 0
+    for pattern in history_patterns:
+        matches = re.findall(pattern, prompt, re.IGNORECASE)
+        message_count = max(message_count, len(matches))
+    
+    # Detect system prompt markers
+    system_markers = ['You are', 'System:', 'Instructions:', '## ', '### ']
+    has_system = any(marker in prompt[:1000] for marker in system_markers)
+    
+    # Estimate percentages
+    if message_count > 2:
+        system_pct = 0.25 if has_system else 0.10
+        history_pct = min(0.60, message_count * 0.08)
+        user_pct = max(0.10, 1 - system_pct - history_pct)
+    else:
+        system_pct = 0.40 if has_system else 0.20
+        history_pct = 0
+        user_pct = 1 - system_pct
+    
+    system_tokens = int(total_tokens * system_pct)
+    history_tokens = int(total_tokens * history_pct)
+    user_tokens = int(total_tokens * user_pct)
+    
+    # Extract text samples
+    system_text = prompt[:500] if has_system else ''
+    user_text = prompt[-300:]
+    
+    return {
+        'system_tokens': system_tokens,
+        'history_tokens': history_tokens,
+        'history_count': message_count,
+        'user_tokens': user_tokens,
+        'system_text': system_text,
+        'history_text': f'[{message_count} messages estimated]',
+        'user_text': user_text,
+        'has_breakdown': False,
+    }
+
+
+def generate_prompt_hash(prompt: str) -> str:
+    """Generate hash of prompt prefix for version detection."""
+    if not prompt:
+        return ''
+    # Hash first 500 chars (captures system prompt changes)
+    return hashlib.md5(prompt[:500].encode()).hexdigest()[:8]
+
+
+# =============================================================================
+# ISSUE DETECTION
+# =============================================================================
+
+def detect_prompt_issue(components: Dict, total_tokens: int) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    Detect prompt optimization issue.
+    
+    Returns: (issue_type, component, problem_description)
+    """
+    system_tokens = components.get('system_tokens', 0)
+    history_tokens = components.get('history_tokens', 0)
+    history_count = components.get('history_count', 0)
+    user_tokens = components.get('user_tokens', 0)
+    
+    # Check for long history
+    if total_tokens > 0 and history_tokens / total_tokens > LONG_HISTORY_PCT:
+        return 'Long history', 'History', f'{history_count} messages, {int(history_tokens/total_tokens*100)}% of tokens'
+    
+    # Check for too many messages
+    if history_count > 6:
+        return 'Many messages', 'History', f'{history_count} messages in context'
+    
+    # Check for long system prompt
+    if system_tokens > LONG_SYSTEM_THRESHOLD:
+        return 'Long system', 'System', f'{format_tokens(system_tokens)} in system prompt'
+    
+    # Check for context bloat (high total, low user)
+    if total_tokens > VERY_LONG_PROMPT_THRESHOLD:
+        if user_tokens / total_tokens < 0.15:
+            return 'Context bloat', 'Overall', f'User message only {int(user_tokens/total_tokens*100)}% of tokens'
+        return 'Very long', 'Overall', f'{format_tokens(total_tokens)} total'
+    
+    # Check for long prompt
+    if total_tokens > LONG_PROMPT_THRESHOLD:
+        return 'Long prompt', 'Overall', f'{format_tokens(total_tokens)} total'
+    
+    return None, None, None
+
+
+def get_recommended_fix(issue_type: Optional[str], components: Dict) -> Dict[str, Any]:
+    """Get recommended fix for detected issue."""
+    
+    if not issue_type:
+        return {
+            'action': '—',
+            'savings_tokens': 0,
+            'savings_pct': 0,
+            'cost_savings': 0,
+            'code_template': '',
+        }
+    
+    history_tokens = components.get('history_tokens', 0)
+    history_count = components.get('history_count', 0)
+    system_tokens = components.get('system_tokens', 0)
+    
+    if issue_type in ['Long history', 'Many messages']:
+        # Sliding window fix
+        keep_messages = 6
+        reduction = max(0, history_tokens * (1 - keep_messages / max(history_count, 1)))
+        return {
+            'action': 'Sliding window',
+            'savings_tokens': int(reduction),
+            'savings_pct': int(reduction / (components.get('system_tokens', 0) + history_tokens + components.get('user_tokens', 0)) * 100) if reduction > 0 else 0,
+            'code_template': generate_sliding_window_code(keep_messages),
+        }
+    
+    if issue_type == 'Long system':
+        # Compress system prompt
+        reduction = system_tokens * 0.4  # 40% reduction possible
+        return {
+            'action': 'Compress system',
+            'savings_tokens': int(reduction),
+            'savings_pct': 40,
+            'code_template': generate_compress_system_code(),
+        }
+    
+    if issue_type == 'Context bloat':
+        # Externalize to RAG
+        reduction = (system_tokens + history_tokens) * 0.5
+        return {
+            'action': 'Externalize (RAG)',
+            'savings_tokens': int(reduction),
+            'savings_pct': 50,
+            'code_template': generate_rag_code(),
+        }
+    
+    if issue_type in ['Long prompt', 'Very long']:
+        # General compression
+        total = components.get('system_tokens', 0) + history_tokens + components.get('user_tokens', 0)
+        reduction = total * 0.25
+        return {
+            'action': 'Review & compress',
+            'savings_tokens': int(reduction),
+            'savings_pct': 25,
+            'code_template': generate_review_code(),
+        }
+    
+    return {
+        'action': '—',
+        'savings_tokens': 0,
+        'savings_pct': 0,
+        'code_template': '',
+    }
+
+
+# =============================================================================
+# CODE TEMPLATES
+# =============================================================================
+
+def generate_sliding_window_code(keep_messages: int) -> str:
+    return f'''# Implement sliding window for chat history
+def trim_chat_history(messages: list, max_messages: int = {keep_messages}) -> list:
+    """Keep only the most recent messages."""
+    if len(messages) <= max_messages:
+        return messages
+    
+    # Always keep system message if present
+    system_msgs = [m for m in messages if m.get('role') == 'system']
+    chat_msgs = [m for m in messages if m.get('role') != 'system']
+    
+    # Keep last N messages
+    trimmed = chat_msgs[-max_messages:]
+    
+    return system_msgs + trimmed
+
+# Alternative: Summarize old messages
+def summarize_old_messages(messages: list, keep_recent: int = 4) -> list:
+    """Summarize older messages, keep recent ones verbatim."""
+    if len(messages) <= keep_recent + 1:
+        return messages
+    
+    old_messages = messages[:-keep_recent]
+    recent_messages = messages[-keep_recent:]
+    
+    # Summarize old messages with LLM
+    summary = summarize_conversation(old_messages)
+    
+    return [{{"role": "system", "content": f"Previous conversation summary: {{summary}}"}}] + recent_messages'''
+
+
+def generate_compress_system_code() -> str:
+    return '''# Compress system prompt
+# Before: Long, verbose instructions
+SYSTEM_PROMPT_OLD = """
+You are a helpful career advisor assistant. Your role is to help users 
+with their job search, resume optimization, and career planning. You should
+always be professional, supportive, and provide actionable advice. When 
+analyzing resumes, look for key skills, experience gaps, and areas for 
+improvement. When matching jobs, consider both hard skills and soft skills...
+[continues for 2000+ tokens]
+"""
+
+# After: Concise, structured instructions
+SYSTEM_PROMPT_NEW = """
+Role: Career advisor
+Tasks: Job search, resume optimization, career planning
+
+Guidelines:
+- Be professional and supportive
+- Provide actionable advice
+- For resumes: identify skills, gaps, improvements
+- For job matching: consider hard and soft skills
+
+Output format: [specify expected format]
+"""
+
+# Reduction: ~60-70% fewer tokens'''
+
+
+def generate_rag_code() -> str:
+    return '''# Externalize context to RAG
+# Instead of including all context in prompt, retrieve only relevant parts
+
+from your_vector_store import search_similar
+
+def build_prompt_with_rag(query: str, max_context_tokens: int = 1000) -> str:
+    """Build prompt with only relevant context."""
+    
+    # Retrieve relevant documents
+    relevant_docs = search_similar(query, top_k=3)
+    
+    # Build focused context
+    context = "\\n".join([doc.content for doc in relevant_docs])
+    
+    prompt = f"""
+Based on this context:
+{context[:max_context_tokens]}
+
+Answer: {query}
+"""
+    return prompt
+
+# Benefits:
+# - Only include relevant context
+# - Reduce token usage by 50-80%
+# - Improve response quality (less noise)'''
+
+
+def generate_review_code() -> str:
+    return '''# Prompt optimization checklist
+
+# 1. Remove redundant instructions
+# Before: "Please make sure to always remember to..."
+# After: "Always..."
+
+# 2. Use structured format
+# Before: Paragraph of instructions
+# After: Numbered list or YAML-like structure
+
+# 3. Remove examples if model understands task
+# Before: 5 examples of expected output
+# After: 1-2 examples (or zero-shot)
+
+# 4. Externalize static content
+# Before: Full document in prompt
+# After: Document ID + retrieval
+
+# 5. Use references instead of repetition
+# Before: Repeat context in each turn
+# After: "As mentioned above..." or context IDs'''
 
 
 # =============================================================================
 # ANALYSIS FUNCTIONS
 # =============================================================================
 
-def parse_prompt_components(call: Dict) -> Dict[str, Any]:
-    """Parse prompt into components."""
-    
-    metadata = call.get('metadata', {}) or {}
-    prompt = call.get('prompt', '') or ''
-    prompt_tokens = call.get('prompt_tokens', 0)
-    
-    # Try metadata first
-    if metadata.get('system_prompt_tokens'):
-        return {
-            'system_prompt': metadata.get('system_prompt', '')[:500],
-            'system_prompt_tokens': metadata.get('system_prompt_tokens', 0),
-            'chat_history_tokens': metadata.get('chat_history_tokens', 0),
-            'chat_history_count': metadata.get('chat_history_count', 0),
-            'user_message': metadata.get('user_message', '')[:300],
-            'user_message_tokens': metadata.get('user_message_tokens', 0),
-            'has_breakdown': True,
-        }
-    
-    # Estimate from prompt
-    has_history = bool(re.search(r'Human:|User:|Assistant:|AI:', prompt, re.I))
-    message_count = len(re.findall(r'Human:|User:|Assistant:|AI:', prompt, re.I))
-    
-    # Rough estimation
-    if has_history and message_count > 2:
-        system_pct = 0.25
-        history_pct = min(0.60, message_count * 0.08)
-        user_pct = 1 - system_pct - history_pct
-    else:
-        system_pct = 0.30
-        history_pct = 0
-        user_pct = 0.70
-    
-    return {
-        'system_prompt': prompt[:500],
-        'system_prompt_tokens': int(prompt_tokens * system_pct),
-        'chat_history_tokens': int(prompt_tokens * history_pct),
-        'chat_history_count': message_count,
-        'user_message': prompt[-300:],
-        'user_message_tokens': int(prompt_tokens * user_pct),
-        'has_breakdown': False,
-    }
-
-
-def analyze_prompt_health(calls: List[Dict]) -> Dict[str, Any]:
-    """Analyze overall prompt health."""
-    
-    total = len(calls)
-    
-    # Categorize prompts
-    long_prompts = []
-    low_quality_prompts = []
+def analyze_prompts_by_operation(calls: List[Dict]) -> List[Dict]:
+    """Analyze prompts aggregated by operation."""
     
     by_operation = defaultdict(lambda: {
         'calls': [],
+        'total_system': 0,
+        'total_history': 0,
+        'total_user': 0,
         'total_tokens': 0,
-        'scores': [],
     })
     
     for call in calls:
+        agent = call.get('agent_name', 'Unknown')
+        operation = call.get('operation', 'unknown')
+        key = f"{agent}.{operation}"
+        
         prompt_tokens = call.get('prompt_tokens', 0)
-        op = call.get('operation', 'unknown')
+        components = parse_prompt_components(call)
         
-        by_operation[op]['calls'].append(call)
-        by_operation[op]['total_tokens'] += prompt_tokens
-        
-        qual = call.get('quality_evaluation') or {}
-        if qual.get('score') is not None:
-            by_operation[op]['scores'].append(qual['score'])
-        
-        if prompt_tokens > LONG_PROMPT_THRESHOLD:
-            long_prompts.append(call)
-        
-        if qual.get('score') is not None and qual['score'] < LOW_QUALITY_THRESHOLD:
-            low_quality_prompts.append(call)
+        by_operation[key]['calls'].append({
+            'call': call,
+            'components': components,
+        })
+        by_operation[key]['total_system'] += components['system_tokens']
+        by_operation[key]['total_history'] += components['history_tokens']
+        by_operation[key]['total_user'] += components['user_tokens']
+        by_operation[key]['total_tokens'] += prompt_tokens
     
-    # Calculate per-operation stats
-    operations = []
-    for op, stats in by_operation.items():
-        avg_tokens = stats['total_tokens'] / len(stats['calls'])
-        avg_score = sum(stats['scores']) / len(stats['scores']) if stats['scores'] else None
+    results = []
+    for op_key, stats in by_operation.items():
+        call_count = len(stats['calls'])
+        avg_system = stats['total_system'] / call_count if call_count > 0 else 0
+        avg_history = stats['total_history'] / call_count if call_count > 0 else 0
+        avg_user = stats['total_user'] / call_count if call_count > 0 else 0
+        avg_total = stats['total_tokens'] / call_count if call_count > 0 else 0
+        
+        # Build average components for issue detection
+        avg_components = {
+            'system_tokens': avg_system,
+            'history_tokens': avg_history,
+            'history_count': sum(c['components']['history_count'] for c in stats['calls']) / call_count,
+            'user_tokens': avg_user,
+        }
+        
+        issue_type, component, problem = detect_prompt_issue(avg_components, avg_total)
+        fix = get_recommended_fix(issue_type, avg_components)
         
         # Determine status
-        if avg_tokens > VERY_LONG_PROMPT_THRESHOLD:
-            status = 'VERY_LONG'
-        elif avg_tokens > LONG_PROMPT_THRESHOLD:
-            status = 'LONG'
-        elif avg_score and avg_score < LOW_QUALITY_THRESHOLD:
-            status = 'LOW_QUALITY'
+        if avg_total > VERY_LONG_PROMPT_THRESHOLD:
+            status = '🔴'
+        elif avg_total > LONG_PROMPT_THRESHOLD or issue_type:
+            status = '🟡'
         else:
-            status = 'HEALTHY'
+            status = '🟢'
         
-        operations.append({
-            'operation': op,
-            'call_count': len(stats['calls']),
-            'avg_tokens': avg_tokens,
-            'avg_score': avg_score,
+        # Get sample prompt for display
+        sample_call = stats['calls'][0]['call'] if stats['calls'] else {}
+        sample_components = stats['calls'][0]['components'] if stats['calls'] else {}
+        
+        results.append({
+            'operation': op_key,
+            'call_count': call_count,
+            'avg_system': int(avg_system),
+            'avg_history': int(avg_history),
+            'avg_user': int(avg_user),
+            'avg_total': int(avg_total),
             'status': status,
+            'issue_type': issue_type,
+            'issue_component': component,
+            'issue_problem': problem,
+            'fix': fix,
+            'sample_call': sample_call,
+            'sample_components': sample_components,
+            'all_calls': stats['calls'],
         })
     
-    operations.sort(key=lambda x: -x['avg_tokens'])
+    # Sort by total tokens descending
+    results.sort(key=lambda x: -x['avg_total'])
+    
+    return results
+
+
+def analyze_prompt_versions(calls: List[Dict]) -> List[Dict]:
+    """Detect prompt versions via hash."""
+    
+    by_operation_hash = defaultdict(lambda: {
+        'calls': [],
+        'total_tokens': 0,
+        'total_latency': 0,
+        'total_cost': 0,
+        'first_seen': None,
+    })
+    
+    for call in calls:
+        agent = call.get('agent_name', 'Unknown')
+        operation = call.get('operation', 'unknown')
+        prompt = call.get('prompt', '')
+        
+        if not prompt:
+            continue
+        
+        # Check for explicit version in metadata first
+        metadata = call.get('metadata', {}) or {}
+        prompt_hash = metadata.get('prompt_hash') or generate_prompt_hash(prompt)
+        
+        key = (f"{agent}.{operation}", prompt_hash)
+        
+        by_operation_hash[key]['calls'].append(call)
+        by_operation_hash[key]['total_tokens'] += call.get('prompt_tokens', 0)
+        by_operation_hash[key]['total_latency'] += call.get('latency_ms', 0)
+        by_operation_hash[key]['total_cost'] += call.get('total_cost', 0)
+        
+        timestamp = call.get('timestamp')
+        if timestamp:
+            if by_operation_hash[key]['first_seen'] is None:
+                by_operation_hash[key]['first_seen'] = timestamp
+            else:
+                by_operation_hash[key]['first_seen'] = min(by_operation_hash[key]['first_seen'], timestamp)
+    
+    # Group by operation to find multiple versions
+    by_operation = defaultdict(list)
+    
+    for (operation, hash_val), stats in by_operation_hash.items():
+        call_count = len(stats['calls'])
+        by_operation[operation].append({
+            'hash': hash_val,
+            'call_count': call_count,
+            'avg_tokens': stats['total_tokens'] / call_count if call_count > 0 else 0,
+            'avg_latency': stats['total_latency'] / call_count if call_count > 0 else 0,
+            'avg_cost': stats['total_cost'] / call_count if call_count > 0 else 0,
+            'first_seen': stats['first_seen'],
+            'sample_prompt': stats['calls'][0].get('prompt', '')[:500] if stats['calls'] else '',
+        })
+    
+    # Build results - only include operations with prompts
+    results = []
+    for operation, versions in by_operation.items():
+        # Sort versions by first_seen
+        versions.sort(key=lambda x: x['first_seen'] or datetime.min)
+        
+        for i, v in enumerate(versions):
+            is_latest = (i == len(versions) - 1)
+            results.append({
+                'operation': operation,
+                'hash': v['hash'],
+                'call_count': v['call_count'],
+                'avg_tokens': int(v['avg_tokens']),
+                'avg_latency': v['avg_latency'],
+                'avg_cost': v['avg_cost'],
+                'first_seen': v['first_seen'],
+                'is_latest': is_latest,
+                'version_count': len(versions),
+                'sample_prompt': v['sample_prompt'],
+            })
+    
+    # Sort by operation, then by first_seen
+    results.sort(key=lambda x: (x['operation'], x['first_seen'] or datetime.min))
+    
+    return results
+
+
+def calculate_summary_kpis(operation_analysis: List[Dict], calls: List[Dict]) -> Dict[str, Any]:
+    """Calculate summary KPIs."""
+    
+    total_calls = len(calls)
+    
+    if total_calls == 0:
+        return {
+            'avg_tokens': 0,
+            'long_count': 0,
+            'very_long_count': 0,
+            'total_reducible': 0,
+            'potential_savings': 0,
+        }
+    
+    total_tokens = sum(c.get('prompt_tokens', 0) for c in calls)
+    avg_tokens = total_tokens / total_calls
+    
+    long_count = sum(1 for c in calls if c.get('prompt_tokens', 0) > LONG_PROMPT_THRESHOLD)
+    very_long_count = sum(1 for c in calls if c.get('prompt_tokens', 0) > VERY_LONG_PROMPT_THRESHOLD)
+    
+    # Calculate total reducible tokens
+    total_reducible = sum(op['fix']['savings_tokens'] * op['call_count'] for op in operation_analysis)
+    
+    # Estimate cost savings (rough: $0.01 per 1K tokens)
+    potential_savings = (total_reducible / 1000) * 0.01
     
     return {
-        'total_calls': total,
-        'long_prompt_count': len(long_prompts),
-        'low_quality_count': len(low_quality_prompts),
-        'avg_prompt_tokens': sum(c.get('prompt_tokens', 0) for c in calls) / total if total > 0 else 0,
-        'operations': operations,
+        'avg_tokens': int(avg_tokens),
+        'long_count': long_count,
+        'very_long_count': very_long_count,
+        'total_reducible': total_reducible,
+        'potential_savings': potential_savings,
     }
 
 
-def find_long_prompts(calls: List[Dict]) -> List[Dict]:
-    """Find calls with long prompts and analyze reduction opportunities."""
-    
-    long_prompts = []
-    
-    for call in calls:
-        prompt_tokens = call.get('prompt_tokens', 0)
-        
-        if prompt_tokens > LONG_PROMPT_THRESHOLD:
-            components = parse_prompt_components(call)
-            
-            # Identify optimization opportunities
-            opportunities = []
-            potential_savings = 0
-            
-            # Check for long chat history
-            if components['chat_history_count'] > 6:
-                history_reduction = components['chat_history_tokens'] * 0.5  # Keep ~half
-                opportunities.append({
-                    'type': 'SLIDING_WINDOW',
-                    'description': f"Limit chat history from {components['chat_history_count']} to 6 messages",
-                    'token_savings': int(history_reduction),
-                })
-                potential_savings += history_reduction
-            
-            # Check for large system prompt
-            if components['system_prompt_tokens'] > 2000:
-                system_reduction = components['system_prompt_tokens'] * 0.4  # 40% reduction possible
-                opportunities.append({
-                    'type': 'COMPRESS_SYSTEM',
-                    'description': "Compress or summarize system prompt content",
-                    'token_savings': int(system_reduction),
-                })
-                potential_savings += system_reduction
-            
-            # Calculate cost savings
-            cost_per_token = call.get('total_cost', 0) / call.get('total_tokens', 1) if call.get('total_tokens', 0) > 0 else 0
-            cost_savings = potential_savings * cost_per_token
-            
-            long_prompts.append({
-                'call': call,
-                'prompt_tokens': prompt_tokens,
-                'components': components,
-                'opportunities': opportunities,
-                'potential_savings_tokens': int(potential_savings),
-                'potential_savings_cost': cost_savings,
-                'reduction_pct': potential_savings / prompt_tokens if prompt_tokens > 0 else 0,
-            })
-    
-    # Sort by potential savings
-    long_prompts.sort(key=lambda x: -x['potential_savings_tokens'])
-    
-    return long_prompts
-
-
-def find_low_performers(calls: List[Dict]) -> List[Dict]:
-    """Find prompts correlated with low quality."""
-    
-    low_performers = []
-    
-    for call in calls:
-        qual = call.get('quality_evaluation') or {}
-        if qual.get('score') is None:
-            continue
-        
-        score = qual['score']
-        if score < LOW_QUALITY_THRESHOLD:
-            components = parse_prompt_components(call)
-            
-            # Analyze potential prompt issues
-            issues = []
-            
-            prompt = call.get('prompt', '')
-            
-            # Check for vague instructions
-            if not any(word in prompt.lower() for word in ['must', 'should', 'always', 'never', 'required']):
-                issues.append({
-                    'type': 'VAGUE_INSTRUCTIONS',
-                    'description': 'Prompt lacks explicit requirements or constraints',
-                    'fix': 'Add specific requirements: "You must...", "Always include..."',
-                })
-            
-            # Check for missing examples
-            if 'example' not in prompt.lower() and 'e.g.' not in prompt.lower():
-                issues.append({
-                    'type': 'NO_EXAMPLES',
-                    'description': 'Prompt has no examples to guide output',
-                    'fix': 'Add 1-2 examples of expected output format',
-                })
-            
-            # Check for missing output format
-            if not any(word in prompt.lower() for word in ['format', 'json', 'markdown', 'structure', 'return']):
-                issues.append({
-                    'type': 'NO_FORMAT',
-                    'description': 'No output format specification',
-                    'fix': 'Specify expected output format explicitly',
-                })
-            
-            low_performers.append({
-                'call': call,
-                'score': score,
-                'components': components,
-                'issues': issues,
-                'judge_feedback': qual.get('reasoning', qual.get('judge_feedback', '')),
-            })
-    
-    # Sort by score (lowest first)
-    low_performers.sort(key=lambda x: x['score'])
-    
-    return low_performers
-
-
-def generate_prompt_diff(prompt_a: str, prompt_b: str) -> List[Dict]:
-    """Generate diff between two prompts."""
-    
-    lines_a = prompt_a.split('\n')
-    lines_b = prompt_b.split('\n')
-    
-    differ = difflib.unified_diff(lines_a, lines_b, lineterm='', n=3)
-    
-    changes = []
-    for line in differ:
-        if line.startswith('+++') or line.startswith('---') or line.startswith('@@'):
-            continue
-        elif line.startswith('+'):
-            changes.append({'type': 'add', 'text': line[1:]})
-        elif line.startswith('-'):
-            changes.append({'type': 'remove', 'text': line[1:]})
-        else:
-            changes.append({'type': 'same', 'text': line})
-    
-    return changes
-
-
 # =============================================================================
-# RENDERING FUNCTIONS
+# RENDER FUNCTIONS
 # =============================================================================
 
-def render_prompt_health_banner(health: Dict):
-    """Render prompt health banner."""
+def render_summary_kpis(kpis: Dict):
+    """Render summary KPI metrics."""
     
-    long_count = health['long_prompt_count']
-    low_qual_count = health['low_quality_count']
-    
-    if long_count > 10 or low_qual_count > 5:
-        st.error(f"🔴 **Prompt Issues Detected** — {long_count} long prompts, {low_qual_count} low-quality outputs")
-    elif long_count > 0 or low_qual_count > 0:
-        st.warning(f"🟡 **{long_count} prompts need optimization** — Avg {format_tokens(int(health['avg_prompt_tokens']))} tokens/prompt")
-    else:
-        st.success(f"🟢 **Prompts Healthy** — Avg {format_tokens(int(health['avg_prompt_tokens']))} tokens/prompt")
-
-
-def render_token_breakdown(components: Dict, total_tokens: int):
-    """Render token breakdown visualization."""
-    
-    system_pct = components['system_prompt_tokens'] / total_tokens * 100 if total_tokens > 0 else 0
-    history_pct = components['chat_history_tokens'] / total_tokens * 100 if total_tokens > 0 else 0
-    user_pct = components['user_message_tokens'] / total_tokens * 100 if total_tokens > 0 else 0
-    
-    st.markdown("**Token Breakdown:**")
-    
-    data = {
-        'Component': ['System Prompt', 'Chat History', 'User Message'],
-        'Tokens': [
-            f"{components['system_prompt_tokens']:,}",
-            f"{components['chat_history_tokens']:,} ({components['chat_history_count']} msgs)",
-            f"{components['user_message_tokens']:,}",
-        ],
-        '%': [f"{system_pct:.0f}%", f"{history_pct:.0f}%", f"{user_pct:.0f}%"],
-    }
-    
-    st.dataframe(pd.DataFrame(data), width='stretch', hide_index=True)
-    
-    if not components['has_breakdown']:
-        st.caption("⚠️ Estimated breakdown — add instrumentation for exact values")
-
-
-def render_long_prompt_card(item: Dict, index: int):
-    """Render a long prompt card."""
-    
-    call = item['call']
-    
-    severity = "🔴" if item['prompt_tokens'] > VERY_LONG_PROMPT_THRESHOLD else "🟡"
-    
-    st.markdown(f"### {severity} #{index} — {format_tokens(item['prompt_tokens'])} tokens — {call.get('operation', 'unknown')}")
-    st.caption(f"{call.get('agent_name', 'unknown')} • {format_model_name(call.get('model_name', ''))} • {format_cost(call.get('total_cost', 0))}")
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        render_token_breakdown(item['components'], item['prompt_tokens'])
-    
-    with col2:
-        st.markdown("**Optimization Opportunities:**")
-        
-        if item['opportunities']:
-            for opp in item['opportunities']:
-                st.write(f"- {opp['description']} (save ~{format_tokens(opp['token_savings'])})")
-            
-            st.success(f"**Potential:** {format_tokens(item['potential_savings_tokens'])} tokens ({item['reduction_pct']:.0%} reduction)")
-            st.write(f"Save ~{format_cost(item['potential_savings_cost'])}/call")
-        else:
-            st.info("No obvious optimization opportunities detected")
-    
-    with st.expander("📝 View Prompt Preview"):
-        st.markdown("**System Prompt:**")
-        st.code(item['components']['system_prompt'], language="text")
-        
-        if item['components']['chat_history_count'] > 0:
-            st.markdown(f"**Chat History:** {item['components']['chat_history_count']} messages")
-        
-        st.markdown("**User Message:**")
-        st.code(item['components']['user_message'], language="text")
-
-
-def render_low_performer_card(item: Dict, index: int):
-    """Render a low performer card."""
-    
-    call = item['call']
-    
-    st.markdown(f"### 📉 #{index} — Score: {item['score']:.1f}/10 — {call.get('operation', 'unknown')}")
-    st.caption(f"{call.get('agent_name', 'unknown')} • {format_model_name(call.get('model_name', ''))}")
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.markdown("**Prompt Issues Detected:**")
-        
-        if item['issues']:
-            for issue in item['issues']:
-                st.error(f"**{issue['type']}:** {issue['description']}")
-                st.caption(f"Fix: {issue['fix']}")
-        else:
-            st.info("No obvious prompt issues detected — may be model limitation")
-    
-    with col2:
-        if item['judge_feedback']:
-            st.markdown("**Judge Feedback:**")
-            st.info(item['judge_feedback'][:300])
-    
-    with st.expander("📝 View Full Prompt"):
-        st.code(call.get('prompt', 'N/A')[:1000], language="text")
-
-
-def render_overview_tab(calls: List[Dict], health: Dict):
-    """Render Overview tab."""
-    
-    st.subheader("📊 Prompt Health Summary")
-    
-    # KPIs
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Total Calls", f"{health['total_calls']:,}")
+        st.metric("Avg Tokens", format_tokens(kpis['avg_tokens']))
+    
     with col2:
-        st.metric("Avg Tokens", format_tokens(int(health['avg_prompt_tokens'])))
+        st.metric("Long (>4K)", kpis['long_count'])
+    
     with col3:
-        st.metric("Long Prompts", health['long_prompt_count'])
+        st.metric("Reducible", f"-{format_tokens(kpis['total_reducible'])} avg")
+    
     with col4:
-        st.metric("Low Quality", health['low_quality_count'])
+        st.metric("💰 Potential", f"{format_cost(kpis['potential_savings'])}/mo")
+
+
+def render_prompts_table(operation_analysis: List[Dict]):
+    """Render main prompts by operation table."""
     
-    st.divider()
+    st.subheader("📋 Prompts by Operation")
     
-    # By operation
-    st.subheader("🎯 Prompt Stats by Operation")
+    if not operation_analysis:
+        st.info("No prompt data found.")
+        return
     
-    op_data = []
-    for op in health['operations']:
-        status_display = {
-            'VERY_LONG': '🔴 Very long',
-            'LONG': '🟡 Long',
-            'LOW_QUALITY': '🟠 Low quality',
-            'HEALTHY': '🟢 Healthy',
-        }
-        
-        op_data.append({
-            'Operation': op['operation'],
-            'Calls': op['call_count'],
-            'Avg Tokens': format_tokens(int(op['avg_tokens'])),
-            'Avg Score': f"{op['avg_score']:.1f}/10" if op['avg_score'] else "—",
-            'Status': status_display.get(op['status'], op['status']),
+    # Check for highlighted row from incoming filter
+    highlight_key = st.session_state.get('_prompt_highlight')
+    
+    # Filter
+    status_filter = st.selectbox(
+        "Status",
+        ["All", "🔴 Very Long", "🟡 Long/Issues", "🟢 Optimal"],
+        key="prompt_status_filter",
+        label_visibility="collapsed"
+    )
+    
+    # Apply filter
+    filtered = operation_analysis
+    if status_filter == "🔴 Very Long":
+        filtered = [op for op in operation_analysis if op['status'] == '🔴']
+    elif status_filter == "🟡 Long/Issues":
+        filtered = [op for op in operation_analysis if op['status'] == '🟡']
+    elif status_filter == "🟢 Optimal":
+        filtered = [op for op in operation_analysis if op['status'] == '🟢']
+    
+    if not filtered:
+        st.warning("No operations match the selected filter.")
+        return
+    
+    # Find highlight index
+    highlight_idx = None
+    if highlight_key:
+        for i, op in enumerate(filtered):
+            if op['operation'] == highlight_key:
+                highlight_idx = i
+                break
+    
+    # Build table
+    table_data = []
+    for op in filtered:
+        table_data.append({
+            'Status': op['status'],
+            'Agent.Operation': op['operation'],
+            'System': format_tokens(op['avg_system']),
+            'History': format_tokens(op['avg_history']),
+            'User': format_tokens(op['avg_user']),
+            'Total': format_tokens(op['avg_total']),
         })
     
-    st.dataframe(pd.DataFrame(op_data), width='stretch', hide_index=True)
+    df = pd.DataFrame(table_data)
+    
+    selection = st.dataframe(
+        df,
+        width='stretch',
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="prompts_table"
+    )
+    
+    st.caption("Click row for breakdown + optimization")
+    
+    # Show detail for selected row OR auto-highlighted row
+    selected_rows = selection.selection.rows if selection.selection else []
+    
+    # Use highlighted row if no manual selection
+    if not selected_rows and highlight_idx is not None:
+        selected_rows = [highlight_idx]
+    
+    if selected_rows and selected_rows[0] < len(filtered):
+        render_prompt_detail(filtered[selected_rows[0]])
 
 
-def render_long_prompts_tab(long_prompts: List[Dict]):
-    """Render Long Prompts tab."""
+def render_prompt_detail(op: Dict):
+    """Render detailed view for a prompt operation."""
     
-    if not long_prompts:
-        st.success(f"✅ No prompts over {format_tokens(LONG_PROMPT_THRESHOLD)} tokens!")
-        return
+    st.markdown("---")
+    st.markdown(f"**▼ {op['operation']} — {format_tokens(op['avg_total'])} tokens avg ({op['call_count']} calls)**")
     
-    st.subheader(f"📏 {len(long_prompts)} Long Prompts")
-    st.caption(f"Prompts over {format_tokens(LONG_PROMPT_THRESHOLD)} tokens")
+    # 3 columns: Token Breakdown | Issue | Recommended Fix
+    col1, col2, col3 = st.columns(3)
     
-    # Summary
-    total_potential = sum(p['potential_savings_tokens'] for p in long_prompts)
-    total_cost_savings = sum(p['potential_savings_cost'] for p in long_prompts)
-    
-    if total_potential > 0:
-        st.info(f"💡 **Total Optimization Potential:** {format_tokens(total_potential)} tokens, ~{format_cost(total_cost_savings)}/period")
-    
-    st.divider()
-    
-    for i, item in enumerate(long_prompts[:10], 1):
-        with st.container():
-            render_long_prompt_card(item, i)
-            st.divider()
-    
-    if len(long_prompts) > 10:
-        st.caption(f"Showing top 10 of {len(long_prompts)} long prompts")
-
-
-def render_low_performers_tab(low_performers: List[Dict]):
-    """Render Low Performers tab."""
-    
-    if not low_performers:
-        st.success("✅ No low-quality prompts detected!")
-        return
-    
-    st.subheader(f"📉 {len(low_performers)} Low-Performing Prompts")
-    st.caption(f"Prompts with quality score < {LOW_QUALITY_THRESHOLD}")
-    
-    for i, item in enumerate(low_performers[:10], 1):
-        with st.container():
-            render_low_performer_card(item, i)
-            st.divider()
-
-
-def render_compare_tab(calls: List[Dict]):
-    """Render Compare tab for side-by-side comparison."""
-    
-    st.subheader("🔬 Compare Prompts")
-    st.caption("Select two calls to compare their prompts")
-    
-    # Filter to calls with prompts
-    calls_with_prompts = [c for c in calls if c.get('prompt')][:50]
-    
-    if len(calls_with_prompts) < 2:
-        st.info("Need at least 2 calls with prompts to compare")
-        return
-    
-    col1, col2 = st.columns(2)
+    total = op['avg_total'] or 1
+    system_pct = int(op['avg_system'] / total * 100) if total > 0 else 0
+    history_pct = int(op['avg_history'] / total * 100) if total > 0 else 0
+    user_pct = int(op['avg_user'] / total * 100) if total > 0 else 0
     
     with col1:
-        idx_a = st.selectbox(
-            "Select Call A",
-            options=range(len(calls_with_prompts)),
-            format_func=lambda i: f"{calls_with_prompts[i].get('operation', 'unknown')} - {format_tokens(calls_with_prompts[i].get('prompt_tokens', 0))}",
-            key="compare_a"
-        )
+        st.markdown("**Token Breakdown**")
+        breakdown_data = pd.DataFrame([
+            {'': 'System', '  ': f"{format_tokens(op['avg_system'])} ({system_pct}%)"},
+            {'': 'History', '  ': f"{format_tokens(op['avg_history'])} ({history_pct}%)"},
+            {'': 'User', '  ': f"{format_tokens(op['avg_user'])} ({user_pct}%)"},
+        ])
+        st.dataframe(breakdown_data, width='stretch', hide_index=True)
     
     with col2:
-        idx_b = st.selectbox(
-            "Select Call B",
-            options=range(len(calls_with_prompts)),
-            format_func=lambda i: f"{calls_with_prompts[i].get('operation', 'unknown')} - {format_tokens(calls_with_prompts[i].get('prompt_tokens', 0))}",
-            key="compare_b",
-            index=min(1, len(calls_with_prompts) - 1)
-        )
+        st.markdown("**Issue**")
+        if op['issue_type']:
+            issue_data = pd.DataFrame([
+                {'': 'Type', '  ': op['issue_type']},
+                {'': 'Component', '  ': op['issue_component']},
+                {'': 'Problem', '  ': op['issue_problem']},
+            ])
+        else:
+            issue_data = pd.DataFrame([
+                {'': 'Type', '  ': '—'},
+                {'': 'Component', '  ': '—'},
+                {'': 'Problem', '  ': 'No issues detected'},
+            ])
+        st.dataframe(issue_data, width='stretch', hide_index=True)
     
-    if idx_a == idx_b:
-        st.warning("Select different calls to compare")
+    with col3:
+        st.markdown("**Recommended Fix**")
+        fix = op['fix']
+        if fix['action'] != '—':
+            fix_data = pd.DataFrame([
+                {'': 'Action', '  ': fix['action']},
+                {'': 'Savings', '  ': f"{format_tokens(fix['savings_tokens'])} ({fix['savings_pct']}%)"},
+            ])
+        else:
+            fix_data = pd.DataFrame([
+                {'': 'Action', '  ': '—'},
+                {'': 'Savings', '  ': 'N/A'},
+            ])
+        st.dataframe(fix_data, width='stretch', hide_index=True)
+    
+    # Prompt content table
+    components = op['sample_components']
+    prompt_data = pd.DataFrame([
+        {'': 'System', '  ': truncate_text(components.get('system_text', ''), 200) or '[Not detected]'},
+        {'': 'History', '  ': truncate_text(components.get('history_text', ''), 200) or '[No history]'},
+        {'': 'User', '  ': truncate_text(components.get('user_text', ''), 200) or '[Not detected]'},
+    ])
+    st.dataframe(prompt_data, width='stretch', hide_index=True)
+    
+    # Implementation code (collapsed)
+    if fix['code_template']:
+        with st.expander("📋 Implementation code"):
+            st.code(fix['code_template'], language="python")
+
+
+def render_versions_table(versions: List[Dict]):
+    """Render prompt versions table."""
+    
+    st.subheader("📊 Prompt Versions")
+    st.caption("Auto-detected via prompt hash • Multiple versions = prompt changed")
+    
+    if not versions:
+        st.info("No prompt version data. Prompts are hashed to detect changes.")
         return
     
-    call_a = calls_with_prompts[idx_a]
-    call_b = calls_with_prompts[idx_b]
+    # Only show operations with multiple versions, or all if filter selected
+    multi_version_ops = set(v['operation'] for v in versions if v['version_count'] > 1)
     
-    st.divider()
-    
-    # Comparison metrics
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("### Call A")
-        st.write(f"- Operation: {call_a.get('operation', 'unknown')}")
-        st.write(f"- Tokens: {format_tokens(call_a.get('prompt_tokens', 0))}")
-        st.write(f"- Cost: {format_cost(call_a.get('total_cost', 0))}")
+    if not multi_version_ops:
+        st.success("✅ All operations have consistent prompts (single version)")
         
-        qual_a = call_a.get('quality_evaluation', {})
-        if qual_a.get('score'):
-            st.write(f"- Score: {qual_a['score']:.1f}/10")
-    
-    with col2:
-        st.markdown("### Call B")
-        st.write(f"- Operation: {call_b.get('operation', 'unknown')}")
-        st.write(f"- Tokens: {format_tokens(call_b.get('prompt_tokens', 0))}")
-        st.write(f"- Cost: {format_cost(call_b.get('total_cost', 0))}")
+        # Show single version summary
+        table_data = []
+        seen_ops = set()
+        for v in versions:
+            if v['operation'] not in seen_ops:
+                seen_ops.add(v['operation'])
+                table_data.append({
+                    'Agent.Operation': v['operation'],
+                    'Hash': v['hash'],
+                    'Calls': v['call_count'],
+                    'Avg Tokens': format_tokens(v['avg_tokens']),
+                })
         
-        qual_b = call_b.get('quality_evaluation', {})
-        if qual_b.get('score'):
-            st.write(f"- Score: {qual_b['score']:.1f}/10")
+        if table_data:
+            df = pd.DataFrame(table_data)
+            st.dataframe(df, width='stretch', hide_index=True)
+        return
     
-    st.divider()
+    # Show operations with multiple versions
+    st.info(f"📌 {len(multi_version_ops)} operation(s) have multiple prompt versions")
     
-    # Side-by-side prompts
-    st.markdown("### Prompts")
+    table_data = []
+    for v in versions:
+        if v['operation'] in multi_version_ops:
+            first_seen = v['first_seen'].strftime("%b %d") if v['first_seen'] else "—"
+            new_marker = " ✨ New" if v['is_latest'] and v['version_count'] > 1 else ""
+            
+            table_data.append({
+                'Agent.Operation': v['operation'],
+                'Hash': v['hash'],
+                'Calls': v['call_count'],
+                'Avg Tokens': format_tokens(v['avg_tokens']),
+                'First Seen': f"{first_seen}{new_marker}",
+            })
     
-    col1, col2 = st.columns(2)
+    df = pd.DataFrame(table_data)
     
-    with col1:
-        st.markdown("**Prompt A:**")
-        st.code(truncate_text(call_a.get('prompt', ''), 1000), language="text")
+    selection = st.dataframe(
+        df,
+        width='stretch',
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="versions_table"
+    )
     
-    with col2:
-        st.markdown("**Prompt B:**")
-        st.code(truncate_text(call_b.get('prompt', ''), 1000), language="text")
+    # Show version comparison if row selected
+    selected_rows = selection.selection.rows if selection.selection else []
+    if selected_rows and selected_rows[0] < len(table_data):
+        selected_op = table_data[selected_rows[0]]['Agent.Operation']
+        render_version_comparison(versions, selected_op)
+
+
+def render_version_comparison(versions: List[Dict], operation: str):
+    """Render side-by-side version comparison."""
     
-    # Diff view
-    with st.expander("📋 View Diff"):
-        diff = generate_prompt_diff(
-            call_a.get('prompt', '')[:2000], 
-            call_b.get('prompt', '')[:2000]
-        )
+    op_versions = [v for v in versions if v['operation'] == operation]
+    
+    if len(op_versions) < 2:
+        return
+    
+    st.markdown("---")
+    st.markdown(f"**▼ {operation} — {len(op_versions)} versions detected**")
+    
+    # Build comparison table
+    headers = [''] + [f"{v['hash']} ({'new' if v['is_latest'] else 'old'})" for v in op_versions]
+    
+    rows = [
+        ['Calls'] + [str(v['call_count']) for v in op_versions],
+        ['Avg Tokens'] + [format_tokens(v['avg_tokens']) for v in op_versions],
+        ['Avg Latency'] + [format_latency(v['avg_latency']) for v in op_versions],
+        ['Avg Cost'] + [format_cost(v['avg_cost']) for v in op_versions],
+    ]
+    
+    # Add comparison indicators
+    if len(op_versions) == 2:
+        old, new = op_versions[0], op_versions[1]
+        token_diff = new['avg_tokens'] - old['avg_tokens']
+        token_pct = int(token_diff / old['avg_tokens'] * 100) if old['avg_tokens'] > 0 else 0
         
-        for change in diff[:50]:
-            if change['type'] == 'add':
-                st.markdown(f"<span style='background-color: #90EE90'>+ {change['text']}</span>", unsafe_allow_html=True)
-            elif change['type'] == 'remove':
-                st.markdown(f"<span style='background-color: #FFB6C1'>- {change['text']}</span>", unsafe_allow_html=True)
+        if token_diff < 0:
+            rows[1][2] += f" ✓ {token_pct}%"
+        elif token_diff > 0:
+            rows[1][2] += f" ↑ +{token_pct}%"
+    
+    comparison_df = pd.DataFrame(rows, columns=headers)
+    st.dataframe(comparison_df, width='stretch', hide_index=True)
+    
+    st.caption("Quality comparison available when LLM Judge is implemented")
+    
+    # Prompt diff (collapsed)
+    with st.expander("📋 View prompt diff"):
+        if len(op_versions) >= 2:
+            st.markdown("**Old version:**")
+            st.code(truncate_text(op_versions[0]['sample_prompt'], 500), language="text")
+            st.markdown("**New version:**")
+            st.code(truncate_text(op_versions[1]['sample_prompt'], 500), language="text")
+
+
+def render_ab_setup_guide():
+    """Render A/B testing setup guide."""
+    
+    with st.expander("🛠️ Setup: Enable A/B Testing"):
+        st.markdown("""
+**Current:** Prompts are auto-detected via hash (first 500 chars).
+
+**For explicit A/B testing**, add version tracking to your plugins:
+        """)
+        
+        st.code('''# In your plugin
+track_llm_call(
+    model_name=model,
+    prompt_tokens=prompt_tokens,
+    completion_tokens=completion_tokens,
+    latency_ms=latency_ms,
+    agent_name="ResumeMatching",
+    operation="score",
+    prompt=prompt,
+    metadata={
+        "prompt_version": "v2-compressed",      # Your version label
+        "experiment_id": "resume_match_test",   # Group experiments
+    }
+)''', language="python")
+        
+        st.markdown("""
+**Benefits of explicit versioning:**
+- Clear A/B test labels
+- Track experiments across deploys
+- Compare quality scores by version (requires LLM Judge)
+        """)
 
 
 # =============================================================================
@@ -586,63 +886,90 @@ def render_compare_tab(calls: List[Dict]):
 def render():
     """Main render function for Prompt Optimizer page."""
     
-    st.title("📝 Prompt Diagnostics")
-    st.caption("Find inefficient prompts and how to improve them")
+    st.title("✨ Prompt Optimizer")
+    
+    # Check for incoming filter from Cost Estimator
+    # prompt_filter (dict with agent, operation)
+    incoming_filter = st.session_state.get('prompt_filter')
+    
+    if incoming_filter:
+        filter_agent = incoming_filter.get('agent', '')
+        filter_op = incoming_filter.get('operation', '')
+        filter_key = f"{filter_agent}.{filter_op}"
+        
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.info(f"🎯 Filtered: **{filter_key}**")
+        with col2:
+            if st.button("✕ Clear", key="clear_prompt_filter"):
+                del st.session_state['prompt_filter']
+                st.rerun()
+        
+        # Store for table to use
+        st.session_state['_prompt_highlight'] = filter_key
+    else:
+        st.session_state['_prompt_highlight'] = None
     
     selected_project = st.session_state.get('selected_project')
     
-    col1, col2 = st.columns([3, 1])
+    col1, col2, col3 = st.columns([2, 2, 1])
+    
     with col1:
-        if selected_project:
-            st.info(f"Analyzing: **{selected_project}**")
+        project_label = selected_project or "All Projects"
+        st.caption(f"Analyzing: **{project_label}**")
+    
     with col2:
-        if st.button("🔄 Refresh", width='stretch'):
+        limit = st.selectbox(
+            "Calls",
+            options=[100, 250, 500, 1000],
+            index=1,
+            format_func=lambda x: f"Last {x}",
+            key="prompt_limit",
+            label_visibility="collapsed"
+        )
+    
+    with col3:
+        if st.button("🔄 Refresh", width='stretch', key="prompt_refresh"):
             st.cache_data.clear()
             st.rerun()
     
+    st.divider()
+    
+    # Load data
     try:
-        calls = get_llm_calls(project_name=selected_project, limit=500)
+        calls = get_llm_calls(project_name=selected_project, limit=limit)
         
         if not calls:
             render_empty_state(
                 message="No LLM calls found",
-                icon="📝",
+                icon="✨",
                 suggestion="Start making LLM calls with Observatory tracking enabled"
             )
             return
-        
-        # Analyze
-        with st.spinner("Analyzing prompts..."):
-            health = analyze_prompt_health(calls)
-            long_prompts = find_long_prompts(calls)
-            low_performers = find_low_performers(calls)
-        
-        # Status banner
-        render_prompt_health_banner(health)
-        
-        st.divider()
-        
-        # Tabs
-        tab1, tab2, tab3, tab4 = st.tabs([
-            "📊 Overview",
-            f"📏 Long ({len(long_prompts)})",
-            f"📉 Low Perf ({len(low_performers)})",
-            "🔬 Compare"
-        ])
-        
-        with tab1:
-            render_overview_tab(calls, health)
-        
-        with tab2:
-            render_long_prompts_tab(long_prompts)
-        
-        with tab3:
-            render_low_performers_tab(low_performers)
-        
-        with tab4:
-            render_compare_tab(calls)
     
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
-        import traceback
-        st.code(traceback.format_exc())
+        return
+    
+    # Analyze
+    operation_analysis = analyze_prompts_by_operation(calls)
+    versions = analyze_prompt_versions(calls)
+    kpis = calculate_summary_kpis(operation_analysis, calls)
+    
+    # Summary KPIs
+    render_summary_kpis(kpis)
+    
+    st.divider()
+    
+    # Main prompts table
+    render_prompts_table(operation_analysis)
+    
+    st.divider()
+    
+    # Prompt versions
+    render_versions_table(versions)
+    
+    st.divider()
+    
+    # A/B setup guide
+    render_ab_setup_guide()

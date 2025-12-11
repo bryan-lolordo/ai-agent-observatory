@@ -159,11 +159,12 @@ class PromptMetadata(BaseModel):
     - Impact Tracker: Attribute changes to prompt updates
     """
     prompt_template_id: Optional[str] = None  # e.g., "job_match_v2"
-    prompt_version: Optional[str] = None  # e.g., "1.2.0"
-    compressible_sections: Optional[List[str]] = None  # Sections that can be compressed
-    optimization_flags: Optional[Dict[str, bool]] = None  # e.g., {"caching_enabled": True}
-    config_version: Optional[str] = None  # e.g., "1.0"
-
+    prompt_version: Optional[str] = None      # e.g., "1.2.0" (manual label)
+    prompt_hash: Optional[str] = None         # NEW: Auto-generated from prompt prefix
+    experiment_id: Optional[str] = None       # NEW: A/B test grouping
+    compressible_sections: Optional[List[str]] = None
+    optimization_flags: Optional[Dict[str, bool]] = None
+    config_version: Optional[str] = None
 
 # =============================================================================
 # LLM CALL (EXTENDED)

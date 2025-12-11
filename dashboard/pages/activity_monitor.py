@@ -1,22 +1,31 @@
 """
-Activity Monitor - Real-Time System Status
+Activity Monitor - Real-Time System Status (Redesigned)
 Location: dashboard/pages/activity_monitor.py
 
-Executive-focused real-time monitoring:
-- System health at a glance
-- Current throughput and cost burn
-- Anomaly detection
-- Activity log (collapsed for debugging)
+Single-scroll real-time monitoring:
+1. Health status bar - everything at a glance
+2. Issue counts - clickable filters
+3. Live feed - always visible, filterable
+4. Inline detail expansion - click row to see diagnosis
+
+Design principles:
+- Live feed is the hero, not hidden
+- Click row to expand details inline
+- Smart diagnosis based on call data
+- Navigation to other pages for deeper analysis
 """
 
 import streamlit as st
+import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Tuple, Optional
-import time
+from collections import defaultdict
 
 from dashboard.utils.data_fetcher import (
     get_llm_calls,
     get_time_series_data,
+    get_available_agents,
+    get_available_operations,
 )
 from dashboard.utils.formatters import (
     format_cost,
@@ -27,11 +36,220 @@ from dashboard.utils.formatters import (
     truncate_text,
 )
 from dashboard.components.metric_cards import render_empty_state
-from dashboard.components.charts import create_time_series_chart
 
 
 # =============================================================================
-# HELPER FUNCTIONS
+# CONSTANTS
+# =============================================================================
+
+THRESHOLDS = {
+    'slow_latency_ms': 3000,
+    'very_slow_latency_ms': 10000,
+    'expensive_cost': 0.10,
+    'large_prompt_tokens': 4000,
+    'large_history_tokens': 2000,
+    'error_rate_warning': 0.05,
+}
+
+
+# =============================================================================
+# DIAGNOSIS ENGINE
+# =============================================================================
+
+def diagnose_call(call: Dict) -> Optional[Dict[str, Any]]:
+    """
+    Analyze a call and return diagnosis if there's an issue.
+    
+    Returns:
+        Dict with icon, title, reason, target_page, action_label
+        Or None if no issues
+    """
+    latency = call.get('latency_ms', 0)
+    prompt_tokens = call.get('prompt_tokens', 0)
+    completion_tokens = call.get('completion_tokens', 0)
+    total_tokens = call.get('total_tokens', 0)
+    cost = call.get('total_cost', 0)
+    success = call.get('success', True)
+    error = call.get('error', '')
+    
+    # Get prompt breakdown if available
+    breakdown = call.get('prompt_breakdown') or {}
+    history_tokens = breakdown.get('chat_history_tokens', 0)
+    history_count = breakdown.get('chat_history_count', 0)
+    system_tokens = breakdown.get('system_prompt_tokens', 0)
+    
+    # Get quality info if available
+    quality = call.get('quality_evaluation') or {}
+    hallucination = quality.get('hallucination_flag') or quality.get('hallucination', False)
+    
+    # Priority 1: Hallucination
+    if hallucination:
+        return {
+            'icon': '🚨',
+            'badge': 'HALLUCINATION',
+            'title': 'HALLUCINATION DETECTED',
+            'reason': quality.get('hallucination_details', 'Response contains fabricated information'),
+            'target_page': '⚖️ LLM Judge',
+            'target_filter': ('llm_judge_tab', 'hallucinations'),
+            'action_label': 'Review in LLM Judge',
+        }
+    
+    # Priority 2: Error
+    if not success:
+        if 'timeout' in error.lower():
+            return {
+                'icon': '❌',
+                'badge': 'ERROR',
+                'title': 'TIMEOUT ERROR',
+                'reason': f"Request timed out after {format_latency(latency)} — reduce prompt size or increase timeout",
+                'target_page': '✨ Prompt Optimizer',
+                'target_filter': ('prompt_tab', 'long'),
+                'action_label': 'Optimize prompt',
+            }
+        elif 'rate' in error.lower() or 'limit' in error.lower():
+            return {
+                'icon': '❌',
+                'badge': 'ERROR',
+                'title': 'RATE LIMIT',
+                'reason': 'Hit API rate limit — implement exponential backoff or request limit increase',
+                'target_page': None,
+                'target_filter': None,
+                'action_label': None,
+            }
+        elif 'context' in error.lower() or 'token' in error.lower():
+            return {
+                'icon': '❌',
+                'badge': 'ERROR',
+                'title': 'CONTEXT LENGTH EXCEEDED',
+                'reason': f"Prompt too long ({format_tokens(prompt_tokens)}) — implement chunking or summarization",
+                'target_page': '✨ Prompt Optimizer',
+                'target_filter': ('prompt_tab', 'long'),
+                'action_label': 'Optimize prompt',
+            }
+        else:
+            return {
+                'icon': '❌',
+                'badge': 'ERROR',
+                'title': 'ERROR',
+                'reason': error[:150] if error else 'Unknown error',
+                'target_page': None,
+                'target_filter': None,
+                'action_label': None,
+            }
+    
+    # Priority 3: Slow call
+    if latency > THRESHOLDS['slow_latency_ms']:
+        # Try to identify why it's slow
+        if history_tokens > THRESHOLDS['large_history_tokens']:
+            return {
+                'icon': '🐌',
+                'badge': 'SLOW',
+                'title': 'SLOW — Large Chat History',
+                'reason': f"Chat history is {format_tokens(history_tokens)} ({history_count} messages) — consider sliding window to keep last 6",
+                'target_page': '✨ Prompt Optimizer',
+                'target_filter': ('prompt_tab', 'long'),
+                'action_label': 'Optimize in Prompt Optimizer',
+            }
+        elif system_tokens > THRESHOLDS['large_history_tokens']:
+            return {
+                'icon': '🐌',
+                'badge': 'SLOW',
+                'title': 'SLOW — Large System Prompt',
+                'reason': f"System prompt is {format_tokens(system_tokens)} — compress or use prompt caching",
+                'target_page': '✨ Prompt Optimizer',
+                'target_filter': ('prompt_tab', 'long'),
+                'action_label': 'Optimize in Prompt Optimizer',
+            }
+        elif prompt_tokens > THRESHOLDS['large_prompt_tokens']:
+            return {
+                'icon': '🐌',
+                'badge': 'SLOW',
+                'title': 'SLOW — Large Prompt',
+                'reason': f"Prompt is {format_tokens(prompt_tokens)} — likely includes large context or history",
+                'target_page': '✨ Prompt Optimizer',
+                'target_filter': ('prompt_tab', 'long'),
+                'action_label': 'Optimize in Prompt Optimizer',
+            }
+        elif total_tokens < 1000:
+            return {
+                'icon': '🐌',
+                'badge': 'SLOW',
+                'title': 'SLOW — Small Request',
+                'reason': f"Only {format_tokens(total_tokens)} but took {format_latency(latency)} — may be API/network issue or model overloaded",
+                'target_page': '🔀 Model Router',
+                'target_filter': ('router_tab', 'latency'),
+                'action_label': 'Check in Model Router',
+            }
+        else:
+            return {
+                'icon': '🐌',
+                'badge': 'SLOW',
+                'title': 'SLOW',
+                'reason': f"{format_latency(latency)} for {format_tokens(total_tokens)} — consider faster model for this operation",
+                'target_page': '🔀 Model Router',
+                'target_filter': ('router_tab', 'latency'),
+                'action_label': 'Analyze in Model Router',
+            }
+    
+    # Priority 4: Expensive call
+    if cost > THRESHOLDS['expensive_cost']:
+        if prompt_tokens > THRESHOLDS['large_prompt_tokens'] * 2:
+            return {
+                'icon': '💰',
+                'badge': 'EXPENSIVE',
+                'title': 'EXPENSIVE — Large Prompt',
+                'reason': f"Prompt is {format_tokens(prompt_tokens)} at {format_cost(cost)} — compress or implement caching",
+                'target_page': '💾 Cache Analyzer',
+                'target_filter': ('cache_tab', 'high_value'),
+                'action_label': 'Check caching opportunity',
+            }
+        elif completion_tokens > prompt_tokens:
+            return {
+                'icon': '💰',
+                'badge': 'EXPENSIVE',
+                'title': 'EXPENSIVE — Long Response',
+                'reason': f"Response is {format_tokens(completion_tokens)} at {format_cost(cost)} — consider max_tokens limit",
+                'target_page': '🔀 Model Router',
+                'target_filter': ('router_tab', 'cost'),
+                'action_label': 'Review in Model Router',
+            }
+        else:
+            return {
+                'icon': '💰',
+                'badge': 'EXPENSIVE',
+                'title': 'EXPENSIVE',
+                'reason': f"{format_cost(cost)} — consider routing to cheaper model for this operation",
+                'target_page': '🔀 Model Router',
+                'target_filter': ('router_tab', 'cost'),
+                'action_label': 'Check routing options',
+            }
+    
+    return None
+
+
+def get_call_badge(call: Dict) -> Tuple[str, str]:
+    """
+    Get the status badge for a call.
+    
+    Returns:
+        Tuple of (emoji, css_class)
+    """
+    diagnosis = diagnose_call(call)
+    
+    if diagnosis:
+        badge_map = {
+            'HALLUCINATION': ('🚨', 'hallucination'),
+            'ERROR': ('❌', 'error'),
+            'SLOW': ('🐌', 'slow'),
+            'EXPENSIVE': ('💰', 'expensive'),
+        }
+        return badge_map.get(diagnosis['badge'], ('⚠️', 'warning'))
+    
+    return ('✅', 'success')
+
+
+# =============================================================================
+# METRICS CALCULATION
 # =============================================================================
 
 def calculate_live_metrics(calls: List[Dict], window_minutes: int = 5) -> Dict[str, Any]:
@@ -43,7 +261,6 @@ def calculate_live_metrics(calls: List[Dict], window_minutes: int = 5) -> Dict[s
             'avg_latency_ms': 0,
             'error_rate': 0,
             'total_requests': 0,
-            'total_errors': 0,
         }
     
     # Filter to time window
@@ -58,7 +275,6 @@ def calculate_live_metrics(calls: List[Dict], window_minutes: int = 5) -> Dict[s
     total_latency = sum(c.get('latency_ms', 0) for c in recent)
     errors = sum(1 for c in recent if not c.get('success', True))
     
-    # Calculate rates
     time_span_min = max(window_minutes, 1)
     
     return {
@@ -67,185 +283,422 @@ def calculate_live_metrics(calls: List[Dict], window_minutes: int = 5) -> Dict[s
         'avg_latency_ms': total_latency / max(total, 1),
         'error_rate': errors / max(total, 1),
         'total_requests': total,
-        'total_errors': errors,
     }
 
 
-def determine_system_health(metrics: Dict[str, Any]) -> Tuple[str, str, str]:
-    """
-    Determine overall system health status.
-    
-    Returns:
-        Tuple of (status, icon, message)
-        status: "healthy", "degraded", "critical"
-    """
-    error_rate = metrics.get('error_rate', 0)
-    avg_latency = metrics.get('avg_latency_ms', 0)
-    
-    issues = []
-    
-    # Check error rate
-    if error_rate > 0.10:
-        return ("critical", "🔴", f"High error rate: {format_percentage(error_rate)}")
-    elif error_rate > 0.05:
-        issues.append(f"Elevated errors: {format_percentage(error_rate)}")
-    
-    # Check latency
-    if avg_latency > 10000:
-        return ("critical", "🔴", f"Severe latency: {format_latency(avg_latency)}")
-    elif avg_latency > 5000:
-        issues.append(f"High latency: {format_latency(avg_latency)}")
-    
-    # Check if no activity
-    if metrics.get('total_requests', 0) == 0:
-        return ("degraded", "🟡", "No recent activity detected")
-    
-    if issues:
-        return ("degraded", "🟡", " • ".join(issues))
-    
-    return ("healthy", "🟢", "All systems operational")
-
-
-def detect_anomalies(calls: List[Dict], window_minutes: int = 5) -> List[Dict[str, Any]]:
-    """Detect anomalies in recent activity."""
-    anomalies = []
-    
-    if not calls:
-        return anomalies
-    
+def count_issues(calls: List[Dict], window_minutes: int = 5) -> Dict[str, List[Dict]]:
+    """Count and categorize issues in recent calls."""
     cutoff = datetime.utcnow() - timedelta(minutes=window_minutes)
     recent = [c for c in calls if c.get('timestamp') and c['timestamp'] >= cutoff]
     
-    if len(recent) < 3:
-        return anomalies
+    if not recent:
+        recent = calls[:50]
     
-    # Check for latency spikes
-    latencies = [c.get('latency_ms', 0) for c in recent]
-    avg_latency = sum(latencies) / len(latencies)
-    max_latency = max(latencies)
+    issues = {
+        'slow': [],
+        'expensive': [],
+        'errors': [],
+        'hallucinations': [],
+    }
     
-    if max_latency > avg_latency * 3 and max_latency > 5000:
-        anomalies.append({
-            "type": "warning",
-            "title": "Latency Spike",
-            "message": f"Max {format_latency(max_latency)} vs avg {format_latency(avg_latency)}"
-        })
+    for call in recent:
+        if not call.get('success', True):
+            issues['errors'].append(call)
+        elif (call.get('quality_evaluation') or {}).get('hallucination_flag'):
+            issues['hallucinations'].append(call)
+        elif call.get('latency_ms', 0) > THRESHOLDS['slow_latency_ms']:
+            issues['slow'].append(call)
+        elif call.get('total_cost', 0) > THRESHOLDS['expensive_cost']:
+            issues['expensive'].append(call)
     
-    # Check for error burst
-    errors = [c for c in recent if not c.get('success', True)]
-    if len(errors) >= 3:
-        anomalies.append({
-            "type": "error",
-            "title": "Error Burst",
-            "message": f"{len(errors)} errors in last {window_minutes} minutes"
-        })
-    
-    # Check for cost spike (single expensive call)
-    costs = [c.get('total_cost', 0) for c in recent]
-    avg_cost = sum(costs) / len(costs)
-    max_cost = max(costs)
-    
-    if max_cost > avg_cost * 5 and max_cost > 0.01:
-        anomalies.append({
-            "type": "warning",
-            "title": "Expensive Request",
-            "message": f"Single request cost {format_cost(max_cost)}"
-        })
-    
-    return anomalies
+    return issues
 
 
-def render_activity_log(calls: List[Dict], limit: int = 20):
-    """Render compact activity log table."""
-    if not calls:
-        st.info("No recent activity")
+def determine_health_status(metrics: Dict[str, Any], issues: Dict[str, List]) -> Tuple[str, str]:
+    """
+    Determine overall system health.
+    
+    Returns:
+        Tuple of (status_emoji, status_text)
+    """
+    error_rate = metrics.get('error_rate', 0)
+    
+    if error_rate > 0.10:
+        return ('🔴', 'CRITICAL')
+    elif issues['hallucinations']:
+        return ('🔴', 'CRITICAL')
+    elif error_rate > 0.05 or len(issues['errors']) >= 3:
+        return ('🟡', 'DEGRADED')
+    elif len(issues['slow']) >= 3:
+        return ('🟡', 'DEGRADED')
+    elif metrics.get('total_requests', 0) == 0:
+        return ('⚪', 'NO ACTIVITY')
+    else:
+        return ('🟢', 'HEALTHY')
+
+
+# =============================================================================
+# RENDER COMPONENTS
+# =============================================================================
+
+def render_health_bar(metrics: Dict[str, Any], issues: Dict[str, List]):
+    """Render the compact health status bar."""
+    status_emoji, status_text = determine_health_status(metrics, issues)
+    
+    # Build metrics string
+    metrics_parts = [
+        f"{metrics['requests_per_min']:.1f} req/min",
+        f"{format_cost(metrics['cost_per_hour'])}/hr",
+        f"{format_latency(metrics['avg_latency_ms'])} avg",
+        f"{format_percentage(metrics['error_rate'])} errors",
+    ]
+    metrics_str = " • ".join(metrics_parts)
+    
+    if status_text == 'CRITICAL':
+        st.error(f"{status_emoji} **{status_text}** — {metrics_str}")
+    elif status_text == 'DEGRADED':
+        st.warning(f"{status_emoji} **{status_text}** — {metrics_str}")
+    elif status_text == 'NO ACTIVITY':
+        st.info(f"{status_emoji} **{status_text}** — No recent requests detected")
+    else:
+        st.success(f"{status_emoji} **{status_text}** — {metrics_str}")
+
+
+def render_issue_counts(issues: Dict[str, List]):
+    """Render clickable issue count buttons."""
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        count = len(issues['slow'])
+        if count > 0:
+            if st.button(f"🐌 {count} Slow (>3s)", key="filter_slow", width='stretch'):
+                st.session_state['activity_filter'] = 'slow'
+        else:
+            st.button("🐌 0 Slow", key="filter_slow_disabled", disabled=True, width='stretch')
+    
+    with col2:
+        count = len(issues['expensive'])
+        if count > 0:
+            if st.button(f"💰 {count} Expensive (>$0.10)", key="filter_expensive", width='stretch'):
+                st.session_state['activity_filter'] = 'expensive'
+        else:
+            st.button("💰 0 Expensive", key="filter_expensive_disabled", disabled=True, width='stretch')
+    
+    with col3:
+        count = len(issues['errors'])
+        if count > 0:
+            if st.button(f"❌ {count} Errors", key="filter_errors", width='stretch', type="primary"):
+                st.session_state['activity_filter'] = 'errors'
+        else:
+            st.button("❌ 0 Errors", key="filter_errors_disabled", disabled=True, width='stretch')
+    
+    with col4:
+        count = len(issues['hallucinations'])
+        if count > 0:
+            if st.button(f"🚨 {count} Hallucinations", key="filter_hall", width='stretch', type="primary"):
+                st.session_state['activity_filter'] = 'hallucinations'
+        else:
+            st.button("🚨 0 Hallucinations", key="filter_hall_disabled", disabled=True, width='stretch')
+
+
+def render_live_feed(calls: List[Dict], issues: Dict[str, List]):
+    """Render the live feed table with filters."""
+    
+    # Get unique agents and operations for filters
+    agents = sorted(set(c.get('agent_name', 'Unknown') for c in calls))
+    operations = sorted(set(c.get('operation', 'unknown') for c in calls))
+    
+    # Filter controls
+    col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+    
+    with col1:
+        agent_filter = st.selectbox(
+            "Agent",
+            options=['All Agents'] + agents,
+            key="feed_agent_filter",
+            label_visibility="collapsed"
+        )
+    
+    with col2:
+        operation_filter = st.selectbox(
+            "Operation", 
+            options=['All Operations'] + operations,
+            key="feed_operation_filter",
+            label_visibility="collapsed"
+        )
+    
+    with col3:
+        status_filter = st.selectbox(
+            "Status",
+            options=['All Status', 'Success Only', 'Issues Only', 'Errors Only'],
+            key="feed_status_filter",
+            label_visibility="collapsed"
+        )
+    
+    with col4:
+        if st.button("Clear", key="clear_filters", width='stretch'):
+            st.session_state['activity_filter'] = None
+            st.session_state['feed_agent_filter'] = 'All Agents'
+            st.session_state['feed_operation_filter'] = 'All Operations'
+            st.session_state['feed_status_filter'] = 'All Status'
+            st.rerun()
+    
+    # Apply quick filter from issue counts
+    quick_filter = st.session_state.get('activity_filter')
+    
+    # Filter calls
+    filtered_calls = calls
+    
+    # Quick filter takes precedence
+    if quick_filter == 'slow':
+        filtered_calls = issues['slow']
+    elif quick_filter == 'expensive':
+        filtered_calls = issues['expensive']
+    elif quick_filter == 'errors':
+        filtered_calls = issues['errors']
+    elif quick_filter == 'hallucinations':
+        filtered_calls = issues['hallucinations']
+    else:
+        # Apply dropdown filters
+        if agent_filter != 'All Agents':
+            filtered_calls = [c for c in filtered_calls if c.get('agent_name') == agent_filter]
+        
+        if operation_filter != 'All Operations':
+            filtered_calls = [c for c in filtered_calls if c.get('operation') == operation_filter]
+        
+        if status_filter == 'Success Only':
+            filtered_calls = [c for c in filtered_calls if c.get('success', True) and not diagnose_call(c)]
+        elif status_filter == 'Issues Only':
+            filtered_calls = [c for c in filtered_calls if diagnose_call(c)]
+        elif status_filter == 'Errors Only':
+            filtered_calls = [c for c in filtered_calls if not c.get('success', True)]
+    
+    # Show active quick filter
+    if quick_filter:
+        filter_labels = {
+            'slow': '🐌 Slow calls',
+            'expensive': '💰 Expensive calls',
+            'errors': '❌ Errors',
+            'hallucinations': '🚨 Hallucinations',
+        }
+        st.info(f"Filtered to: **{filter_labels.get(quick_filter, quick_filter)}** — Click Clear to show all")
+    
+    if not filtered_calls:
+        st.info("No calls match the current filters")
         return
     
-    # Build compact table data
-    import pandas as pd
-    
+    # Build table
     table_data = []
-    for call in calls[:limit]:
+    for call in filtered_calls[:20]:  # Limit display
+        badge, _ = get_call_badge(call)
+        
         timestamp = call.get('timestamp')
         time_str = timestamp.strftime("%H:%M:%S") if timestamp else "—"
         
-        status = "✅" if call.get('success', True) else "❌"
-        cache = "💾" if (call.get('cache_metadata') or {}).get('cache_hit') else ""
-        
         table_data.append({
-            "Time": time_str,
-            "Agent": call.get('agent_name', 'Unknown')[:15],
-            "Model": format_model_name(call.get('model_name', ''))[:12],
-            "Latency": format_latency(call.get('latency_ms', 0)),
-            "Cost": format_cost(call.get('total_cost', 0)),
-            "": f"{status}{cache}"
+            '': badge,
+            'Time': time_str,
+            'Agent': call.get('agent_name', 'Unknown')[:15],
+            'Operation': call.get('operation', 'unknown')[:18],
+            'Latency': format_latency(call.get('latency_ms', 0)),
+            'Cost': format_cost(call.get('total_cost', 0)),
         })
     
+    # Display as dataframe
     df = pd.DataFrame(table_data)
-    st.dataframe(df, width='stretch', hide_index=True)
+    
+    # Use st.dataframe with selection
+    selection = st.dataframe(
+        df,
+        width='stretch',
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="feed_table"
+    )
+    
+    st.caption(f"Showing {len(table_data)} of {len(filtered_calls)} calls")
+    
+    # Handle row selection
+    selected_rows = selection.selection.rows if selection.selection else []
+    
+    if selected_rows:
+        selected_idx = selected_rows[0]
+        if selected_idx < len(filtered_calls):
+            render_call_detail(filtered_calls[selected_idx])
 
 
-def render_request_detail(call: Dict):
-    """Render expandable request details."""
+def render_call_detail(call: Dict):
+    """Render expanded detail panel for a selected call."""
+    
+    st.markdown("---")
+    
+    diagnosis = diagnose_call(call)
+    
+    # Header with diagnosis
+    agent = call.get('agent_name', 'Unknown')
+    operation = call.get('operation', 'unknown')
+    timestamp = call.get('timestamp')
+    time_str = timestamp.strftime("%H:%M:%S") if timestamp else "—"
+    
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.markdown(f"### {agent} • {operation} • {time_str}")
+    with col2:
+        if st.button("✕ Close", key="close_detail"):
+            st.rerun()
+    
+    # Diagnosis banner
+    if diagnosis:
+        if diagnosis['badge'] in ['ERROR', 'HALLUCINATION']:
+            st.error(f"**{diagnosis['icon']} {diagnosis['title']}** — {diagnosis['reason']}")
+        else:
+            st.warning(f"**{diagnosis['icon']} {diagnosis['title']}** — {diagnosis['reason']}")
+    else:
+        st.success("✅ **NORMAL** — No issues detected")
+    
+    # Metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Latency", format_latency(call.get('latency_ms', 0)))
+    with col2:
+        st.metric("Cost", format_cost(call.get('total_cost', 0)))
+    with col3:
+        st.metric("Prompt Tokens", format_tokens(call.get('prompt_tokens', 0)))
+    with col4:
+        st.metric("Completion Tokens", format_tokens(call.get('completion_tokens', 0)))
+    
+    # Prompt breakdown if available
+    breakdown = call.get('prompt_breakdown') or {}
+    if breakdown:
+        st.markdown("**Token Breakdown:**")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.write(f"System: {format_tokens(breakdown.get('system_prompt_tokens', 0))}")
+        with col2:
+            st.write(f"History: {format_tokens(breakdown.get('chat_history_tokens', 0))} ({breakdown.get('chat_history_count', 0)} msgs)")
+        with col3:
+            st.write(f"User: {format_tokens(breakdown.get('user_message_tokens', 0))}")
+    
+    # Prompt and Response
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("**Request Info**")
-        st.write(f"ID: `{truncate_text(call.get('id', ''), 20)}`")
-        st.write(f"Agent: {call.get('agent_name', 'Unknown')}")
-        st.write(f"Model: {call.get('model_name', 'Unknown')}")
-        st.write(f"Operation: {call.get('operation', 'N/A')}")
+        st.markdown("**Prompt:**")
+        prompt = call.get('prompt') or 'N/A'
+        st.code(truncate_text(str(prompt), 500), language="text")
+        if len(str(prompt)) > 500:
+            with st.expander("Show full prompt"):
+                st.code(prompt, language="text")
     
     with col2:
-        st.markdown("**Metrics**")
-        st.write(f"Latency: {format_latency(call.get('latency_ms', 0))}")
-        st.write(f"Cost: {format_cost(call.get('total_cost', 0))}")
-        st.write(f"Tokens: {format_tokens(call.get('total_tokens', 0))}")
-        st.write(f"Status: {'✅ Success' if call.get('success', True) else '❌ Failed'}")
+        st.markdown("**Response:**")
+        response = call.get('response_text') or call.get('response') or 'N/A'
+        st.code(truncate_text(str(response), 500), language="text")
+        if len(str(response)) > 500:
+            with st.expander("Show full response"):
+                st.code(response, language="text")
     
-    # Prompt/Response (truncated)
-    if call.get('prompt'):
-        with st.expander("View Prompt"):
-            st.code(truncate_text(call['prompt'], 500), language="text")
+    # Error details if failed
+    if not call.get('success', True):
+        st.markdown("**Error:**")
+        st.error(call.get('error', 'Unknown error'))
     
-    if call.get('response_text'):
-        with st.expander("View Response"):
-            st.code(truncate_text(call['response_text'], 500), language="text")
+    # Quality evaluation if available
+    quality = call.get('quality_evaluation') or {}
+    if quality:
+        st.markdown("**Quality Evaluation:**")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            score = quality.get('judge_score') or quality.get('score')
+            st.write(f"Score: {score}/10" if score else "Score: N/A")
+        with col2:
+            st.write(f"Hallucination: {'Yes 🚨' if quality.get('hallucination_flag') else 'No'}")
+        with col3:
+            st.write(f"Factual Error: {'Yes' if quality.get('factual_error') else 'No'}")
+        
+        if quality.get('reasoning'):
+            st.caption(f"Feedback: {quality['reasoning'][:200]}")
     
-    if call.get('error'):
-        st.error(f"Error: {call['error']}")
+    # Navigation buttons
+    if diagnosis and diagnosis.get('target_page'):
+        st.markdown("---")
+        col1, col2, col3 = st.columns([2, 2, 2])
+        
+        with col1:
+            if st.button(f"→ {diagnosis['action_label']}", key="nav_primary", type="primary"):
+                if diagnosis['target_filter']:
+                    key, value = diagnosis['target_filter']
+                    st.session_state[key] = value
+                st.session_state['_nav_to'] = diagnosis['target_page']
+                st.rerun()
+        
+        with col2:
+            if st.button("→ View in Model Router", key="nav_router"):
+                st.session_state['router_call_id'] = call.get('id')
+                st.session_state['_nav_to'] = '🔀 Model Router'
+                st.rerun()
+        
+        with col3:
+            if st.button("→ View in Prompt Optimizer", key="nav_prompt"):
+                st.session_state['prompt_call_id'] = call.get('id')
+                st.session_state['_nav_to'] = '✨ Prompt Optimizer'
+                st.rerun()
 
 
 # =============================================================================
-# MAIN RENDER FUNCTION
+# MAIN RENDER
 # =============================================================================
 
 def render():
-    """Render the Activity Monitor page."""
+    """Main render function for Activity Monitor page."""
     
     # Header
     st.title("📡 Activity Monitor")
     
     selected_project = st.session_state.get('selected_project')
     
-    # Simple controls
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2, col3 = st.columns([3, 1, 1])
     
     with col1:
-        auto_refresh = st.checkbox("Auto-refresh", value=True, key="monitor_refresh")
+        project_label = selected_project or "All Projects"
+        st.caption(f"Monitoring: **{project_label}**")
+    
     with col2:
-        refresh_rate = st.selectbox(
-            "Interval",
-            options=[5, 10, 30],
-            format_func=lambda x: f"{x}s",
-            index=0,
-            key="monitor_rate",
-            label_visibility="collapsed"
-        )
+        auto_refresh = st.checkbox("Auto-refresh", value=False, key="auto_refresh")
+    
     with col3:
-        if st.button("🔄 Refresh Now", width='stretch'):
+        if st.button("🔄 Refresh", width='stretch'):
             st.cache_data.clear()
             st.rerun()
+    
+    # Check for incoming filters from other pages
+    incoming_agent = st.session_state.get('activity_filter_agent')
+    incoming_operation = st.session_state.get('activity_filter_operation')
+    incoming_source = st.session_state.get('activity_filter_source')
+    
+    if incoming_agent or incoming_operation:
+        filter_parts = []
+        if incoming_agent:
+            filter_parts.append(incoming_agent)
+        if incoming_operation:
+            filter_parts.append(incoming_operation)
+        filter_label = " → ".join(filter_parts)
+        
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.info(f"📍 Filtered: **{filter_label}**")
+        with col2:
+            if st.button("Clear Filter", width='stretch'):
+                if 'activity_filter_agent' in st.session_state:
+                    del st.session_state['activity_filter_agent']
+                if 'activity_filter_operation' in st.session_state:
+                    del st.session_state['activity_filter_operation']
+                if 'activity_filter_source' in st.session_state:
+                    del st.session_state['activity_filter_source']
+                st.rerun()
     
     st.divider()
     
@@ -260,157 +713,43 @@ def render():
                 suggestion="Run AI agents with Observatory enabled to see real-time monitoring"
             )
             return
-            
+        
+        # Apply incoming filters to data
+        if incoming_agent:
+            calls = [c for c in calls if c.get('agent_name') == incoming_agent]
+        if incoming_operation:
+            calls = [c for c in calls if c.get('operation') == incoming_operation]
+        
+        if not calls and (incoming_agent or incoming_operation):
+            st.warning("No calls match the current filter")
+            return
+    
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
         return
     
     # Calculate metrics
     metrics = calculate_live_metrics(calls, window_minutes=5)
-    health_status, health_icon, health_message = determine_system_health(metrics)
+    issues = count_issues(calls, window_minutes=5)
     
-    # =========================================================================
-    # SECTION 1: System Health Banner
-    # =========================================================================
-    if health_status == "healthy":
-        st.success(f"{health_icon} **System Healthy** — {health_message}")
-    elif health_status == "degraded":
-        st.warning(f"{health_icon} **Degraded** — {health_message}")
-    else:
-        st.error(f"{health_icon} **Critical** — {health_message}")
-    
-    # =========================================================================
-    # SECTION 2: Anomaly Alerts (only if issues detected)
-    # =========================================================================
-    anomalies = detect_anomalies(calls, window_minutes=5)
-    
-    if anomalies:
-        st.subheader("⚠️ Anomalies Detected")
-        cols = st.columns(min(len(anomalies), 3))
-        for i, anomaly in enumerate(anomalies[:3]):
-            with cols[i]:
-                if anomaly['type'] == 'error':
-                    st.error(f"**{anomaly['title']}**\n\n{anomaly['message']}")
-                else:
-                    st.warning(f"**{anomaly['title']}**\n\n{anomaly['message']}")
-        st.divider()
-    
-    # =========================================================================
-    # SECTION 3: Core Metrics (4 only)
-    # =========================================================================
-    st.subheader("Current Status")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric(
-            "Throughput",
-            f"{metrics['requests_per_min']:.1f}/min",
-            help="Requests per minute (last 5 min)"
-        )
-    
-    with col2:
-        st.metric(
-            "Cost Burn",
-            f"{format_cost(metrics['cost_per_hour'])}/hr",
-            help="Projected hourly cost at current rate"
-        )
-    
-    with col3:
-        st.metric(
-            "Avg Latency",
-            format_latency(metrics['avg_latency_ms']),
-            help="Average response time"
-        )
-    
-    with col4:
-        error_pct = metrics['error_rate'] * 100
-        st.metric(
-            "Error Rate",
-            f"{error_pct:.1f}%",
-            help=f"{metrics['total_errors']} errors / {metrics['total_requests']} requests"
-        )
+    # Section 1: Health Status Bar
+    render_health_bar(metrics, issues)
     
     st.divider()
     
-    # =========================================================================
-    # SECTION 4: Activity Trend Chart
-    # =========================================================================
-    st.subheader("Activity (Last Hour)")
-    
-    try:
-        activity_data = get_time_series_data(
-            selected_project,
-            metric='count',
-            interval='minute',
-            hours=1
-        )
-        
-        if activity_data:
-            fig = create_time_series_chart(
-                activity_data,
-                metric_name="Requests",
-                title=""
-            )
-            st.plotly_chart(fig, width='stretch')
-        else:
-            st.info("Insufficient data for activity chart")
-    except Exception:
-        st.info("Activity chart unavailable")
+    # Section 2: Issue Counts
+    st.markdown("**⚡ Issues in Last 5 Min**")
+    render_issue_counts(issues)
     
     st.divider()
     
-    # =========================================================================
-    # SECTION 5: Activity Log (Collapsed)
-    # =========================================================================
-    with st.expander(f"📋 Activity Log ({len(calls)} recent requests)", expanded=False):
-        
-        # Quick filters
-        col1, col2 = st.columns(2)
-        with col1:
-            show_errors = st.checkbox("Errors only", key="log_errors")
-        with col2:
-            log_limit = st.selectbox(
-                "Show",
-                options=[10, 25, 50],
-                index=0,
-                key="log_limit"
-            )
-        
-        # Filter
-        filtered_calls = calls
-        if show_errors:
-            filtered_calls = [c for c in calls if not c.get('success', True)]
-        
-        if filtered_calls:
-            render_activity_log(filtered_calls, limit=log_limit)
-            
-            # Expandable details for individual requests
-            st.markdown("---")
-            st.markdown("**Request Details**")
-            
-            request_options = [
-                f"{i+1}. {c.get('agent_name', 'Unknown')[:10]} @ {c.get('timestamp').strftime('%H:%M:%S') if c.get('timestamp') else '—'}"
-                for i, c in enumerate(filtered_calls[:log_limit])
-            ]
-            
-            if request_options:
-                selected_idx = st.selectbox(
-                    "Select request to inspect",
-                    options=range(len(request_options)),
-                    format_func=lambda i: request_options[i],
-                    key="request_selector"
-                )
-                
-                if selected_idx is not None:
-                    render_request_detail(filtered_calls[selected_idx])
-        else:
-            st.info("No matching requests")
+    # Section 3: Live Feed
+    st.markdown("**📋 Live Feed**")
+    render_live_feed(calls, issues)
     
-    # =========================================================================
     # Auto-refresh
-    # =========================================================================
     if auto_refresh:
-        st.caption(f"Auto-refreshing every {refresh_rate}s...")
-        time.sleep(refresh_rate)
+        import time
+        st.caption("Auto-refreshing every 5s...")
+        time.sleep(5)
         st.rerun()
