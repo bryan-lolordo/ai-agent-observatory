@@ -4,7 +4,7 @@ Location: dashboard/utils/__init__.py
 
 Centralized utilities for data fetching, formatting, and aggregation.
 
-UPDATED: Added calculate_prompt_breakdown_metrics export
+UPDATED: Added story_analyzer exports
 """
 
 from dashboard.utils.formatters import (
@@ -33,7 +33,7 @@ from dashboard.utils.aggregators import (
     calculate_time_series,
     calculate_session_kpis,
     group_by_time_period,
-    calculate_prompt_breakdown_metrics,  # NEW
+    calculate_prompt_breakdown_metrics,
 )
 
 from dashboard.utils.data_fetcher import (
@@ -53,6 +53,22 @@ from dashboard.utils.data_fetcher import (
     get_prompt_analysis,
     get_cost_forecast,
     get_database_stats,
+)
+
+# NEW: Story Analyzer exports
+from dashboard.utils.story_analyzer import (
+    # Individual story analyzers
+    analyze_latency_story,
+    analyze_cache_story,
+    analyze_cost_story,
+    analyze_system_prompt_story,
+    analyze_token_imbalance_story,
+    analyze_routing_story,
+    analyze_quality_story,
+    
+    # Aggregate functions
+    analyze_all_stories,
+    get_story_summary,
 )
 
 __all__ = [
@@ -81,7 +97,7 @@ __all__ = [
     'calculate_time_series',
     'calculate_session_kpis',
     'group_by_time_period',
-    'calculate_prompt_breakdown_metrics',  # NEW
+    'calculate_prompt_breakdown_metrics',
     
     # Data Fetchers
     'get_storage',
@@ -100,4 +116,15 @@ __all__ = [
     'get_prompt_analysis',
     'get_cost_forecast',
     'get_database_stats',
+    
+    # Story Analyzers
+    'analyze_latency_story',
+    'analyze_cache_story',
+    'analyze_cost_story',
+    'analyze_system_prompt_story',
+    'analyze_token_imbalance_story',
+    'analyze_routing_story',
+    'analyze_quality_story',
+    'analyze_all_stories',
+    'get_story_summary',
 ]

@@ -4,12 +4,19 @@ Location: observatory/judge.py
 
 Configurable LLM-as-a-judge for evaluating response quality.
 Applications configure which operations to judge and domain-specific criteria.
+
+UPDATED: Now supports multiple client types:
+  - OpenAI / Azure OpenAI clients
+  - Semantic Kernel
+  - Generic async/sync callables
 """
 
 import json
 import random
 import time
-from typing import Optional, Dict, Set, Any, Callable, TYPE_CHECKING
+import asyncio
+import inspect
+from typing import Optional, Dict, Set, Any, Callable, TYPE_CHECKING, Tuple
 
 from observatory.models import QualityEvaluation
 
@@ -33,12 +40,54 @@ DEFAULT_SAMPLE_RATE = 0.5
 
 
 # =============================================================================
+# CLIENT TYPE DETECTION
+# =============================================================================
+
+class ClientType:
+    """Enum for supported client types."""
+    OPENAI = "openai"
+    SEMANTIC_KERNEL = "semantic_kernel"
+    CALLABLE = "callable"
+    UNKNOWN = "unknown"
+
+
+def detect_client_type(client: Any) -> str:
+    """
+    Detect the type of LLM client.
+    
+    Args:
+        client: The LLM client to detect
+        
+    Returns:
+        ClientType string
+    """
+    # OpenAI / Azure OpenAI style (has .chat.completions.create)
+    if hasattr(client, 'chat') and hasattr(client.chat, 'completions'):
+        return ClientType.OPENAI
+    
+    # Semantic Kernel (has .invoke_prompt)
+    if hasattr(client, 'invoke_prompt'):
+        return ClientType.SEMANTIC_KERNEL
+    
+    # Generic callable (function or lambda)
+    if callable(client):
+        return ClientType.CALLABLE
+    
+    return ClientType.UNKNOWN
+
+
+# =============================================================================
 # LLM JUDGE CLASS
 # =============================================================================
 
 class LLMJudge:
     """
     Configurable LLM-as-a-Judge for quality evaluation.
+    
+    Supports multiple client types:
+      - OpenAI / Azure OpenAI: client.chat.completions.create()
+      - Semantic Kernel: kernel.invoke_prompt()
+      - Generic callable: async def my_llm(prompt) -> str
     
     Usage:
         judge = LLMJudge(
@@ -48,12 +97,12 @@ class LLMJudge:
             domain_context="career advice and resume optimization"
         )
         
-        # In your code
+        # In your code - works with any client type
         quality = await judge.maybe_evaluate(
             operation="chat",
             prompt=user_query,
             response=llm_response,
-            llm_client=your_client
+            llm_client=kernel  # or openai_client, or callable
         )
     """
     
@@ -170,7 +219,7 @@ class LLMJudge:
             operation: Operation name
             prompt: Original prompt
             response: LLM response to evaluate
-            llm_client: Async LLM client with create() method
+            llm_client: LLM client (OpenAI, Semantic Kernel, or callable)
             context: Optional additional context
             force: Bypass sampling if True
         
@@ -222,22 +271,19 @@ class LLMJudge:
         llm_client: Any,
         context: Optional[Dict] = None,
     ) -> Optional[QualityEvaluation]:
-        """Internal async evaluation."""
+        """Internal async evaluation with multi-client support."""
         try:
             judge_prompt = self._create_judge_prompt(operation, prompt, response, context)
             
             start_time = time.time()
             
-            # Call LLM (assumes OpenAI-style async client)
-            result = await llm_client.chat.completions.create(
-                model=self.judge_model,
-                messages=[{"role": "user", "content": judge_prompt}],
-                max_tokens=600,
-                temperature=0.3,
+            # Detect client type and call appropriately
+            client_type = detect_client_type(llm_client)
+            result_text, prompt_tokens, completion_tokens = await self._call_llm_async(
+                llm_client, client_type, judge_prompt
             )
             
             latency_ms = (time.time() - start_time) * 1000
-            result_text = result.choices[0].message.content.strip()
             
             # Track judge call if enabled
             if self.track_judge_calls and self.observatory:
@@ -245,13 +291,15 @@ class LLMJudge:
                 self.observatory.record_call(
                     provider=ModelProvider.OPENAI,
                     model_name=self.judge_model,
-                    prompt_tokens=result.usage.prompt_tokens if hasattr(result, 'usage') else 0,
-                    completion_tokens=result.usage.completion_tokens if hasattr(result, 'usage') else 0,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
                     latency_ms=latency_ms,
                     agent_name="LLMJudge",
+                    agent_role="reviewer",
                     operation=f"judge_{operation}",
                     prompt=judge_prompt[:1000],
                     response_text=result_text,
+                    metadata={"client_type": client_type},
                 )
             
             return self._parse_and_create_evaluation(result_text, operation)
@@ -268,22 +316,19 @@ class LLMJudge:
         llm_client: Any,
         context: Optional[Dict] = None,
     ) -> Optional[QualityEvaluation]:
-        """Internal sync evaluation."""
+        """Internal sync evaluation with multi-client support."""
         try:
             judge_prompt = self._create_judge_prompt(operation, prompt, response, context)
             
             start_time = time.time()
             
-            # Call LLM (assumes OpenAI-style sync client)
-            result = llm_client.chat.completions.create(
-                model=self.judge_model,
-                messages=[{"role": "user", "content": judge_prompt}],
-                max_tokens=600,
-                temperature=0.3,
+            # Detect client type and call appropriately
+            client_type = detect_client_type(llm_client)
+            result_text, prompt_tokens, completion_tokens = self._call_llm_sync(
+                llm_client, client_type, judge_prompt
             )
             
             latency_ms = (time.time() - start_time) * 1000
-            result_text = result.choices[0].message.content.strip()
             
             # Track judge call if enabled
             if self.track_judge_calls and self.observatory:
@@ -291,13 +336,15 @@ class LLMJudge:
                 self.observatory.record_call(
                     provider=ModelProvider.OPENAI,
                     model_name=self.judge_model,
-                    prompt_tokens=result.usage.prompt_tokens if hasattr(result, 'usage') else 0,
-                    completion_tokens=result.usage.completion_tokens if hasattr(result, 'usage') else 0,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
                     latency_ms=latency_ms,
                     agent_name="LLMJudge",
+                    agent_role="reviewer",
                     operation=f"judge_{operation}",
                     prompt=judge_prompt[:1000],
                     response_text=result_text,
+                    metadata={"client_type": client_type},
                 )
             
             return self._parse_and_create_evaluation(result_text, operation)
@@ -305,6 +352,114 @@ class LLMJudge:
         except Exception as e:
             print(f"⚠️ Judge evaluation failed for {operation}: {e}")
             return None
+    
+    # =========================================================================
+    # MULTI-CLIENT LLM CALLING
+    # =========================================================================
+    
+    async def _call_llm_async(
+        self,
+        client: Any,
+        client_type: str,
+        prompt: str,
+    ) -> Tuple[str, int, int]:
+        """
+        Call LLM based on client type (async).
+        
+        Returns:
+            Tuple of (result_text, prompt_tokens, completion_tokens)
+        """
+        
+        if client_type == ClientType.OPENAI:
+            # OpenAI / Azure OpenAI style
+            result = await client.chat.completions.create(
+                model=self.judge_model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=600,
+                temperature=0.3,
+            )
+            result_text = result.choices[0].message.content.strip()
+            prompt_tokens = result.usage.prompt_tokens if hasattr(result, 'usage') and result.usage else len(prompt) // 4
+            completion_tokens = result.usage.completion_tokens if hasattr(result, 'usage') and result.usage else len(result_text) // 4
+            return result_text, prompt_tokens, completion_tokens
+        
+        elif client_type == ClientType.SEMANTIC_KERNEL:
+            # Semantic Kernel
+            result = await client.invoke_prompt(prompt)
+            result_text = str(result).strip()
+            # Estimate tokens (Semantic Kernel doesn't expose usage easily)
+            prompt_tokens = len(prompt) // 4
+            completion_tokens = len(result_text) // 4
+            return result_text, prompt_tokens, completion_tokens
+        
+        elif client_type == ClientType.CALLABLE:
+            # Generic callable - check if async
+            if asyncio.iscoroutinefunction(client):
+                result_text = await client(prompt)
+            else:
+                # Run sync callable in executor
+                loop = asyncio.get_event_loop()
+                result_text = await loop.run_in_executor(None, client, prompt)
+            result_text = str(result_text).strip()
+            prompt_tokens = len(prompt) // 4
+            completion_tokens = len(result_text) // 4
+            return result_text, prompt_tokens, completion_tokens
+        
+        else:
+            raise ValueError(
+                f"Unsupported client type: {type(client).__name__}. "
+                f"Expected OpenAI client (has .chat.completions), "
+                f"Semantic Kernel (has .invoke_prompt), or callable."
+            )
+    
+    def _call_llm_sync(
+        self,
+        client: Any,
+        client_type: str,
+        prompt: str,
+    ) -> Tuple[str, int, int]:
+        """
+        Call LLM based on client type (sync).
+        
+        Returns:
+            Tuple of (result_text, prompt_tokens, completion_tokens)
+        """
+        
+        if client_type == ClientType.OPENAI:
+            # OpenAI / Azure OpenAI style
+            result = client.chat.completions.create(
+                model=self.judge_model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=600,
+                temperature=0.3,
+            )
+            result_text = result.choices[0].message.content.strip()
+            prompt_tokens = result.usage.prompt_tokens if hasattr(result, 'usage') and result.usage else len(prompt) // 4
+            completion_tokens = result.usage.completion_tokens if hasattr(result, 'usage') and result.usage else len(result_text) // 4
+            return result_text, prompt_tokens, completion_tokens
+        
+        elif client_type == ClientType.SEMANTIC_KERNEL:
+            # Semantic Kernel - sync version requires running async
+            raise ValueError(
+                "Semantic Kernel is async-only. Use maybe_evaluate() instead of maybe_evaluate_sync()."
+            )
+        
+        elif client_type == ClientType.CALLABLE:
+            # Generic callable
+            if asyncio.iscoroutinefunction(client):
+                raise ValueError(
+                    "Async callable passed to sync method. Use maybe_evaluate() instead."
+                )
+            result_text = str(client(prompt)).strip()
+            prompt_tokens = len(prompt) // 4
+            completion_tokens = len(result_text) // 4
+            return result_text, prompt_tokens, completion_tokens
+        
+        else:
+            raise ValueError(
+                f"Unsupported client type: {type(client).__name__}. "
+                f"Expected OpenAI client (has .chat.completions) or callable."
+            )
     
     # =========================================================================
     # PROMPT GENERATION

@@ -3,7 +3,7 @@ AI Agent Observatory Dashboard - Main Application
 Location: dashboard/app.py
 
 Multi-page Streamlit dashboard for monitoring and optimizing AI agents.
-UPDATED: Added Optimization Impact page
+UPDATED: Replaced Home with Story Insights as main landing page
 """
 from dotenv import load_dotenv
 load_dotenv()
@@ -114,7 +114,7 @@ st.sidebar.markdown("---")
 nav_target = st.session_state.pop('_nav_to', None)
 
 nav_options = [
-    "🏠 Home",
+    "📊 Story Insights",      # NEW: Replaces Home as landing page
     "📡 Activity Monitor", 
     "💰 Cost Estimator",
     "🔀 Model Router",
@@ -129,12 +129,12 @@ nav_options = [
 if nav_target and nav_target in nav_options:
     st.session_state['current_page'] = nav_target
 
-current_page = st.session_state.get('current_page', '🏠 Home')
+current_page = st.session_state.get('current_page', '📊 Story Insights')
 
 page = st.sidebar.radio(
     "Navigation",
     nav_options,
-    index=nav_options.index(current_page)
+    index=nav_options.index(current_page) if current_page in nav_options else 0
 )
 
 # Update if user clicked a different page
@@ -165,9 +165,9 @@ st.sidebar.caption("AI Agent Observatory v1.0")
 st.sidebar.caption("Built with Streamlit")
 
 # Page routing
-if page == "🏠 Home":
-    from dashboard.pages import home
-    home.render()
+if page == "📊 Story Insights":
+    from dashboard.pages import story_insights
+    story_insights.render_page()
 elif page == "📡 Activity Monitor":
     from dashboard.pages import activity_monitor
     activity_monitor.render()

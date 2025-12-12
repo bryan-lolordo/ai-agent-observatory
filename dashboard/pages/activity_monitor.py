@@ -74,9 +74,9 @@ def diagnose_call(call: Dict) -> Optional[Dict[str, Any]]:
     
     # Get prompt breakdown if available
     breakdown = call.get('prompt_breakdown') or {}
-    history_tokens = breakdown.get('chat_history_tokens', 0)
-    history_count = breakdown.get('chat_history_count', 0)
-    system_tokens = breakdown.get('system_prompt_tokens', 0)
+    history_tokens = breakdown.get('chat_history_tokens') or 0
+    history_count = breakdown.get('chat_history_count') or 0
+    system_tokens = breakdown.get('system_prompt_tokens') or 0
     
     # Get quality info if available
     quality = call.get('quality_evaluation') or {}
