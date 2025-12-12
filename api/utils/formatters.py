@@ -1,6 +1,6 @@
 """
 Formatting Utilities
-Location: dashboard/utils/formatters.py
+Location: api/utils/formatters.py
 
 Consistent formatting functions for displaying metrics across the dashboard.
 """
@@ -18,14 +18,6 @@ def format_cost(cost: float, precision: int = 4) -> str:
     
     Returns:
         Formatted cost string like "$0.0042" or "$12.34"
-    
-    Examples:
-        >>> format_cost(0.00423)
-        '$0.0042'
-        >>> format_cost(12.3456)
-        '$12.35'
-        >>> format_cost(1234.56)
-        '$1,234.56'
     """
     if cost < 0.01:
         return f"${cost:.{precision}f}"
@@ -46,14 +38,6 @@ def format_latency(latency_ms: float) -> str:
     
     Returns:
         Formatted latency string like "450ms" or "1.2s"
-    
-    Examples:
-        >>> format_latency(450)
-        '450ms'
-        >>> format_latency(1234)
-        '1.2s'
-        >>> format_latency(62000)
-        '62.0s'
     """
     if latency_ms < 1000:
         return f"{latency_ms:.0f}ms"
@@ -70,14 +54,6 @@ def format_tokens(tokens: int) -> str:
     
     Returns:
         Formatted token string like "1,234 tokens" or "12.4K tokens"
-    
-    Examples:
-        >>> format_tokens(1234)
-        '1,234 tokens'
-        >>> format_tokens(12345)
-        '12.3K tokens'
-        >>> format_tokens(1234567)
-        '1.23M tokens'
     """
     if tokens < 10000:
         return f"{tokens:,} tokens"
@@ -97,12 +73,6 @@ def format_percentage(value: float, precision: int = 1) -> str:
     
     Returns:
         Formatted percentage string like "23.5%"
-    
-    Examples:
-        >>> format_percentage(0.235)
-        '23.5%'
-        >>> format_percentage(0.9876, precision=2)
-        '98.76%'
     """
     return f"{value * 100:.{precision}f}%"
 
@@ -118,12 +88,6 @@ def format_trend(current: float, previous: float, is_cost: bool = False) -> tupl
     
     Returns:
         Tuple of (trend_text, color) like ("↑ 12.3%", "green")
-    
-    Examples:
-        >>> format_trend(120, 100)
-        ('↑ 20.0%', 'green')
-        >>> format_trend(120, 100, is_cost=True)
-        ('↑ 20.0%', 'red')
     """
     if previous == 0:
         return ("N/A", "gray")
@@ -157,14 +121,6 @@ def format_number(value: float, precision: int = 1) -> str:
     
     Returns:
         Formatted number string like "1.2K" or "3.4M"
-    
-    Examples:
-        >>> format_number(1234)
-        '1.2K'
-        >>> format_number(1234567)
-        '1.2M'
-        >>> format_number(1234567890)
-        '1.2B'
     """
     if value < 1000:
         return f"{value:.{precision}f}"
@@ -185,12 +141,6 @@ def format_duration(seconds: float) -> str:
     
     Returns:
         Formatted duration like "2m 30s" or "1h 15m"
-    
-    Examples:
-        >>> format_duration(90)
-        '1m 30s'
-        >>> format_duration(3665)
-        '1h 1m'
     """
     if seconds < 60:
         return f"{seconds:.0f}s"
@@ -214,12 +164,6 @@ def format_score(score: float, max_score: float = 10.0) -> str:
     
     Returns:
         Formatted score like "8.5/10"
-    
-    Examples:
-        >>> format_score(8.5)
-        '8.5/10'
-        >>> format_score(0.85, max_score=1.0)
-        '0.85/1.0'
     """
     return f"{score:.1f}/{max_score}"
 
@@ -234,12 +178,6 @@ def format_rate(numerator: int, denominator: int) -> str:
     
     Returns:
         Formatted rate like "45/100 (45.0%)"
-    
-    Examples:
-        >>> format_rate(45, 100)
-        '45/100 (45.0%)'
-        >>> format_rate(0, 100)
-        '0/100 (0.0%)'
     """
     if denominator == 0:
         return "0/0 (N/A)"
@@ -259,10 +197,6 @@ def truncate_text(text: str, max_length: int = 50, suffix: str = "...") -> str:
     
     Returns:
         Truncated text
-    
-    Examples:
-        >>> truncate_text("This is a very long text that needs truncating", 20)
-        'This is a very lo...'
     """
     if len(text) <= max_length:
         return text
@@ -278,12 +212,6 @@ def format_model_name(model_name: str) -> str:
     
     Returns:
         Shortened model name
-    
-    Examples:
-        >>> format_model_name("gpt-4-0125-preview")
-        'GPT-4'
-        >>> format_model_name("claude-3-5-sonnet-20240620")
-        'Claude 3.5 Sonnet'
     """
     # Common model name mappings
     mappings = {

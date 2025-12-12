@@ -1,13 +1,12 @@
 """
-Dashboard Utilities Package
-Location: dashboard/utils/__init__.py
+API Utilities Package
+Location: api/utils/__init__.py
 
 Centralized utilities for data fetching, formatting, and aggregation.
-
-UPDATED: Added story_analyzer exports
+Migrated from dashboard/utils - no Streamlit dependencies.
 """
 
-from dashboard.utils.formatters import (
+from api.utils.formatters import (
     format_cost,
     format_latency,
     format_tokens,
@@ -21,7 +20,7 @@ from dashboard.utils.formatters import (
     format_model_name
 )
 
-from dashboard.utils.aggregators import (
+from api.utils.aggregators import (
     calculate_percentile,
     aggregate_by_model,
     aggregate_by_agent,
@@ -36,8 +35,9 @@ from dashboard.utils.aggregators import (
     calculate_prompt_breakdown_metrics,
 )
 
-from dashboard.utils.data_fetcher import (
+from api.utils.data_fetcher import (
     get_storage,
+    reset_storage,
     get_available_projects,
     get_available_models,
     get_available_agents,
@@ -55,8 +55,7 @@ from dashboard.utils.data_fetcher import (
     get_database_stats,
 )
 
-# NEW: Story Analyzer exports
-from dashboard.utils.story_analyzer import (
+from api.utils.story_analyzer import (
     # Individual story analyzers
     analyze_latency_story,
     analyze_cache_story,
@@ -101,6 +100,7 @@ __all__ = [
     
     # Data Fetchers
     'get_storage',
+    'reset_storage',
     'get_available_projects',
     'get_available_models',
     'get_available_agents',

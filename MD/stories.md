@@ -6,6 +6,89 @@ This document outlines the complete implementation plan for transforming the AI 
 
 ---
 
+Project Architecture:
+```
+ai-agent-observatory/
+│
+├── observatory/                    # Core tracking library (7 files)
+│   ├── __init__.py                 # Main exports
+│   ├── cache.py                    # Caching logic
+│   ├── collector.py                # Tracks sessions & LLM calls
+│   ├── judge.py                    # LLM-as-judge logic
+│   ├── models.py                   # Data models (Pydantic)
+│   ├── prompts.py                  # Prompt utilities
+│   ├── router.py                   # Model routing logic
+│   └── storage.py                  # Database layer (SQLAlchemy)
+│
+├── dashboard/                      # Analytics dashboard
+│   ├── app.py                      # Main entry point
+│   ├── optimizer_state.py          # Optimizer state logic
+│   │
+│   ├── templates/                  # Integration templates
+│   │   ├── observatory_config.py   # Full config (copy to projects)
+│   │   └── integration_patterns.py # Quick reference patterns
+│   │
+│   ├── pages/                      # Dashboard pages
+│   │   ├── __init__.py
+│   │   ├── activity_monitor.py
+│   │   ├── cache_analyzer.py
+│   │   ├── cost_estimator.py
+│   │   ├── home.py
+│   │   ├── llm_judge.py
+│   │   ├── model_router.py
+│   │   ├── optimization_impact.py
+│   │   ├── prompt_optimizer.py
+│   │   └── settings.py
+│   │
+│   ├── components/                 # Reusable UI components
+│   │   ├── __init__.py
+│   │   ├── charts.py
+│   │   ├── filters.py
+│   │   ├── metric_cards.py
+│   │   └── tables.py
+│   │
+│   ├── utils/                      # Dashboard utilities
+│   │   ├── __init__.py
+│   │   ├── aggregators.py
+│   │   ├── data_fetcher.py
+│   │   └── formatters.py
+│   │
+│   └── .streamlit/
+│       └── config.toml
+│
+├── tests/                          # Test suite
+│   ├── __init__.py
+│   └── diagnose_db.py
+│
+├── OBSERVATORY_DATA_MAPPING.md     # Data mapping reference
+├── ARCHITECTURE.md                 # System architecture docs
+├── LICENSE
+├── observatory.db                  # Centralized metrics database
+├── pyproject.toml                  # Package configuration
+├── pytest.ini
+├── README.md
+├── requirements.txt
+├── setup.py
+└── .env.example / .env             # Environment config 
+├── api/
+│   ├── __init__.py
+│   └── main.py                    # FastAPI server
+│
+└── frontend/
+    ├── package.json
+    ├── vite.config.js
+    ├── tailwind.config.js
+    ├── postcss.config.js
+    ├── index.html
+    └── src/
+        ├── main.jsx               # Entry point
+        ├── index.css              # Tailwind styles
+        ├── api.js                 # API client
+        ├── App.jsx                # Main app (current)
+        └── components/
+            └── Stories.jsx   # Stories dashboard
+
+
 ## 🎯 The Vision
 
 The AI Agent Observatory should tell **stories** about your AI application's performance, not just display metrics. Each story represents a specific optimization opportunity, and clicking into a story walks the developer through:

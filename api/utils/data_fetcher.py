@@ -1,22 +1,19 @@
 """
 Data Fetcher - Centralized Data Access Layer
-Location: dashboard/utils/data_fetcher.py
+Location: api/utils/data_fetcher.py
 
 All database queries and data retrieval functions.
-Pages should use these functions instead of querying storage directly.
-
-UPDATED: 
-- Fixed field name mappings for QualityEvaluation (confidence_score, not confidence)
-- Now properly passes all filters (operation, start_time, end_time, success_only) to storage layer
+Migrated from Streamlit dashboard - no caching decorators.
 """
 
-import streamlit as st
+import os
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime, timedelta
+from functools import lru_cache
 
 from observatory import Storage
 from observatory.models import Session, LLMCall, ModelProvider
-from dashboard.utils.aggregators import (
+from api.utils.aggregators import (
     calculate_session_kpis,
     aggregate_by_model,
     aggregate_by_agent,
@@ -72,50 +69,54 @@ def parse_period_to_days(period: Union[str, int, float, None], default: float = 
 
 
 # =============================================================================
-# STORAGE ACCESS
+# STORAGE ACCESS (Singleton pattern instead of st.cache_resource)
 # =============================================================================
 
-@st.cache_resource
+_storage_instance: Optional[Storage] = None
+
 def get_storage() -> Storage:
-    """Get cached Storage instance."""
-    import os
-    db_path = os.getenv("DATABASE_URL", "sqlite:///observatory.db")
-    return Storage(database_url=db_path)
+    """Get Storage instance (singleton)."""
+    global _storage_instance
+    if _storage_instance is None:
+        db_path = os.getenv("DATABASE_URL", "sqlite:///observatory.db")
+        _storage_instance = Storage(database_url=db_path)
+    return _storage_instance
+
+
+def reset_storage():
+    """Reset storage instance (useful for testing)."""
+    global _storage_instance
+    _storage_instance = None
 
 
 # =============================================================================
 # BASIC QUERIES
 # =============================================================================
 
-@st.cache_data(ttl=30)
 def get_available_projects() -> List[str]:
     """Get list of all projects in database."""
     storage = get_storage()
     return storage.get_distinct_projects()
 
 
-@st.cache_data(ttl=30)
 def get_available_models(project_name: Optional[str] = None) -> List[str]:
     """Get list of all models, optionally filtered by project."""
     storage = get_storage()
     return storage.get_distinct_models(project_name=project_name)
 
 
-@st.cache_data(ttl=30)
 def get_available_agents(project_name: Optional[str] = None) -> List[str]:
     """Get list of all agents, optionally filtered by project."""
     storage = get_storage()
     return storage.get_distinct_agents(project_name=project_name)
 
 
-@st.cache_data(ttl=30)
 def get_available_operations(project_name: Optional[str] = None) -> List[str]:
     """Get list of all operations, optionally filtered by project."""
     storage = get_storage()
     return storage.get_distinct_operations(project_name=project_name)
 
 
-@st.cache_data(ttl=30)
 def get_sessions(
     project_name: Optional[str] = None,
     limit: int = 100,
@@ -133,7 +134,6 @@ def get_sessions(
     )
 
 
-@st.cache_data(ttl=30)
 def get_llm_calls(
     project_name: Optional[str] = None,
     session_id: Optional[str] = None,
@@ -336,7 +336,6 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
 # HIGH-LEVEL ANALYSIS FUNCTIONS
 # =============================================================================
 
-@st.cache_data(ttl=60)
 def get_project_overview(project_name: Optional[str] = None) -> Dict[str, Any]:
     """Get comprehensive project overview with all metrics."""
     llm_calls = get_llm_calls(project_name=project_name, limit=5000)
@@ -397,7 +396,6 @@ def get_project_overview(project_name: Optional[str] = None) -> Dict[str, Any]:
     }
 
 
-@st.cache_data(ttl=60)
 def get_time_series_data(
     project_name: Optional[str] = None,
     metric: str = 'cost',
@@ -417,7 +415,6 @@ def get_time_series_data(
     return calculate_time_series(llm_calls, metric=metric, interval=interval)
 
 
-@st.cache_data(ttl=60)
 def get_comparative_metrics(
     project_name: Optional[str] = None,
     period: str = '24h'
@@ -457,7 +454,6 @@ def get_comparative_metrics(
     }
 
 
-@st.cache_data(ttl=60)
 def get_routing_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
     """Get routing analysis for Model Router page."""
     llm_calls = get_llm_calls(project_name=project_name, limit=5000)
@@ -507,7 +503,6 @@ def get_routing_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
     }
 
 
-@st.cache_data(ttl=60)
 def get_cache_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
     """Get cache analysis for Cache Analyzer page."""
     llm_calls = get_llm_calls(project_name=project_name, limit=5000)
@@ -570,7 +565,6 @@ def get_cache_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
     }
 
 
-@st.cache_data(ttl=60)
 def get_quality_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
     """Get quality analysis for LLM Judge page."""
     llm_calls = get_llm_calls(project_name=project_name, limit=5000)
@@ -661,7 +655,6 @@ def get_quality_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
     }
 
 
-@st.cache_data(ttl=60)
 def get_prompt_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
     """Get prompt analysis for Prompt Optimizer page."""
     llm_calls = get_llm_calls(project_name=project_name, limit=5000)
@@ -784,7 +777,6 @@ def get_prompt_analysis(project_name: Optional[str] = None) -> Dict[str, Any]:
 # COST ANALYSIS
 # =============================================================================
 
-@st.cache_data(ttl=60)
 def get_cost_forecast(
     project_name: Optional[str] = None,
     requests_per_hour: int = 100,
@@ -832,13 +824,11 @@ def get_cost_forecast(
 # DATABASE STATS
 # =============================================================================
 
-@st.cache_data(ttl=60)
 def get_database_stats() -> Dict[str, Any]:
     """Get database statistics."""
     sessions = get_sessions(limit=10000)
     llm_calls = get_llm_calls(limit=10000)
     
-    import os
     db_path = os.getenv("DATABASE_URL", "sqlite:///observatory.db")
     if db_path.startswith("sqlite:///"):
         file_path = db_path[10:]

@@ -1,6 +1,6 @@
 """
 Story Analyzer - Data-Driven Story Detection
-Location: dashboard/utils/story_analyzer.py
+Location: api/utils/story_analyzer.py
 
 Analyzes LLM call data to generate optimization stories.
 Each story identifies a specific problem, quantifies the impact,
@@ -21,8 +21,8 @@ from collections import defaultdict
 import hashlib
 import json
 
-# Import existing formatters - DO NOT DUPLICATE
-from dashboard.utils.formatters import (
+# Import existing formatters - updated path
+from api.utils.formatters import (
     format_cost,
     format_latency,
     format_tokens,
