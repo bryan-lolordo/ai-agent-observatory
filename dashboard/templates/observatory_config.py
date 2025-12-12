@@ -12,11 +12,11 @@ SETUP:
 4. Import and use: from observatory_config import obs, track_call
 
 Usage:
-    from observatory_config import obs, judge, cache, router, prompts, track_call
+    from observatory_config import obs, judge, cache, router, prompts, track_llm_call
     
     # In your code
     quality = await judge.maybe_evaluate(operation, prompt, response, client)
-    track_call(model, tokens, latency, operation=op, quality_evaluation=quality)
+    track_llm_call(model, tokens, latency, operation=op, quality_evaluation=quality)
 """
 
 import os
@@ -41,8 +41,8 @@ from observatory import (
     ModelRouter,
     PromptManager,
     
-    # Convenience functions
-    track_llm_call,
+    # Convenience functions (rename to avoid conflict with our wrapper)
+    track_llm_call as _sdk_track_llm_call,
     create_routing_decision,
     create_cache_metadata,
     create_quality_evaluation,
@@ -98,7 +98,8 @@ DEFAULT_MODEL = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-mini")
 OBSERVATORY_DB_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "ai-agent-observatory", "observatory.db")
 )
-os.environ['DATABASE_URL'] = f"sqlite:///{OBSERVATORY_DB_PATH}"
+if 'DATABASE_URL' not in os.environ:
+    os.environ['DATABASE_URL'] = f"sqlite:///{OBSERVATORY_DB_PATH}"
 
 print(f"📦 Observatory Config: {PROJECT_NAME}")
 print(f"   Database: {OBSERVATORY_DB_PATH}")
@@ -255,10 +256,10 @@ prompts = PromptManager(observatory=obs)
 # )
 
 # =============================================================================
-# CONVENIENCE WRAPPER: track_call
+# WRAPPER: track_llm_call (matches SDK naming)
 # =============================================================================
 
-def track_call(
+def track_llm_call(
     # Core metrics
     model_name: str = None,
     prompt_tokens: int = 0,
@@ -301,7 +302,7 @@ def track_call(
     metadata: dict = None,
 ):
     """
-    Simplified tracking function for your application.
+    Track an LLM call with auto-filled defaults for your application.
     
     Uses default model and provider from config.
     Passes all parameters through to SDK's track_llm_call.
@@ -345,12 +346,12 @@ def track_call(
                 metadata = {}
             metadata['agent_role_str'] = agent_role
     
-    return track_llm_call(
+    return _sdk_track_llm_call(
         observatory=obs,
         model_name=model_name or DEFAULT_MODEL,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
-        latency_ms=latency_ms,
+        latency_ms=max(latency_ms, 0.001),
         provider=DEFAULT_PROVIDER,
         agent_name=agent_name,
         agent_role=role_enum,
@@ -372,6 +373,7 @@ def track_call(
         test_dataset_id=test_dataset_id,
         metadata=metadata,
     )
+
 
 
 # =============================================================================
@@ -406,8 +408,8 @@ __all__ = [
     'DEFAULT_PROVIDER',
     'CURRENT_PHASE',
     
-    # Functions
-    'track_call',
+    # Functions (SDK-matching names)
+    'track_llm_call',
     'start_session',
     'end_session',
     

@@ -28,9 +28,10 @@ Usage:
     prompts = PromptManager(observatory=obs)
 
 UPDATED: Added compute_content_hash export for cache key generation
+UPDATED: Added prompt_normalized parameter to track_llm_call
 """
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 # =============================================================================
 # CORE IMPORTS
@@ -133,6 +134,7 @@ def track_llm_call(
     # Prompt content
     prompt: str = None,
     response_text: str = None,
+    prompt_normalized: str = None,
     
     # Separate prompt components
     system_prompt: str = None,
@@ -172,6 +174,7 @@ def track_llm_call(
         error: Error message if failed
         prompt: Combined prompt text
         response_text: Response text
+        prompt_normalized: Normalized prompt for cache key generation
         system_prompt: System prompt text (tracked separately)
         user_message: User message text (tracked separately)
         messages: Full conversation history as list of {role, content} dicts
@@ -200,6 +203,7 @@ def track_llm_call(
         error=error,
         prompt=prompt,
         response_text=response_text,
+        prompt_normalized=prompt_normalized,
         system_prompt=system_prompt,
         user_message=user_message,
         messages=messages,
