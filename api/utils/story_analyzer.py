@@ -14,6 +14,12 @@ Stories:
 5. Token Imbalance - Poor prompt:completion ratios
 6. Model Routing - Complexity mismatches
 7. Quality Issues - Errors and hallucinations
+
+UPDATED: December 2024
+- Added missing fields for frontend Stories.jsx compatibility
+- Fixed field naming mismatches
+- Enhanced detail_table structures
+- Added LLM call filtering to exclude non-LLM API operations
 """
 
 from typing import Dict, Any, List, Optional
@@ -80,6 +86,20 @@ def parse_json_field(field: Any) -> Dict:
     return {}
 
 
+def filter_llm_calls(calls: List[Dict]) -> List[Dict]:
+    """
+    Filter out non-LLM API calls (plugin operations with 0 tokens).
+    
+    Many operations like find_jobs, save_searched_jobs, get_job_details
+    are plugin API calls that don't use LLMs and have 0 tokens.
+    We filter these out for token/prompt/routing analysis.
+    """
+    return [
+        c for c in calls
+        if (c.get('prompt_tokens') or 0) > 0 or (c.get('completion_tokens') or 0) > 0
+    ]
+
+
 def normalize_prompt(prompt: str) -> str:
     """Normalize prompt for duplicate detection."""
     if not prompt:
@@ -103,6 +123,8 @@ def analyze_latency_story(calls: List[Dict]) -> Dict[str, Any]:
     
     Identifies operations with excessive latency and provides
     breakdown of what's causing the slowness.
+    
+    NOTE: Includes all calls (both LLM and API) since both can be slow.
     """
     if not calls:
         return _empty_story_result("No latency data")
@@ -219,6 +241,8 @@ def analyze_cache_story(calls: List[Dict]) -> Dict[str, Any]:
     Analyze calls for caching opportunities.
     
     Identifies duplicate prompts that could be cached.
+    
+    NOTE: Includes all calls since API calls can also be cached.
     """
     if not calls:
         return _empty_story_result("No cache data")
@@ -371,11 +395,18 @@ def analyze_cost_story(calls: List[Dict]) -> Dict[str, Any]:
     Analyze cost distribution across operations.
     
     Identifies where money is being spent and concentration issues.
+    
+    UPDATED: Added total_calls, avg_cost_per_call, potential_savings,
+             total_prompt_tokens, total_completion_tokens to detail_table
+             
+    NOTE: Includes all calls since API calls also have costs.
     """
     if not calls:
         return _empty_story_result("No cost data")
     
     total_cost = sum(c.get('total_cost') or 0 for c in calls)
+    total_calls = len(calls)
+    avg_cost_per_call = total_cost / total_calls if total_calls > 0 else 0
     
     if total_cost == 0:
         return _empty_story_result("No cost data")
@@ -402,6 +433,10 @@ def analyze_cost_story(calls: List[Dict]) -> Dict[str, Any]:
         cost_share = data['cost'] / total_cost if total_cost > 0 else 0
         avg_cost = data['cost'] / len(data['calls']) if data['calls'] else 0
         
+        # ADDED: Calculate total tokens per operation
+        total_prompt_tokens = sum(c.get('prompt_tokens') or 0 for c in data['calls'])
+        total_completion_tokens = sum(c.get('completion_tokens') or 0 for c in data['calls'])
+        
         agent, operation = op_key.split('.', 1) if '.' in op_key else ('Unknown', op_key)
         
         operation_stats.append({
@@ -412,6 +447,8 @@ def analyze_cost_story(calls: List[Dict]) -> Dict[str, Any]:
             'cost_share': cost_share,
             'call_count': len(data['calls']),
             'avg_cost': avg_cost,
+            'total_prompt_tokens': total_prompt_tokens,        # ADDED
+            'total_completion_tokens': total_completion_tokens, # ADDED
             'calls': data['calls'],
         })
     
@@ -421,6 +458,9 @@ def analyze_cost_story(calls: List[Dict]) -> Dict[str, Any]:
     # Calculate top 3 concentration
     top_3_cost = sum(op['total_cost'] for op in operation_stats[:3])
     top_3_concentration = top_3_cost / total_cost if total_cost > 0 else 0
+    
+    # Calculate potential savings (estimate 20% reduction through optimization)
+    potential_savings = total_cost * 0.20
     
     # Build agent stats
     agent_stats = []
@@ -441,7 +481,10 @@ def analyze_cost_story(calls: List[Dict]) -> Dict[str, Any]:
         "has_issues": has_concentration,
         "summary_metric": f"{top_3_concentration:.0%} in 3 ops",
         "red_flag_count": 3 if has_concentration else 0,
-        "total_cost": total_cost,
+        "total_cost": total_cost,                    # ADDED at top level
+        "total_calls": total_calls,                  # ADDED
+        "avg_cost_per_call": avg_cost_per_call,      # ADDED
+        "potential_savings": potential_savings,      # ADDED
         "top_3_concentration": top_3_concentration,
         "affected_operations": [
             {
@@ -475,13 +518,23 @@ def analyze_system_prompt_story(calls: List[Dict]) -> Dict[str, Any]:
     Analyze system prompt redundancy.
     
     Identifies operations sending large system prompts repeatedly.
+    
+    UPDATED: Added total_system_tokens, largest_system_prompt,
+             renamed avg_user_message_tokens -> avg_user_tokens,
+             added avg_context_tokens from chat_history_tokens
+             Added LLM call filtering to exclude API operations
     """
     if not calls:
         return _empty_story_result("No prompt data")
     
+    # FILTER: Only analyze actual LLM calls (exclude API operations with 0 tokens)
+    llm_calls = filter_llm_calls(calls)
+    if not llm_calls:
+        return _empty_story_result("No LLM calls found")
+    
     # Group by agent.operation
     by_operation = defaultdict(list)
-    for call in calls:
+    for call in llm_calls:
         agent = call.get('agent_name') or 'Unknown'
         operation = call.get('operation') or 'unknown'
         key = f"{agent}.{operation}"
@@ -490,9 +543,12 @@ def analyze_system_prompt_story(calls: List[Dict]) -> Dict[str, Any]:
     # Analyze system prompt usage per operation
     operation_stats = []
     total_redundant_tokens = 0
+    all_system_tokens = []  # ADDED: Track all system tokens globally
     
     for op_key, op_calls in by_operation.items():
         system_tokens_list = []
+        user_tokens_list = []      # ADDED
+        context_tokens_list = []   # ADDED
         total_prompt_tokens = 0
         
         for call in op_calls:
@@ -502,6 +558,8 @@ def analyze_system_prompt_story(calls: List[Dict]) -> Dict[str, Any]:
             # Try to get from prompt_breakdown
             breakdown = parse_json_field(call.get('prompt_breakdown'))
             system_tokens = breakdown.get('system_prompt_tokens') or 0
+            user_tokens = breakdown.get('user_message_tokens') or 0        # ADDED
+            context_tokens = breakdown.get('chat_history_tokens') or 0     # ADDED
             
             # If not available, try metadata
             if not system_tokens:
@@ -513,8 +571,13 @@ def analyze_system_prompt_story(calls: List[Dict]) -> Dict[str, Any]:
                 system_tokens = int(prompt_tokens * 0.4)
             
             system_tokens_list.append(system_tokens)
+            user_tokens_list.append(user_tokens)       # ADDED
+            context_tokens_list.append(context_tokens) # ADDED
+            all_system_tokens.append(system_tokens)    # ADDED
         
         avg_system_tokens = sum(system_tokens_list) / len(system_tokens_list) if system_tokens_list else 0
+        avg_user_tokens = sum(user_tokens_list) / len(user_tokens_list) if user_tokens_list else 0           # ADDED
+        avg_context_tokens = sum(context_tokens_list) / len(context_tokens_list) if context_tokens_list else 0 # ADDED
         total_system_tokens = sum(system_tokens_list)
         
         # Calculate waste: if same system prompt sent N times, (N-1) are redundant
@@ -538,6 +601,8 @@ def analyze_system_prompt_story(calls: List[Dict]) -> Dict[str, Any]:
             'agent_operation': op_key,
             'call_count': call_count,
             'avg_system_tokens': int(avg_system_tokens),
+            'avg_user_tokens': int(avg_user_tokens),           # CHANGED: renamed from avg_user_message_tokens
+            'avg_context_tokens': int(avg_context_tokens),     # ADDED
             'total_system_tokens': total_system_tokens,
             'avg_prompt_tokens': int(avg_prompt_tokens),
             'system_pct': system_pct,
@@ -553,12 +618,18 @@ def analyze_system_prompt_story(calls: List[Dict]) -> Dict[str, Any]:
     
     ops_with_waste = [op for op in operation_stats if op['has_waste']]
     
+    # ADDED: Calculate global metrics
+    global_total_system_tokens = sum(all_system_tokens)
+    largest_system_prompt = max(all_system_tokens) if all_system_tokens else 0
+    
     if not ops_with_waste:
         return {
             "has_issues": False,
             "summary_metric": "Efficient",
             "red_flag_count": 0,
             "total_redundant_tokens": 0,
+            "total_system_tokens": global_total_system_tokens,  # ADDED
+            "largest_system_prompt": largest_system_prompt,     # ADDED
             "affected_operations": [],
             "top_offender": None,
             "detail_table": operation_stats,
@@ -577,6 +648,8 @@ def analyze_system_prompt_story(calls: List[Dict]) -> Dict[str, Any]:
         "summary_metric": token_display,
         "red_flag_count": len(ops_with_waste),
         "total_redundant_tokens": total_redundant_tokens,
+        "total_system_tokens": global_total_system_tokens,  # ADDED
+        "largest_system_prompt": largest_system_prompt,     # ADDED
         "affected_operations": [
             {
                 "agent_operation": op['agent_operation'],
@@ -623,19 +696,28 @@ def analyze_token_imbalance_story(calls: List[Dict]) -> Dict[str, Any]:
     Analyze prompt:completion token ratios.
     
     Identifies operations with extreme ratios (sending lots, getting little back).
+    
+    UPDATED: Added worst_ratio, imbalanced_count, avg_ratio
+             Added LLM call filtering to exclude API operations
     """
     if not calls:
         return _empty_story_result("No token data")
     
+    # FILTER: Only analyze actual LLM calls (exclude API operations with 0 tokens)
+    llm_calls = filter_llm_calls(calls)
+    if not llm_calls:
+        return _empty_story_result("No LLM calls found")
+    
     # Group by agent.operation
     by_operation = defaultdict(list)
-    for call in calls:
+    for call in llm_calls:
         agent = call.get('agent_name') or 'Unknown'
         operation = call.get('operation') or 'unknown'
         key = f"{agent}.{operation}"
         by_operation[key].append(call)
     
     operation_stats = []
+    all_ratios = []  # ADDED: Track all ratios for global metrics
     
     for op_key, op_calls in by_operation.items():
         total_prompt = sum(c.get('prompt_tokens') or 0 for c in op_calls)
@@ -646,6 +728,10 @@ def analyze_token_imbalance_story(calls: List[Dict]) -> Dict[str, Any]:
         avg_completion = total_completion / len(op_calls) if op_calls else 0
         
         ratio = avg_prompt / avg_completion if avg_completion > 0 else float('inf')
+        
+        # ADDED: Only track valid ratios
+        if ratio != float('inf'):
+            all_ratios.append(ratio)
         
         agent, operation = op_key.split('.', 1) if '.' in op_key else ('Unknown', op_key)
         
@@ -671,11 +757,19 @@ def analyze_token_imbalance_story(calls: List[Dict]) -> Dict[str, Any]:
     
     imbalanced_ops = [op for op in operation_stats if op['is_imbalanced']]
     
+    # ADDED: Calculate global metrics
+    worst_ratio = max(all_ratios) if all_ratios else 0
+    imbalanced_count = len(imbalanced_ops)
+    avg_ratio = sum(all_ratios) / len(all_ratios) if all_ratios else 0
+    
     if not imbalanced_ops:
         return {
             "has_issues": False,
             "summary_metric": "Balanced",
             "red_flag_count": 0,
+            "worst_ratio": f"{worst_ratio:.1f}:1" if worst_ratio > 0 else "—",  # ADDED
+            "imbalanced_count": 0,                                                # ADDED
+            "avg_ratio": f"{avg_ratio:.1f}:1" if avg_ratio > 0 else "—",        # ADDED
             "affected_operations": [],
             "top_offender": None,
             "detail_table": operation_stats,
@@ -688,6 +782,9 @@ def analyze_token_imbalance_story(calls: List[Dict]) -> Dict[str, Any]:
         "has_issues": True,
         "summary_metric": f"{ratio_display} ratio",
         "red_flag_count": len(imbalanced_ops),
+        "worst_ratio": f"{worst_ratio:.1f}:1",       # ADDED
+        "imbalanced_count": imbalanced_count,        # ADDED
+        "avg_ratio": f"{avg_ratio:.1f}:1",           # ADDED
         "affected_operations": [
             {
                 "agent_operation": op['agent_operation'],
@@ -734,13 +831,21 @@ def analyze_routing_story(calls: List[Dict]) -> Dict[str, Any]:
     Analyze model routing opportunities.
     
     Identifies complexity mismatches (high complexity on cheap models).
+    
+    UPDATED: Added misrouted_calls, high_complexity_calls counts
+             Added LLM call filtering to exclude API operations
     """
     if not calls:
         return _empty_story_result("No routing data")
     
+    # FILTER: Only analyze actual LLM calls (exclude API operations)
+    llm_calls = filter_llm_calls(calls)
+    if not llm_calls:
+        return _empty_story_result("No LLM calls found")
+    
     # Group by agent.operation
     by_operation = defaultdict(list)
-    for call in calls:
+    for call in llm_calls:
         agent = call.get('agent_name') or 'Unknown'
         operation = call.get('operation') or 'unknown'
         key = f"{agent}.{operation}"
@@ -749,6 +854,7 @@ def analyze_routing_story(calls: List[Dict]) -> Dict[str, Any]:
     operation_stats = []
     upgrade_candidates = []
     downgrade_candidates = []
+    high_complexity_calls_count = 0  # ADDED
     
     for op_key, op_calls in by_operation.items():
         complexity_scores = []
@@ -764,6 +870,9 @@ def analyze_routing_story(calls: List[Dict]) -> Dict[str, Any]:
             
             if complexity is not None:
                 complexity_scores.append(complexity)
+                # ADDED: Count high complexity calls
+                if complexity >= HIGH_COMPLEXITY_THRESHOLD:
+                    high_complexity_calls_count += 1
             
             model = call.get('model_name') or 'unknown'
             models_used[model] += 1
@@ -787,6 +896,7 @@ def analyze_routing_story(calls: List[Dict]) -> Dict[str, Any]:
             'call_count': len(op_calls),
             'avg_complexity': avg_complexity,
             'primary_model': primary_model,
+            'model_name': primary_model,  # ADDED: alias for frontend
             'is_cheap_model': is_cheap_model,
             'is_upgrade_candidate': is_upgrade_candidate,
             'total_cost': total_cost,
@@ -802,12 +912,15 @@ def analyze_routing_story(calls: List[Dict]) -> Dict[str, Any]:
     operation_stats.sort(key=lambda x: -(x['avg_complexity'] or 0))
     
     total_misrouted = len(upgrade_candidates) + len(downgrade_candidates)
+    misrouted_calls = sum(op['call_count'] for op in upgrade_candidates)  # ADDED
     
     if total_misrouted == 0:
         return {
             "has_issues": False,
             "summary_metric": "Well routed",
             "red_flag_count": 0,
+            "misrouted_calls": 0,                          # ADDED
+            "high_complexity_calls": high_complexity_calls_count,  # ADDED
             "affected_operations": [],
             "top_offender": None,
             "upgrade_candidates": [],
@@ -821,6 +934,8 @@ def analyze_routing_story(calls: List[Dict]) -> Dict[str, Any]:
         "has_issues": True,
         "summary_metric": f"{total_misrouted} misrouted",
         "red_flag_count": total_misrouted,
+        "misrouted_calls": misrouted_calls,              # ADDED
+        "high_complexity_calls": high_complexity_calls_count,  # ADDED
         "affected_operations": [
             {
                 "agent_operation": op['agent_operation'],
@@ -853,6 +968,11 @@ def analyze_routing_story(calls: List[Dict]) -> Dict[str, Any]:
 def analyze_quality_story(calls: List[Dict]) -> Dict[str, Any]:
     """
     Analyze quality issues (errors and hallucinations).
+    
+    UPDATED: Added success_count, success_rate, operations_affected,
+             Changed detail_table from tuples to proper dict structure
+             
+    NOTE: Includes all calls since API operations can also fail.
     """
     if not calls:
         return _empty_story_result("No quality data")
@@ -867,32 +987,37 @@ def analyze_quality_story(calls: List[Dict]) -> Dict[str, Any]:
         if not success or error:
             errors.append({
                 'agent': call.get('agent_name') or 'Unknown',
+                'agent_name': call.get('agent_name') or 'Unknown',  # Both formats
                 'operation': call.get('operation') or 'unknown',
                 'error': error or 'Unknown error',
+                'error_message': error or 'Unknown error',  # Both formats
                 'timestamp': call.get('timestamp'),
                 'call': call,
             })
         
         quality_eval = parse_json_field(call.get('quality_evaluation'))
-        # FIXED: Only check hallucination_flag (correct field name)
         if quality_eval.get('hallucination_flag'):
             hallucinations.append({
                 'agent': call.get('agent_name') or 'Unknown',
                 'operation': call.get('operation') or 'unknown',
                 'details': quality_eval.get('hallucination_details') or 'Hallucination detected',
-                # FIXED: Only use judge_score (correct field name)
                 'score': quality_eval.get('judge_score'),
                 'call': call,
             })
     
     total_calls = len(calls)
-    error_rate = len(errors) / total_calls if total_calls > 0 else 0
+    error_count = len(errors)
+    success_count = total_calls - error_count  # ADDED
+    success_rate = success_count / total_calls if total_calls > 0 else 0  # ADDED
+    error_rate = error_count / total_calls if total_calls > 0 else 0
     
     # Group errors by operation
     error_by_op = defaultdict(list)
     for err in errors:
         key = f"{err['agent']}.{err['operation']}"
         error_by_op[key].append(err)
+    
+    operations_affected = len(error_by_op)  # ADDED: count unique operations with errors
     
     op_error_counts = [(op, len(errs)) for op, errs in error_by_op.items()]
     op_error_counts.sort(key=lambda x: -x[1])
@@ -906,6 +1031,9 @@ def analyze_quality_story(calls: List[Dict]) -> Dict[str, Any]:
             "red_flag_count": 0,
             "error_rate": 0,
             "error_count": 0,
+            "success_count": total_calls,      # ADDED
+            "success_rate": 1.0,               # ADDED
+            "operations_affected": 0,          # ADDED
             "hallucination_count": 0,
             "affected_operations": [],
             "top_offender": None,
@@ -937,18 +1065,35 @@ def analyze_quality_story(calls: List[Dict]) -> Dict[str, Any]:
     
     issue_count = len(errors) + len(hallucinations)
     
+    # CHANGED: detail_table from list of tuples to list of dicts (proper structure for frontend)
+    detail_table = []
+    for err in errors[:20]:  # Limit to 20 most recent
+        detail_table.append({
+            'agent': err['agent'],
+            'agent_name': err['agent_name'],
+            'operation': err['operation'],
+            'error': err['error'],
+            'error_message': err['error_message'],
+            'error_type': 'Runtime Error',  # Could be parsed from error message
+            'fix': 'Add input validation and error handling',  # Generic recommendation
+            'timestamp': err.get('timestamp'),
+        })
+    
     return {
         "has_issues": True,
         "summary_metric": f"{issue_count} issues",
         "red_flag_count": issue_count,
         "error_rate": error_rate,
-        "error_count": len(errors),
+        "error_count": error_count,
+        "success_count": success_count,        # ADDED
+        "success_rate": success_rate,          # ADDED
+        "operations_affected": operations_affected,  # ADDED
         "hallucination_count": len(hallucinations),
         "affected_operations": affected_ops,
         "top_offender": top_offender,
         "errors": errors,
         "hallucinations": hallucinations,
-        "detail_table": op_error_counts,
+        "detail_table": detail_table,  # CHANGED: Now list of dicts instead of tuples
     }
 
 

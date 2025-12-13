@@ -518,3 +518,120 @@ def group_by_time_period(
     previous = [s for s in sessions if previous_cutoff <= s.start_time < cutoff]
     
     return {'current': current, 'previous': previous}
+
+
+def calculate_conversation_metrics(calls: List[Dict]) -> Dict[str, Any]:
+    """
+    Calculate conversation-level metrics.
+    
+    Args:
+        calls: List of LLM calls (should be from same conversation)
+    
+    Returns:
+        Dict with conversation metrics
+    """
+    if not calls:
+        return {
+            'turn_count': 0,
+            'total_cost': 0,
+            'total_tokens': 0,
+            'avg_latency_ms': 0,
+            'context_growth': [],
+        }
+    
+    # Sort by turn number
+    sorted_calls = sorted(calls, key=lambda x: x.get('turn_number') or 0)
+    
+    # Calculate totals
+    total_cost = sum(c.get('total_cost', 0) for c in calls)
+    total_tokens = sum(c.get('total_tokens', 0) for c in calls)
+    avg_latency = sum(c.get('latency_ms', 0) for c in calls) / len(calls)
+    
+    # Track context growth across turns
+    context_growth = []
+    for call in sorted_calls:
+        turn = call.get('turn_number', 0)
+        history_tokens = call.get('chat_history_tokens', 0)
+        context_tokens = call.get('conversation_context_tokens', 0)
+        total_context = history_tokens + context_tokens
+        
+        context_growth.append({
+            'turn': turn,
+            'history_tokens': history_tokens,
+            'context_tokens': context_tokens,
+            'total_context': total_context,
+        })
+    
+    return {
+        'conversation_id': calls[0].get('conversation_id'),
+        'turn_count': len(calls),
+        'total_cost': total_cost,
+        'total_tokens': total_tokens,
+        'avg_latency_ms': avg_latency,
+        'context_growth': context_growth,
+        'first_turn_time': sorted_calls[0].get('timestamp'),
+        'last_turn_time': sorted_calls[-1].get('timestamp'),
+    }
+
+
+def calculate_experiment_metrics(calls: List[Dict], experiment_id: str) -> Dict[str, Any]:
+    """
+    Calculate A/B test metrics for an experiment.
+    
+    Args:
+        calls: List of LLM calls
+        experiment_id: Experiment ID to analyze
+    
+    Returns:
+        Dict with control vs variant comparison
+    """
+    # Filter to experiment
+    exp_calls = [c for c in calls if c.get('experiment_id') == experiment_id]
+    
+    if not exp_calls:
+        return {
+            'experiment_id': experiment_id,
+            'control_group': {},
+            'variant_group': {},
+            'comparison': {},
+        }
+    
+    # Split into control and variant
+    control = [c for c in exp_calls if c.get('control_group') == True]
+    variant = [c for c in exp_calls if c.get('control_group') == False]
+    
+    def calc_group_metrics(group_calls):
+        if not group_calls:
+            return {}
+        
+        return {
+            'count': len(group_calls),
+            'avg_cost': sum(c.get('total_cost', 0) for c in group_calls) / len(group_calls),
+            'avg_latency_ms': sum(c.get('latency_ms', 0) for c in group_calls) / len(group_calls),
+            'avg_prompt_tokens': sum(c.get('prompt_tokens', 0) for c in group_calls) / len(group_calls),
+            'avg_completion_tokens': sum(c.get('completion_tokens', 0) for c in group_calls) / len(group_calls),
+            'error_rate': sum(1 for c in group_calls if not c.get('success', True)) / len(group_calls),
+        }
+    
+    control_metrics = calc_group_metrics(control)
+    variant_metrics = calc_group_metrics(variant)
+    
+    # Calculate comparison
+    comparison = {}
+    if control_metrics and variant_metrics:
+        comparison = {
+            'cost_change_pct': ((variant_metrics['avg_cost'] - control_metrics['avg_cost']) / control_metrics['avg_cost'] * 100) if control_metrics['avg_cost'] > 0 else 0,
+            'latency_change_pct': ((variant_metrics['avg_latency_ms'] - control_metrics['avg_latency_ms']) / control_metrics['avg_latency_ms'] * 100) if control_metrics['avg_latency_ms'] > 0 else 0,
+            'token_reduction_pct': ((control_metrics['avg_prompt_tokens'] - variant_metrics['avg_prompt_tokens']) / control_metrics['avg_prompt_tokens'] * 100) if control_metrics['avg_prompt_tokens'] > 0 else 0,
+        }
+    
+    return {
+        'experiment_id': experiment_id,
+        'control_group': control_metrics,
+        'variant_group': variant_metrics,
+        'comparison': comparison,
+        'sample_size': {
+            'control': len(control),
+            'variant': len(variant),
+        }
+    }

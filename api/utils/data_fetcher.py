@@ -4,6 +4,9 @@ Location: api/utils/data_fetcher.py
 
 All database queries and data retrieval functions.
 Migrated from Streamlit dashboard - no caching decorators.
+
+UPDATED: Added conversation_id, user_id, experiment_id filters
+UPDATED: Enhanced _llm_call_to_dict() with all new top-level fields
 """
 
 import os
@@ -146,10 +149,15 @@ def get_llm_calls(
     has_quality_eval: Optional[bool] = None,
     has_routing: Optional[bool] = None,
     has_cache: Optional[bool] = None,
+    conversation_id: Optional[str] = None,  # NEW
+    user_id: Optional[str] = None,          # NEW
+    experiment_id: Optional[str] = None,    # NEW
     limit: int = 1000
 ) -> List[Dict[str, Any]]:
     """
     Get LLM calls with optional filters.
+    
+    UPDATED: Added conversation_id, user_id, experiment_id filters
     
     Args:
         project_name: Filter by project name
@@ -163,6 +171,9 @@ def get_llm_calls(
         has_quality_eval: If True, only return calls with quality evaluation
         has_routing: If True, only return calls with routing decision
         has_cache: If True, only return calls with cache metadata
+        conversation_id: Filter by conversation ID (NEW)
+        user_id: Filter by user ID (NEW)
+        experiment_id: Filter by experiment ID (NEW)
         limit: Maximum number of calls to return
     
     Returns:
@@ -180,6 +191,9 @@ def get_llm_calls(
         start_time=start_time,
         end_time=end_time,
         success_only=success_only,
+        conversation_id=conversation_id,  # NEW
+        user_id=user_id,                  # NEW
+        experiment_id=experiment_id,      # NEW
         limit=limit
     )
     
@@ -205,12 +219,47 @@ def get_llm_calls(
     return result
 
 
+def get_conversation(
+    conversation_id: str,
+    project_name: Optional[str] = None,
+) -> List[Dict]:
+    """
+    Get all calls in a conversation, ordered by turn number.
+    
+    NEW FUNCTION
+    
+    Args:
+        conversation_id: Conversation ID
+        project_name: Optional project filter
+    
+    Returns:
+        List of LLM calls in conversation order
+    """
+    storage = get_storage()
+    
+    calls = storage.get_llm_calls(
+        project_name=project_name,
+        conversation_id=conversation_id,
+        limit=1000,
+    )
+    
+    # Convert to dicts and sort by turn_number
+    call_dicts = [_llm_call_to_dict(call) for call in calls]
+    call_dicts.sort(key=lambda x: x.get('turn_number') or 0)
+    
+    return call_dicts
+
+
 # =============================================================================
-# CONVERSION: LLMCall to Dict
+# CONVERSION: LLMCall to Dict (UPDATED)
 # =============================================================================
 
 def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
-    """Convert LLMCall Pydantic model to dictionary."""
+    """
+    Convert LLMCall Pydantic model to dictionary.
+    
+    UPDATED: Added all new top-level fields
+    """
     data = {
         # Basic fields
         'id': call.id,
@@ -241,9 +290,52 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
         'error': call.error,
         'success': call.success if call.success is not None else True,
         
-        # A/B testing
+        # A/B testing (existing)
         'prompt_variant_id': call.prompt_variant_id,
         'test_dataset_id': call.test_dataset_id,
+        
+        # NEW: Conversation linking
+        'conversation_id': getattr(call, 'conversation_id', None),
+        'turn_number': getattr(call, 'turn_number', None),
+        'parent_call_id': getattr(call, 'parent_call_id', None),
+        'user_id': getattr(call, 'user_id', None),
+        
+        # NEW: Model configuration
+        'temperature': getattr(call, 'temperature', None),
+        'max_tokens': getattr(call, 'max_tokens', None),
+        'top_p': getattr(call, 'top_p', None),
+        
+        # NEW: Token breakdown (promoted to top-level)
+        'system_prompt_tokens': getattr(call, 'system_prompt_tokens', None),
+        'user_message_tokens': getattr(call, 'user_message_tokens', None),
+        'chat_history_tokens': getattr(call, 'chat_history_tokens', None),
+        'conversation_context_tokens': getattr(call, 'conversation_context_tokens', None),
+        'tool_definitions_tokens': getattr(call, 'tool_definitions_tokens', None),
+        
+        # NEW: Tool tracking
+        'tool_call_count': getattr(call, 'tool_call_count', None),
+        'tool_execution_time_ms': getattr(call, 'tool_execution_time_ms', None),
+        
+        # NEW: Streaming
+        'time_to_first_token_ms': getattr(call, 'time_to_first_token_ms', None),
+        
+        # NEW: Error details
+        'error_type': getattr(call, 'error_type', None),
+        'error_code': getattr(call, 'error_code', None),
+        'retry_count': getattr(call, 'retry_count', None),
+        
+        # NEW: Cached tokens
+        'cached_prompt_tokens': getattr(call, 'cached_prompt_tokens', None),
+        'cached_token_savings': getattr(call, 'cached_token_savings', None),
+        
+        # NEW: Observability
+        'trace_id': getattr(call, 'trace_id', None),
+        'request_id': getattr(call, 'request_id', None),
+        'environment': getattr(call, 'environment', None),
+        
+        # NEW: Experiment tracking
+        'experiment_id': getattr(call, 'experiment_id', None),
+        'control_group': getattr(call, 'control_group', None),
         
         # Flexible metadata
         'metadata': call.metadata,
@@ -300,7 +392,7 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
     else:
         data['quality_evaluation'] = None
     
-    # Prompt Breakdown
+    # Prompt Breakdown (UPDATED with new fields)
     if hasattr(call, 'prompt_breakdown') and call.prompt_breakdown:
         data['prompt_breakdown'] = {
             'system_prompt': call.prompt_breakdown.system_prompt,
@@ -311,6 +403,17 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
             'user_message': call.prompt_breakdown.user_message,
             'user_message_tokens': call.prompt_breakdown.user_message_tokens,
             'response_text': call.prompt_breakdown.response_text,
+            # NEW fields
+            'conversation_context': getattr(call.prompt_breakdown, 'conversation_context', None),
+            'conversation_context_tokens': getattr(call.prompt_breakdown, 'conversation_context_tokens', None),
+            'tool_definitions': getattr(call.prompt_breakdown, 'tool_definitions', None),
+            'tool_definitions_tokens': getattr(call.prompt_breakdown, 'tool_definitions_tokens', None),
+            'tool_definitions_count': getattr(call.prompt_breakdown, 'tool_definitions_count', None),
+            'total_input_tokens': getattr(call.prompt_breakdown, 'total_input_tokens', None),
+            'system_to_total_ratio': getattr(call.prompt_breakdown, 'system_to_total_ratio', None),
+            'history_to_total_ratio': getattr(call.prompt_breakdown, 'history_to_total_ratio', None),
+            'context_to_total_ratio': getattr(call.prompt_breakdown, 'context_to_total_ratio', None),
+            'response_tokens': getattr(call.prompt_breakdown, 'response_tokens', None),
         }
     else:
         data['prompt_breakdown'] = None
@@ -328,6 +431,66 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
         }
     else:
         data['prompt_metadata'] = None
+    
+    # NEW: Model Config
+    if hasattr(call, 'llm_config') and call.llm_config:
+        data['model_config'] = {  # Keep as 'model_config' in dict for API compatibility
+            'temperature': call.llm_config.temperature,
+            'max_tokens': call.llm_config.max_tokens,
+            'top_p': call.llm_config.top_p,
+            'frequency_penalty': getattr(call.llm_config, 'frequency_penalty', None),
+            'presence_penalty': getattr(call.llm_config, 'presence_penalty', None),
+            'stop_sequences': getattr(call.llm_config, 'stop_sequences', None),
+            'response_format': getattr(call.llm_config, 'response_format', None),
+            'seed': getattr(call.llm_config, 'seed', None),
+        }
+    else:
+        data['model_config'] = None
+    
+    # NEW: Streaming Metrics
+    if hasattr(call, 'streaming_metrics') and call.streaming_metrics:
+        data['streaming_metrics'] = {
+            'is_streaming': call.streaming_metrics.is_streaming,
+            'time_to_first_token_ms': call.streaming_metrics.time_to_first_token_ms,
+            'stream_chunk_count': getattr(call.streaming_metrics, 'stream_chunk_count', None),
+            'stream_interrupted': getattr(call.streaming_metrics, 'stream_interrupted', None),
+            'average_chunk_size': getattr(call.streaming_metrics, 'average_chunk_size', None),
+        }
+    else:
+        data['streaming_metrics'] = None
+    
+    # NEW: Experiment Metadata
+    if hasattr(call, 'experiment_metadata') and call.experiment_metadata:
+        data['experiment_metadata'] = {
+            'experiment_id': call.experiment_metadata.experiment_id,
+            'experiment_name': getattr(call.experiment_metadata, 'experiment_name', None),
+            'variant_id': getattr(call.experiment_metadata, 'variant_id', None),
+            'variant_name': getattr(call.experiment_metadata, 'variant_name', None),
+            'control_group': call.experiment_metadata.control_group,
+            'hypothesis': getattr(call.experiment_metadata, 'hypothesis', None),
+            'expected_improvement': getattr(call.experiment_metadata, 'expected_improvement', None),
+        }
+    else:
+        data['experiment_metadata'] = None
+    
+    # NEW: Error Details
+    if hasattr(call, 'error_details') and call.error_details:
+        data['error_details'] = {
+            'error_type': call.error_details.error_type,
+            'error_code': call.error_details.error_code,
+            'retry_count': call.error_details.retry_count,
+            'retry_strategy': getattr(call.error_details, 'retry_strategy', None),
+            'final_success': getattr(call.error_details, 'final_success', None),
+            'error_details': getattr(call.error_details, 'error_details', None),
+        }
+    else:
+        data['error_details'] = None
+    
+    # NEW: Tool Calls Made
+    if hasattr(call, 'tool_calls_made') and call.tool_calls_made:
+        data['tool_calls_made'] = call.tool_calls_made
+    else:
+        data['tool_calls_made'] = None
     
     return data
 

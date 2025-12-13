@@ -491,6 +491,11 @@ def create_prompt_metadata(
     )
 
 
+
+from typing import Optional, List, Dict
+from observatory.models import PromptBreakdown
+
+
 def create_prompt_breakdown(
     system_prompt: Optional[str] = None,
     system_prompt_tokens: Optional[int] = None,
@@ -499,9 +504,15 @@ def create_prompt_breakdown(
     user_message: Optional[str] = None,
     user_message_tokens: Optional[int] = None,
     response_text: Optional[str] = None,
+    conversation_context: Optional[str] = None,          # NEW
+    conversation_context_tokens: Optional[int] = None,   # NEW
+    tool_definitions: Optional[List[Dict]] = None,       # NEW
+    tool_definitions_tokens: Optional[int] = None,       # NEW
 ) -> PromptBreakdown:
     """
     Convenience function to create PromptBreakdown.
+    
+    UPDATED: Added conversation_context, tool_definitions, and ratio calculations
     
     Args:
         system_prompt: System prompt text
@@ -511,21 +522,60 @@ def create_prompt_breakdown(
         user_message: User message text
         user_message_tokens: Token count
         response_text: Response text
+        conversation_context: Memory/state text (NEW)
+        conversation_context_tokens: Context token count (NEW)
+        tool_definitions: Function calling schemas (NEW)
+        tool_definitions_tokens: Tool schemas token count (NEW)
     
     Returns:
-        PromptBreakdown object
+        PromptBreakdown object with complete token breakdown
     """
+    # Calculate totals
+    total_input = (
+        (system_prompt_tokens or 0) +
+        (user_message_tokens or 0) +
+        (chat_history_tokens or 0) +
+        (conversation_context_tokens or 0) +
+        (tool_definitions_tokens or 0)
+    )
+    
+    # Calculate ratios
+    system_ratio = (system_prompt_tokens or 0) / total_input if total_input > 0 else 0.0
+    history_ratio = (chat_history_tokens or 0) / total_input if total_input > 0 else 0.0
+    context_ratio = (conversation_context_tokens or 0) / total_input if total_input > 0 else 0.0
+    
     return PromptBreakdown(
+        # System prompt
         system_prompt=system_prompt[:2000] if system_prompt else None,
         system_prompt_tokens=system_prompt_tokens,
+        
+        # Chat history
         chat_history=chat_history,
         chat_history_tokens=chat_history_tokens,
         chat_history_count=len(chat_history) if chat_history else 0,
+        
+        # User message
         user_message=user_message[:1000] if user_message else None,
         user_message_tokens=user_message_tokens,
+        
+        # Response
         response_text=response_text[:2000] if response_text else None,
+        
+        # NEW: Conversation context
+        conversation_context=conversation_context[:500] if conversation_context else None,
+        conversation_context_tokens=conversation_context_tokens,
+        
+        # NEW: Tool definitions
+        tool_definitions=tool_definitions,
+        tool_definitions_tokens=tool_definitions_tokens,
+        tool_definitions_count=len(tool_definitions) if tool_definitions else 0,
+        
+        # NEW: Totals and ratios
+        total_input_tokens=total_input,
+        system_to_total_ratio=system_ratio,
+        history_to_total_ratio=history_ratio,
+        context_to_total_ratio=context_ratio,
     )
-
 
 def estimate_tokens(text: str) -> int:
     """Estimate token count (rough: 4 chars ≈ 1 token)."""

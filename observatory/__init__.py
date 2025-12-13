@@ -26,12 +26,9 @@ Usage:
     cache = CacheManager(observatory=obs, operations={"search": {"ttl": 3600}})
     router = ModelRouter(observatory=obs, default_model="gpt-4o-mini")
     prompts = PromptManager(observatory=obs)
-
-UPDATED: Added compute_content_hash export for cache key generation
-UPDATED: Added prompt_normalized parameter to track_llm_call
 """
 
-__version__ = "0.2.2"
+__version__ = "0.3.0"  # Updated for comprehensive schema
 
 # =============================================================================
 # CORE IMPORTS
@@ -47,7 +44,7 @@ from observatory.collector import (
 from observatory.storage import Storage
 
 # =============================================================================
-# MODEL IMPORTS
+# MODEL IMPORTS (UPDATED)
 # =============================================================================
 
 from observatory.models import (
@@ -60,12 +57,18 @@ from observatory.models import (
     ModelProvider,
     AgentRole,
     
-    # Tracking metadata
+    # Tracking metadata (existing)
     RoutingDecision,
     CacheMetadata,
     QualityEvaluation,
     PromptBreakdown,
     PromptMetadata,
+    
+    # NEW: Additional tracking models
+    ModelConfig,
+    StreamingMetrics,
+    ExperimentMetadata,
+    ErrorDetails,
     
     # Breakdown models
     CostBreakdown,
@@ -90,7 +93,7 @@ from observatory.cache import (
     CacheManager,
     CacheEntry,
     create_cache_metadata,
-    compute_content_hash,  # NEW: Public hash function
+    compute_content_hash,
 )
 
 from observatory.router import (
@@ -108,7 +111,7 @@ from observatory.prompts import (
 )
 
 # =============================================================================
-# CONVENIENCE FUNCTION: track_llm_call
+# CONVENIENCE FUNCTION: track_llm_call (UPDATED)
 # =============================================================================
 
 from typing import Optional, Dict, List, Any
@@ -154,11 +157,62 @@ def track_llm_call(
     prompt_variant_id: str = None,
     test_dataset_id: str = None,
     
+    # NEW: Conversation linking
+    conversation_id: str = None,
+    turn_number: int = None,
+    parent_call_id: str = None,
+    user_id: str = None,
+    
+    # NEW: Model configuration
+    temperature: float = None,
+    max_tokens: int = None,
+    top_p: float = None,
+    model_config: ModelConfig = None,
+    
+    # NEW: Token breakdown (top-level)
+    system_prompt_tokens: int = None,
+    user_message_tokens: int = None,
+    chat_history_tokens: int = None,
+    conversation_context_tokens: int = None,
+    tool_definitions_tokens: int = None,
+    
+    # NEW: Tool/function calling
+    tool_calls_made: List[Dict] = None,
+    tool_call_count: int = None,
+    tool_execution_time_ms: float = None,
+    
+    # NEW: Streaming
+    time_to_first_token_ms: float = None,
+    streaming_metrics: StreamingMetrics = None,
+    
+    # NEW: Error details
+    error_type: str = None,
+    error_code: str = None,
+    retry_count: int = None,
+    error_details: ErrorDetails = None,
+    
+    # NEW: Cached tokens
+    cached_prompt_tokens: int = None,
+    cached_token_savings: float = None,
+    
+    # NEW: Observability
+    trace_id: str = None,
+    request_id: str = None,
+    environment: str = None,
+    
+    # NEW: Experiment tracking
+    experiment_id: str = None,
+    control_group: bool = None,
+    experiment_metadata: ExperimentMetadata = None,
+    
     # Custom metadata
     metadata: dict = None,
 ) -> LLMCall:
     """
     Convenience function to track an LLM call.
+    
+    UPDATED: Added comprehensive tracking for conversation linking, model config,
+             tool usage, streaming, error details, experiments, and observability.
     
     Args:
         observatory: Observatory instance
@@ -185,6 +239,36 @@ def track_llm_call(
         prompt_metadata: Prompt template metadata
         prompt_variant_id: A/B test variant ID
         test_dataset_id: Test dataset ID for evaluation
+        conversation_id: Conversation identifier (NEW)
+        turn_number: Turn number in conversation (NEW)
+        parent_call_id: Parent call for retries (NEW)
+        user_id: User identifier (NEW)
+        temperature: Model temperature (NEW)
+        max_tokens: Max tokens limit (NEW)
+        top_p: Top-p sampling (NEW)
+        model_config: Full model configuration (NEW)
+        system_prompt_tokens: System prompt token count (NEW)
+        user_message_tokens: User message token count (NEW)
+        chat_history_tokens: Chat history token count (NEW)
+        conversation_context_tokens: Memory state token count (NEW)
+        tool_definitions_tokens: Tool schemas token count (NEW)
+        tool_calls_made: List of tool calls (NEW)
+        tool_call_count: Number of tools called (NEW)
+        tool_execution_time_ms: Tool execution time (NEW)
+        time_to_first_token_ms: TTFT for streaming (NEW)
+        streaming_metrics: Streaming performance data (NEW)
+        error_type: Error classification (NEW)
+        error_code: Error code from provider (NEW)
+        retry_count: Number of retries (NEW)
+        error_details: Full error details (NEW)
+        cached_prompt_tokens: Tokens served from cache (NEW)
+        cached_token_savings: Cost saved via caching (NEW)
+        trace_id: OpenTelemetry trace ID (NEW)
+        request_id: Provider request ID (NEW)
+        environment: Deployment environment (NEW)
+        experiment_id: A/B test experiment ID (NEW)
+        control_group: Is this control group (NEW)
+        experiment_metadata: Full experiment data (NEW)
         metadata: Additional metadata dict
     
     Returns:
@@ -214,12 +298,43 @@ def track_llm_call(
         prompt_metadata=prompt_metadata,
         prompt_variant_id=prompt_variant_id,
         test_dataset_id=test_dataset_id,
+        # NEW parameters
+        conversation_id=conversation_id,
+        turn_number=turn_number,
+        parent_call_id=parent_call_id,
+        user_id=user_id,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        top_p=top_p,
+        model_config=model_config,
+        system_prompt_tokens=system_prompt_tokens,
+        user_message_tokens=user_message_tokens,
+        chat_history_tokens=chat_history_tokens,
+        conversation_context_tokens=conversation_context_tokens,
+        tool_definitions_tokens=tool_definitions_tokens,
+        tool_calls_made=tool_calls_made,
+        tool_call_count=tool_call_count,
+        tool_execution_time_ms=tool_execution_time_ms,
+        time_to_first_token_ms=time_to_first_token_ms,
+        streaming_metrics=streaming_metrics,
+        error_type=error_type,
+        error_code=error_code,
+        retry_count=retry_count,
+        error_details=error_details,
+        cached_prompt_tokens=cached_prompt_tokens,
+        cached_token_savings=cached_token_savings,
+        trace_id=trace_id,
+        request_id=request_id,
+        environment=environment,
+        experiment_id=experiment_id,
+        control_group=control_group,
+        experiment_metadata=experiment_metadata,
         metadata=metadata or {},
     )
 
 
 # =============================================================================
-# EXPORTS
+# EXPORTS (UPDATED)
 # =============================================================================
 
 __all__ = [
@@ -240,7 +355,7 @@ __all__ = [
     "PromptManager",
     "PromptTemplate",
     
-    # Models
+    # Models (existing)
     "Session",
     "LLMCall",
     "SessionReport",
@@ -259,6 +374,12 @@ __all__ = [
     "CacheMetrics",
     "OptimizationSuggestion",
     
+    # NEW: Additional models
+    "ModelConfig",
+    "StreamingMetrics",
+    "ExperimentMetadata",
+    "ErrorDetails",
+    
     # Convenience functions
     "track_llm_call",
     "create_quality_evaluation",
@@ -269,5 +390,5 @@ __all__ = [
     "estimate_tokens",
     "calculate_cost",
     "generate_prompt_hash",
-    "compute_content_hash",  # NEW
+    "compute_content_hash",
 ]
