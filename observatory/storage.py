@@ -1,5 +1,5 @@
 # observatory/storage.py
-# UPDATED: Complete database schema with all new fields for production observability
+# UPDATED: Complete database schema with 27 new extracted columns for fast analytics
 
 
 import os
@@ -88,57 +88,102 @@ class LLMCallDB(Base):
     success = Column(Boolean, default=True)
     error = Column(Text, nullable=True)
     
-    # === NEW: CONVERSATION LINKING ===
+    # === EXISTING: CONVERSATION LINKING ===
     conversation_id = Column(String, nullable=True, index=True)
     turn_number = Column(Integer, nullable=True)
     parent_call_id = Column(String, nullable=True)
     user_id = Column(String, nullable=True, index=True)
     
-    # === NEW: MODEL CONFIGURATION (top-level for common params) ===
+    # === EXISTING: MODEL CONFIGURATION ===
     temperature = Column(Float, nullable=True)
     max_tokens = Column(Integer, nullable=True)
     top_p = Column(Float, nullable=True)
     
-    # === NEW: TOKEN BREAKDOWN (promoted for query performance) ===
+    # === EXISTING: TOKEN BREAKDOWN ===
     system_prompt_tokens = Column(Integer, nullable=True, index=True)
     user_message_tokens = Column(Integer, nullable=True)
     chat_history_tokens = Column(Integer, nullable=True)
     conversation_context_tokens = Column(Integer, nullable=True)
     tool_definitions_tokens = Column(Integer, nullable=True)
     
-    # === NEW: TOOL/FUNCTION CALLING ===
+    # === EXISTING: TOOL/FUNCTION CALLING ===
     tool_call_count = Column(Integer, nullable=True)
     tool_execution_time_ms = Column(Float, nullable=True)
     
-    # === NEW: STREAMING ===
+    # === EXISTING: STREAMING ===
     time_to_first_token_ms = Column(Float, nullable=True)
     
-    # === NEW: ERROR DETAILS ===
+    # === EXISTING: ERROR DETAILS ===
     error_type = Column(String, nullable=True, index=True)
     error_code = Column(String, nullable=True)
     retry_count = Column(Integer, nullable=True)
     
-    # === NEW: CACHED TOKENS ===
+    # === EXISTING: CACHED TOKENS ===
     cached_prompt_tokens = Column(Integer, nullable=True)
     cached_token_savings = Column(Float, nullable=True)
     
-    # === NEW: OBSERVABILITY ===
+    # === EXISTING: OBSERVABILITY ===
     trace_id = Column(String, nullable=True, index=True)
     request_id = Column(String, nullable=True)
     environment = Column(String, nullable=True, index=True)
     
-    # === NEW: EXPERIMENT TRACKING ===
+    # === EXISTING: EXPERIMENT TRACKING ===
     experiment_id = Column(String, nullable=True, index=True)
     control_group = Column(Boolean, nullable=True)
     
-    # === EXISTING: Enhanced fields (JSON) ===
+    # ========================================================================
+    # === NEW: 27 EXTRACTED COLUMNS FOR FAST ANALYTICS ===
+    # ========================================================================
+    
+    # === TIER 1: Extracted from JSON (11 columns) ===
+    system_prompt = Column(Text, nullable=True, index=True)  # Story 2, 6 - GROUP BY queries
+    user_message = Column(Text, nullable=True)  # Story 2, 6 - Pattern analysis
+    cache_hit = Column(Boolean, nullable=True, index=True)  # Story 2 - Fast filtering
+    cache_key = Column(String, nullable=True, index=True)  # Story 2 - Duplicate detection
+    judge_score = Column(Float, nullable=True)  # Story 4 - Quality sorting
+    hallucination_flag = Column(Boolean, nullable=True, index=True)  # Story 4 - Fast filtering
+    chosen_model = Column(String, nullable=True)  # Story 3 - Routing analysis
+    complexity_score = Column(Float, nullable=True)  # Story 3 - Routing decisions
+    estimated_cost_savings = Column(Float, nullable=True)  # Story 3 - ROI tracking
+    error_category = Column(String, nullable=True, index=True)  # Story 4 - Error grouping
+    prompt_template_id = Column(String, nullable=True, index=True)  # Story 6 - Template analysis
+    
+    # === TIER 2: Model Quality (4 columns) ===
+    model_version = Column(String, nullable=True)  # Model drift tracking
+    confidence_score = Column(Float, nullable=True)  # Quality confidence
+    evidence_cited = Column(Boolean, nullable=True)  # Citation tracking
+    factual_error = Column(Boolean, nullable=True)  # Factual accuracy
+    
+    # === TIER 3: User Experience (2 columns) ===
+    response_length_chars = Column(Integer, nullable=True)  # Response size tracking
+    response_length_words = Column(Integer, nullable=True)  # Word count tracking
+    
+    # === TIER 4: Business Attribution (3 columns) ===
+    team_id = Column(String, nullable=True, index=True)  # Team cost attribution
+    business_outcome = Column(String, nullable=True, index=True)  # Conversion tracking
+    conversion_event = Column(Boolean, nullable=True)  # ROI tracking
+    
+    # === TIER 5: Compliance (3 columns) ===
+    contains_pii = Column(Boolean, nullable=True, index=True)  # GDPR compliance
+    data_retention_days = Column(Integer, nullable=True)  # Auto-cleanup
+    geographic_region = Column(String, nullable=True, index=True)  # Data residency
+    
+    # === TIER 6: Token Economics (3 columns) ===
+    compression_ratio = Column(Float, nullable=True)  # Prompt compression tracking
+    compression_method = Column(String, nullable=True)  # Compression technique
+    cost_per_quality_point = Column(Float, nullable=True)  # Efficiency metric
+    
+    # === TIER 7: Debugging (1 column) ===
+    is_retry = Column(Boolean, nullable=True, index=True)  # Retry chain tracking
+    
+    # ========================================================================
+    # === EXISTING: JSON FIELDS (keep for detailed breakdown) ===
+    # ========================================================================
     routing_decision = Column(JSON, nullable=True)
     cache_metadata = Column(JSON, nullable=True)
     quality_evaluation = Column(JSON, nullable=True)
     prompt_breakdown = Column(JSON, nullable=True)
     prompt_metadata = Column(JSON, nullable=True)
-    
-    # === NEW: Complex objects (JSON) ===
     model_config = Column(JSON, nullable=True)
     streaming_metrics = Column(JSON, nullable=True)
     experiment_metadata = Column(JSON, nullable=True)
@@ -162,7 +207,7 @@ class Storage:
         self.SessionLocal = sessionmaker(bind=self.engine)
 
     # =========================================================================
-    # SESSION CONVERSION
+    # SESSION CONVERSION (UNCHANGED)
     # =========================================================================
 
     def _to_session_db(self, session: Session) -> SessionDB:
@@ -214,7 +259,7 @@ class Storage:
         )
 
     # =========================================================================
-    # LLM CALL CONVERSION (UPDATED)
+    # LLM CALL CONVERSION (UPDATED WITH 27 NEW FIELDS)
     # =========================================================================
 
     def _to_llm_call_db(self, llm_call: LLMCall) -> LLMCallDB:
@@ -224,12 +269,61 @@ class Storage:
         quality_data = llm_call.quality_evaluation.model_dump() if llm_call.quality_evaluation else None
         breakdown_data = llm_call.prompt_breakdown.model_dump() if llm_call.prompt_breakdown else None
         metadata_data = llm_call.prompt_metadata.model_dump() if llm_call.prompt_metadata else None
-        
-        # NEW: Convert new model types
         model_config_data = llm_call.llm_config.model_dump() if llm_call.llm_config else None
         streaming_data = llm_call.streaming_metrics.model_dump() if llm_call.streaming_metrics else None
         experiment_data = llm_call.experiment_metadata.model_dump() if llm_call.experiment_metadata else None
         error_details_data = llm_call.error_details.model_dump() if llm_call.error_details else None
+        
+        # =====================================================================
+        # EXTRACT VALUES FROM JSON FOR NEW COLUMNS
+        # =====================================================================
+        
+        # Extract from prompt_breakdown
+        system_prompt = breakdown_data.get('system_prompt') if breakdown_data else None
+        user_message = breakdown_data.get('user_message') if breakdown_data else None
+        
+        # Extract from cache_metadata
+        cache_hit = cache_data.get('cache_hit') if cache_data else None
+        cache_key = cache_data.get('cache_key') if cache_data else None
+        
+        # Extract from quality_evaluation
+        judge_score = quality_data.get('judge_score') if quality_data else None
+        hallucination_flag = quality_data.get('hallucination_flag') if quality_data else None
+        confidence_score = quality_data.get('confidence_score') if quality_data else None
+        evidence_cited = quality_data.get('evidence_cited') if quality_data else None
+        factual_error = quality_data.get('factual_error') if quality_data else None
+        error_category = quality_data.get('error_category') if quality_data else None
+        
+        # Extract from routing_decision
+        chosen_model = routing_data.get('chosen_model') if routing_data else None
+        complexity_score = routing_data.get('complexity_score') if routing_data else None
+        estimated_cost_savings = routing_data.get('estimated_cost_savings') if routing_data else None
+        
+        # Extract from prompt_metadata
+        prompt_template_id = metadata_data.get('prompt_template_id') if metadata_data else None
+        
+        # Extract from model_config
+        model_version = model_config_data.get('model_version') if model_config_data else None
+        
+        # Calculate response lengths if response_text exists
+        response_length_chars = len(llm_call.response_text) if llm_call.response_text else None
+        response_length_words = len(llm_call.response_text.split()) if llm_call.response_text else None
+        
+        # Calculate cost per quality point
+        cost_per_quality_point = None
+        if judge_score and judge_score > 0:
+            cost_per_quality_point = llm_call.total_cost / judge_score
+        
+        # Get metadata fields (these come from llm_call.metadata dict)
+        team_id = llm_call.metadata.get('team_id') if llm_call.metadata else None
+        business_outcome = llm_call.metadata.get('business_outcome') if llm_call.metadata else None
+        conversion_event = llm_call.metadata.get('conversion_event') if llm_call.metadata else None
+        contains_pii = llm_call.metadata.get('contains_pii') if llm_call.metadata else None
+        data_retention_days = llm_call.metadata.get('data_retention_days') if llm_call.metadata else None
+        geographic_region = llm_call.metadata.get('geographic_region') if llm_call.metadata else None
+        compression_ratio = llm_call.metadata.get('compression_ratio') if llm_call.metadata else None
+        compression_method = llm_call.metadata.get('compression_method') if llm_call.metadata else None
+        is_retry = llm_call.metadata.get('is_retry') if llm_call.metadata else None
         
         return LLMCallDB(
             id=llm_call.id,
@@ -253,64 +347,93 @@ class Storage:
             success=llm_call.success,
             error=llm_call.error,
             
-            # NEW: Conversation linking
+            # Conversation linking
             conversation_id=llm_call.conversation_id,
             turn_number=llm_call.turn_number,
             parent_call_id=llm_call.parent_call_id,
             user_id=llm_call.user_id,
             
-            # NEW: Model config (top-level)
+            # Model config
             temperature=llm_call.temperature,
             max_tokens=llm_call.max_tokens,
             top_p=llm_call.top_p,
             
-            # NEW: Token breakdown (promoted)
+            # Token breakdown
             system_prompt_tokens=llm_call.system_prompt_tokens,
             user_message_tokens=llm_call.user_message_tokens,
             chat_history_tokens=llm_call.chat_history_tokens,
             conversation_context_tokens=llm_call.conversation_context_tokens,
             tool_definitions_tokens=llm_call.tool_definitions_tokens,
             
-            # NEW: Tool tracking
+            # Tool tracking
             tool_call_count=llm_call.tool_call_count,
             tool_execution_time_ms=llm_call.tool_execution_time_ms,
             
-            # NEW: Streaming
+            # Streaming
             time_to_first_token_ms=llm_call.time_to_first_token_ms,
             
-            # NEW: Error details
+            # Error details
             error_type=llm_call.error_type,
             error_code=llm_call.error_code,
             retry_count=llm_call.retry_count,
             
-            # NEW: Cached tokens
+            # Cached tokens
             cached_prompt_tokens=llm_call.cached_prompt_tokens,
             cached_token_savings=llm_call.cached_token_savings,
             
-            # NEW: Observability
+            # Observability
             trace_id=llm_call.trace_id,
             request_id=llm_call.request_id,
             environment=llm_call.environment,
             
-            # NEW: Experiment tracking
+            # Experiment tracking
             experiment_id=llm_call.experiment_id,
             control_group=llm_call.control_group,
             
-            # Existing JSON fields
+            # ================================================================
+            # NEW: 27 EXTRACTED COLUMNS
+            # ================================================================
+            system_prompt=system_prompt,
+            user_message=user_message,
+            cache_hit=cache_hit,
+            cache_key=cache_key,
+            judge_score=judge_score,
+            hallucination_flag=hallucination_flag,
+            chosen_model=chosen_model,
+            complexity_score=complexity_score,
+            estimated_cost_savings=estimated_cost_savings,
+            error_category=error_category,
+            prompt_template_id=prompt_template_id,
+            model_version=model_version,
+            confidence_score=confidence_score,
+            evidence_cited=evidence_cited,
+            factual_error=factual_error,
+            response_length_chars=response_length_chars,
+            response_length_words=response_length_words,
+            team_id=team_id,
+            business_outcome=business_outcome,
+            conversion_event=conversion_event,
+            contains_pii=contains_pii,
+            data_retention_days=data_retention_days,
+            geographic_region=geographic_region,
+            compression_ratio=compression_ratio,
+            compression_method=compression_method,
+            cost_per_quality_point=cost_per_quality_point,
+            is_retry=is_retry,
+            
+            # JSON fields (keep for full details)
             routing_decision=routing_data,
             cache_metadata=cache_data,
             quality_evaluation=quality_data,
             prompt_breakdown=breakdown_data,
             prompt_metadata=metadata_data,
-            
-            # NEW: Complex objects (JSON)
             model_config=model_config_data,
             streaming_metrics=streaming_data,
             experiment_metadata=experiment_data,
             error_details=error_details_data,
             tool_calls_made=llm_call.tool_calls_made,
             
-            # Existing A/B testing
+            # A/B testing
             prompt_variant_id=llm_call.prompt_variant_id,
             test_dataset_id=llm_call.test_dataset_id,
             
@@ -339,7 +462,6 @@ class Storage:
         if llm_call_db.prompt_metadata:
             prompt_metadata = PromptMetadata(**llm_call_db.prompt_metadata)
         
-        # NEW: Convert new model types
         llm_config = None
         if llm_call_db.model_config:
             llm_config = ModelConfig(**llm_call_db.model_config)
@@ -378,66 +500,68 @@ class Storage:
             success=llm_call_db.success,
             error=llm_call_db.error,
             
-            # NEW: Conversation linking
+            # Conversation linking
             conversation_id=llm_call_db.conversation_id,
             turn_number=llm_call_db.turn_number,
             parent_call_id=llm_call_db.parent_call_id,
             user_id=llm_call_db.user_id,
             
-            # NEW: Model config
+            # Model config
             temperature=llm_call_db.temperature,
             max_tokens=llm_call_db.max_tokens,
             top_p=llm_call_db.top_p,
             
-            # NEW: Token breakdown
+            # Token breakdown
             system_prompt_tokens=llm_call_db.system_prompt_tokens,
             user_message_tokens=llm_call_db.user_message_tokens,
             chat_history_tokens=llm_call_db.chat_history_tokens,
             conversation_context_tokens=llm_call_db.conversation_context_tokens,
             tool_definitions_tokens=llm_call_db.tool_definitions_tokens,
             
-            # NEW: Tool tracking
+            # Tool tracking
             tool_call_count=llm_call_db.tool_call_count,
             tool_execution_time_ms=llm_call_db.tool_execution_time_ms,
             
-            # NEW: Streaming
+            # Streaming
             time_to_first_token_ms=llm_call_db.time_to_first_token_ms,
             
-            # NEW: Error details
+            # Error details
             error_type=llm_call_db.error_type,
             error_code=llm_call_db.error_code,
             retry_count=llm_call_db.retry_count,
             
-            # NEW: Cached tokens
+            # Cached tokens
             cached_prompt_tokens=llm_call_db.cached_prompt_tokens,
             cached_token_savings=llm_call_db.cached_token_savings,
             
-            # NEW: Observability
+            # Observability
             trace_id=llm_call_db.trace_id,
             request_id=llm_call_db.request_id,
             environment=llm_call_db.environment,
             
-            # NEW: Experiment tracking
+            # Experiment tracking
             experiment_id=llm_call_db.experiment_id,
             control_group=llm_call_db.control_group,
             
-            # Existing optimization metadata
+            # Optimization metadata
             routing_decision=routing_decision,
             cache_metadata=cache_metadata,
             quality_evaluation=quality_evaluation,
             prompt_breakdown=prompt_breakdown,
             prompt_metadata=prompt_metadata,
-            
-            # NEW: Complex objects
             llm_config=llm_config,
             streaming_metrics=streaming_metrics,
             experiment_metadata=experiment_metadata,
             error_details=error_details,
             tool_calls_made=llm_call_db.tool_calls_made,
             
-            # Existing A/B testing
+            # A/B testing
             prompt_variant_id=llm_call_db.prompt_variant_id,
             test_dataset_id=llm_call_db.test_dataset_id,
+            
+            # NOTE: The 27 new columns are extracted from JSON and stored separately
+            # They are read back from their respective JSON fields above
+            # No need to read them separately as they're derived fields
             
             metadata=llm_call_db.meta_data or {},
         )
@@ -478,6 +602,16 @@ class Storage:
             db.commit()
         finally:
             db.close()
+    
+    def update_session(self, session: Session) -> None:
+        """Update an existing session in the database."""
+        db: DBSession = self.SessionLocal()
+        try:
+            session_db = self._to_session_db(session)
+            db.merge(session_db)
+            db.commit()
+        finally:
+            db.close()
 
     def get_llm_calls(
         self,
@@ -490,30 +624,23 @@ class Storage:
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         success_only: Optional[bool] = None,
-        conversation_id: Optional[str] = None,  # NEW
-        user_id: Optional[str] = None,          # NEW
-        experiment_id: Optional[str] = None,    # NEW
+        conversation_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        experiment_id: Optional[str] = None,
         limit: int = 1000,
     ) -> List[LLMCall]:
-        """
-        Get LLM calls with optional filters.
-        
-        UPDATED: Added conversation_id, user_id, experiment_id filters
-        """
+        """Get LLM calls with optional filters."""
         db: DBSession = self.SessionLocal()
         try:
             query = db.query(LLMCallDB)
             
-            # Session filter
             if session_id:
                 query = query.filter(LLMCallDB.session_id == session_id)
             
-            # Project name filter (requires join with sessions)
             if project_name:
                 query = query.join(SessionDB, LLMCallDB.session_id == SessionDB.id)
                 query = query.filter(SessionDB.project_name == project_name)
             
-            # Basic filters
             if provider:
                 query = query.filter(LLMCallDB.provider == provider.value)
             if model_name:
@@ -523,27 +650,20 @@ class Storage:
             if operation:
                 query = query.filter(LLMCallDB.operation == operation)
             
-            # Time filters
             if start_time:
                 query = query.filter(LLMCallDB.timestamp >= start_time)
             if end_time:
                 query = query.filter(LLMCallDB.timestamp <= end_time)
             
-            # Success filter
             if success_only is True:
                 query = query.filter(LLMCallDB.success == True)
             elif success_only is False:
                 query = query.filter(LLMCallDB.success == False)
             
-            # NEW: Conversation filter
             if conversation_id:
                 query = query.filter(LLMCallDB.conversation_id == conversation_id)
-            
-            # NEW: User filter
             if user_id:
                 query = query.filter(LLMCallDB.user_id == user_id)
-            
-            # NEW: Experiment filter
             if experiment_id:
                 query = query.filter(LLMCallDB.experiment_id == experiment_id)
             
@@ -619,9 +739,7 @@ class Storage:
         """Delete a session and all its LLM calls."""
         db: DBSession = self.SessionLocal()
         try:
-            # Delete LLM calls first
             db.query(LLMCallDB).filter(LLMCallDB.session_id == session_id).delete()
-            # Delete session
             result = db.query(SessionDB).filter(SessionDB.id == session_id).delete()
             db.commit()
             return result > 0
@@ -677,3 +795,7 @@ class Storage:
             return query.scalar() or 0.0
         finally:
             db.close()
+
+
+# Singleton instance for easy access
+ObservatoryStorage = Storage

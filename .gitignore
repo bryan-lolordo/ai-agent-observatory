@@ -68,6 +68,19 @@ data/
 outputs/
 x.md
 
+# Ignore MD folder
+MD/
+
+# Ignore excel.py and x.py
+excel.py
+x.py
+
+# Ignore Excel files
+*.xls
+*.xlsx
+*.xlsm
+*.xlsb
+
 
 # Test outputs  # ← ADD THIS SECTION
 test_*.py  # ← OPTIONAL: if you don't want test scripts public

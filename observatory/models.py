@@ -472,8 +472,11 @@ class Session(BaseModel):
     """Session aggregates metrics across multiple LLM calls"""
     id: str
     project_name: str
-    start_time: datetime
+    start_time: datetime = Field(default_factory=datetime.now)
     end_time: Optional[datetime] = None
+    
+    # List of LLM calls in this session
+    llm_calls: List['LLMCall'] = Field(default_factory=list)
     
     # Basic aggregated metrics
     total_llm_calls: int = 0
@@ -584,3 +587,6 @@ class SessionReport(BaseModel):
     routing_metrics: RoutingMetrics
     cache_metrics: CacheMetrics
     optimization_suggestions: List[OptimizationSuggestion] = Field(default_factory=list)
+
+# Rebuild models to resolve forward references
+Session.model_rebuild()

@@ -30,6 +30,10 @@ from observatory.models import (
     QualityEvaluation,
     PromptBreakdown,
     PromptMetadata,
+    ModelConfig,
+    StreamingMetrics,
+    ErrorDetails,
+    ExperimentMetadata,
 )
 from observatory.storage import Storage
 
@@ -120,6 +124,7 @@ class MetricsCollector:
             id=str(uuid.uuid4()),
             project_name=self.project_name,
             operation_type=operation_type,
+            start_time=datetime.now(),  # <-- ADD THIS LINE
             metadata=metadata or {},
         )
         
@@ -208,6 +213,54 @@ class MetricsCollector:
         # A/B Testing (optional)
         prompt_variant_id: Optional[str] = None,
         test_dataset_id: Optional[str] = None,
+        
+        # NEW: Conversation linking
+        conversation_id: Optional[str] = None,
+        turn_number: Optional[int] = None,
+        parent_call_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        
+        # NEW: Model configuration
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        top_p: Optional[float] = None,
+        model_config: Optional['ModelConfig'] = None,
+        
+        # NEW: Token breakdown (top-level)
+        system_prompt_tokens: Optional[int] = None,
+        user_message_tokens: Optional[int] = None,
+        chat_history_tokens: Optional[int] = None,
+        conversation_context_tokens: Optional[int] = None,
+        tool_definitions_tokens: Optional[int] = None,
+        
+        # NEW: Tool/function calling
+        tool_calls_made: Optional[List[Dict]] = None,
+        tool_call_count: Optional[int] = None,
+        tool_execution_time_ms: Optional[float] = None,
+        
+        # NEW: Streaming
+        time_to_first_token_ms: Optional[float] = None,
+        streaming_metrics: Optional['StreamingMetrics'] = None,
+        
+        # NEW: Error details
+        error_type: Optional[str] = None,
+        error_code: Optional[str] = None,
+        retry_count: Optional[int] = None,
+        error_details: Optional['ErrorDetails'] = None,
+        
+        # NEW: Cached tokens
+        cached_prompt_tokens: Optional[int] = None,
+        cached_token_savings: Optional[float] = None,
+        
+        # NEW: Observability
+        trace_id: Optional[str] = None,
+        request_id: Optional[str] = None,
+        environment: Optional[str] = None,
+        
+        # NEW: Experiment tracking
+        experiment_id: Optional[str] = None,
+        control_group: Optional[bool] = None,
+        experiment_metadata: Optional['ExperimentMetadata'] = None,
     ) -> LLMCall:
         """
         Record an LLM API call with comprehensive metrics.
@@ -332,6 +385,45 @@ class MetricsCollector:
             prompt_metadata=prompt_metadata,
             prompt_variant_id=prompt_variant_id,
             test_dataset_id=test_dataset_id,
+            # NEW: Conversation linking
+            conversation_id=conversation_id,
+            turn_number=turn_number,
+            parent_call_id=parent_call_id,
+            user_id=user_id,
+            # NEW: Model configuration
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            llm_config=model_config,
+            # NEW: Token breakdown
+            system_prompt_tokens=system_prompt_tokens,
+            user_message_tokens=user_message_tokens,
+            chat_history_tokens=chat_history_tokens,
+            conversation_context_tokens=conversation_context_tokens,
+            tool_definitions_tokens=tool_definitions_tokens,
+            # NEW: Tool tracking
+            tool_calls_made=tool_calls_made,
+            tool_call_count=tool_call_count,
+            tool_execution_time_ms=tool_execution_time_ms,
+            # NEW: Streaming
+            time_to_first_token_ms=time_to_first_token_ms,
+            streaming_metrics=streaming_metrics,
+            # NEW: Error details
+            error_type=error_type,
+            error_code=error_code,
+            retry_count=retry_count,
+            error_details=error_details,
+            # NEW: Cached tokens
+            cached_prompt_tokens=cached_prompt_tokens,
+            cached_token_savings=cached_token_savings,
+            # NEW: Observability
+            trace_id=trace_id,
+            request_id=request_id,
+            environment=environment,
+            # NEW: Experiment tracking
+            experiment_id=experiment_id,
+            control_group=control_group,
+            experiment_metadata=experiment_metadata,
         )
         
         # Update session metrics
