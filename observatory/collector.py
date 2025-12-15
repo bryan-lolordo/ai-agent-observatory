@@ -355,6 +355,26 @@ class MetricsCollector:
             full_metadata['messages'] = messages
             full_metadata['message_count'] = len(messages)
         
+        # ⭐ NEW: Auto-extract judge scores if this is a LLMJudge call
+        if agent_name == 'LLMJudge' and response_text and not quality_evaluation:
+            try:
+                import json
+                judge_data = json.loads(response_text)
+                
+                # Create QualityEvaluation from judge response
+                quality_evaluation = QualityEvaluation(
+                    judge_score=judge_data.get('score'),
+                    reasoning=judge_data.get('reasoning'),
+                    hallucination_flag=judge_data.get('hallucination', False),
+                    confidence_score=judge_data.get('confidence'),
+                    evidence_cited=judge_data.get('evidence_cited', False),
+                    factual_error=judge_data.get('factual_error', False),
+                    criteria_scores=judge_data.get('criteria_scores'),
+                )
+            except (json.JSONDecodeError, KeyError) as e:
+                # If parsing fails, keep quality_evaluation as None
+                pass
+        
         # Create the LLM call record
         llm_call = LLMCall(
             id=str(uuid.uuid4()),

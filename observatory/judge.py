@@ -211,6 +211,9 @@ class LLMJudge:
         llm_client: Any,
         context: Optional[Dict] = None,
         force: bool = False,
+        # ⭐ NEW: Conversation tracking
+        conversation_id: Optional[str] = None,
+        turn_number: Optional[int] = None,
     ) -> Optional[QualityEvaluation]:
         """
         Async evaluation with sampling.
@@ -229,7 +232,10 @@ class LLMJudge:
         if not self.should_evaluate(operation, force):
             return None
         
-        return await self._evaluate_async(operation, prompt, response, llm_client, context)
+        return await self._evaluate_async(
+            operation, prompt, response, llm_client, context,
+            conversation_id=conversation_id, turn_number=turn_number
+        )
     
     def maybe_evaluate_sync(
         self,
@@ -270,6 +276,8 @@ class LLMJudge:
         response: str,
         llm_client: Any,
         context: Optional[Dict] = None,
+        conversation_id: Optional[str] = None,  
+        turn_number: Optional[int] = None, 
     ) -> Optional[QualityEvaluation]:
         """Internal async evaluation with multi-client support."""
         try:
@@ -300,6 +308,8 @@ class LLMJudge:
                     prompt=judge_prompt[:1000],
                     response_text=result_text,
                     metadata={"client_type": client_type},
+                    conversation_id=conversation_id,
+                    turn_number=turn_number,
                 )
             
             return self._parse_and_create_evaluation(result_text, operation)

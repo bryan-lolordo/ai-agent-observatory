@@ -1,8 +1,0 @@
-[client]
-showSidebarNavigation = false
-
-[runner]
-fastReruns = true
-
-[server]
-enableXsrfProtection = false
