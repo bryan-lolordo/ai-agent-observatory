@@ -77,6 +77,28 @@ def format_percentage(value: float, precision: int = 1) -> str:
     return f"{value * 100:.{precision}f}%"
 
 
+def format_ratio(prompt_tokens: int, completion_tokens: int) -> str:
+    """
+    Format token ratio as X:1 format.
+    
+    Args:
+        prompt_tokens: Number of prompt tokens
+        completion_tokens: Number of completion tokens
+    
+    Returns:
+        Formatted ratio string like "28:1" or "3.2:1"
+    """
+    if completion_tokens == 0:
+        return "∞:1"
+    
+    ratio = prompt_tokens / completion_tokens
+    
+    if ratio >= 10:
+        return f"{ratio:.0f}:1"
+    else:
+        return f"{ratio:.1f}:1"
+
+
 def format_trend(current: float, previous: float, is_cost: bool = False) -> tuple[str, str]:
     """
     Format trend comparison with arrow and color.
@@ -235,3 +257,47 @@ def format_model_name(model_name: str) -> str:
     
     # Default: capitalize and clean
     return model_name.replace("-", " ").title()
+
+
+def format_relative_time(timestamp) -> str:
+    """
+    Format timestamp as relative time (e.g., '2 hours ago').
+    
+    Args:
+        timestamp: datetime object or ISO string
+    
+    Returns:
+        Formatted relative time string like "2 hours ago" or "just now"
+    """
+    from datetime import datetime, timezone
+    
+    # Handle string timestamps
+    if isinstance(timestamp, str):
+        try:
+            timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+        except:
+            return "unknown"
+    
+    # Make timezone-aware if needed
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    
+    now = datetime.now(timezone.utc)
+    diff = now - timestamp
+    
+    seconds = diff.total_seconds()
+    
+    if seconds < 60:
+        return "just now"
+    elif seconds < 3600:
+        minutes = int(seconds // 60)
+        return f"{minutes}m ago" if minutes > 1 else "1m ago"
+    elif seconds < 86400:
+        hours = int(seconds // 3600)
+        return f"{hours}h ago" if hours > 1 else "1h ago"
+    elif seconds < 604800:
+        days = int(seconds // 86400)
+        return f"{days}d ago" if days > 1 else "1d ago"
+    else:
+        weeks = int(seconds // 604800)
+        return f"{weeks}w ago" if weeks > 1 else "1w ago"

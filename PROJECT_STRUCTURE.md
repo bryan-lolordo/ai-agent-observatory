@@ -22,7 +22,7 @@ ai-agent-observatory/
 ├── .gitignore                          # Git ignore patterns
 ├── .pytest_cache/                      # pytest cache (auto-generated)
 ├── .venv/                              # Python virtual environment
-├── ai_agent_observatory.egg-info/     # Python package metadata (auto-generated)
+├── ai_agent_observatory.egg-info/      # Python package metadata (auto-generated)
 ├── excel.py                            # Utility: Export database to Excel
 ├── LICENSE                             # Project license
 ├── observatory.db                      # SQLite database (85 columns, production data)
@@ -44,27 +44,52 @@ ai-agent-observatory/
 │   │   ├── settings.py                         # Environment settings (DB URL, API keys)
 │   │   └── story_definitions.py                # Story metadata & thresholds
 │   │
-│   ├── models/                             # 📦 Pydantic Response Models
-│   │   ├── __init__.py
-│   │   └── responses.py                        # API response schemas
+│   ├── models/                             # 📦 Pydantic Response Models (16 files)
+│   │   ├── __init__.py                         # Comprehensive exports for all models (~95 models)
+│   │   ├── alerts.py                           # AlertRule, Alert, threshold monitoring
+│   │   ├── analytics.py                        # TimeSeriesResponse, TrendAnalysis, CorrelationMatrix
+│   │   ├── base.py                             # BaseResponse, ErrorResponse, pagination
+│   │   ├── batch.py                            # Batch exports: BatchExportRequest, ExportResponse
+│   │   ├── code_location.py                    # Code guidance: CodeLocation, OptimizationTemplate
+│   │   ├── conversation.py                     # Multi-turn analysis: ConversationDetail, ConversationMetrics
+│   │   ├── dashboard.py                        # Custom dashboards: WidgetConfig, DashboardLayout
+│   │   ├── experiment.py                       # A/B testing: ExperimentConfig, ExperimentResults
+│   │   ├── filters.py                          # Query parameter models (CallFilters, DateRangeFilter)
+│   │   ├── llm_call.py                         # LLMCallResponse, PromptBreakdown, QualityEvaluation
+│   │   ├── metadata.py                         # ProjectsResponse, ModelsResponse, AgentsResponse
+│   │   ├── optimization.py                     # Story 8: Before/after metrics, optimization tracking
+│   │   ├── responses.py                        # Story response models (7 stories + summaries)
+│   │   ├── user_preferences.py                 # UserPreferences, TeamSettings, notification config
+│   │   └── webhooks.py                         # WebhookConfig, WebhookDelivery, integration events
 │   │
-│   ├── routers/                            # 🛤️ API Routes (24 endpoints)
+│   ├── routers/                            # 🛤️ API Routes
 │   │   ├── __init__.py
-│   │   ├── calls.py                            # Layer 3 (call detail endpoints)
-│   │   ├── metadata.py                         # Filter endpoints (projects, models, etc.)
-│   │   └── stories.py                          # Layer 1 & 2 (all 8 stories)
+│   │   ├── alerts.py                           # ⏳ LATER - GET/POST /api/alerts, /api/alerts/rules
+│   │   ├── analytics.py                        # ⏳ LATER - GET /api/analytics/timeseries, /trends
+│   │   ├── calls.py                            # ⏳ LATER - Layer 3: GET /api/calls/{id}
+│   │   ├── experiments.py                      # ⏳ LATER - GET/POST /api/experiments
+│   │   ├── metadata.py                         # ✅ NOW - GET /api/projects, /models, /agents, /operations
+│   │   ├── optimizations.py                    # ⏳ LATER - Story 8: GET/POST /api/optimizations
+│   │   ├── stories.py                          # ✅ NOW - GET /api/stories, /api/stories/{id}
+│   │   └── webhooks.py                         # ⏳ LATER - GET/POST /api/webhooks
 │   │
-│   ├── services/                           # 💼 Business Logic (Story Analysis)
+│   ├── services/                           # 💼 Business Logic
 │   │   ├── __init__.py
-│   │   ├── cache_service.py                    # Story 2: Cache opportunities
-│   │   ├── call_service.py                     # Shared Layer 3 logic
-│   │   ├── cost_service.py                     # Story 7: Cost analysis
-│   │   ├── latency_service.py                  # Story 1: Latency analysis
-│   │   ├── optimization_service.py             # Story 8: Optimization impact
-│   │   ├── prompt_service.py                   # Story 6: Prompt composition
-│   │   ├── quality_service.py                  # Story 4: Quality issues
-│   │   ├── routing_service.py                  # Story 3: Model routing
-│   │   └── token_service.py                    # Story 5: Token efficiency
+│   │   ├── alert_service.py                    # ⏳ LATER - Threshold monitoring & alert triggering
+│   │   ├── analytics_service.py                # ⏳ LATER - Time series, trends, correlations
+│   │   ├── batch_service.py                    # ⏳ LATER - Bulk exports (CSV/JSON)
+│   │   ├── cache_service.py                    # ✅ NOW - Story 2: Cache opportunities
+│   │   ├── call_service.py                     # ⏳ LATER - Layer 3: Individual call detail
+│   │   ├── cost_service.py                     # ✅ NOW - Story 7: Cost analysis
+│   │   ├── dashboard_service.py                # ⏳ LATER - Custom dashboard configs
+│   │   ├── experiment_service.py               # ⏳ LATER - A/B testing logic
+│   │   ├── latency_service.py                  # ✅ NOW - Story 1: Latency analysis
+│   │   ├── optimization_service.py             # ⏳ LATER - Story 8: Before/after tracking
+│   │   ├── prompt_service.py                   # ✅ NOW - Story 6: Prompt composition
+│   │   ├── quality_service.py                  # ✅ NOW - Story 4: Quality issues
+│   │   ├── routing_service.py                  # ✅ NOW - Story 3: Model routing
+│   │   ├── token_service.py                    # ✅ NOW - Story 5: Token efficiency
+│   │   └── webhook_service.py                  # ⏳ LATER - Integration events & delivery
 │   │
 │   └── utils/                              # 🛠️ Utilities
 │       ├── __init__.py

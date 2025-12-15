@@ -1,38 +1,53 @@
 # AI Agent Observatory - Requirements
-# Updated: December 2024 (React + FastAPI migration)
+# Updated: December 2024 (React + FastAPI architecture)
 
 # =============================================================================
 # CORE OBSERVATORY LIBRARY
 # =============================================================================
-pydantic>=2.0.0
-sqlalchemy>=2.0.0
-numpy>=1.24.0
-tiktoken>=0.5.0
+pydantic>=2.0.0              # Data validation & models
+sqlalchemy>=2.0.0            # Database ORM (85-column schema)
+numpy>=1.24.0                # Numerical computations
+tiktoken>=0.5.0              # Token counting
 
 # =============================================================================
 # AI PROVIDERS
 # =============================================================================
-openai>=1.0.0
-anthropic>=0.18.0
+openai>=1.0.0                # OpenAI API (gpt-4o-mini)
+anthropic>=0.18.0            # Anthropic API (Claude)
 
 # =============================================================================
 # API SERVER (FastAPI)
 # =============================================================================
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
+fastapi>=0.104.0             # REST API framework
+uvicorn[standard]>=0.24.0    # ASGI server
+python-multipart>=0.0.6      # Form data parsing (file uploads)
 
 # =============================================================================
-# DATA PROCESSING
+# DATA PROCESSING & EXPORT
 # =============================================================================
-pandas>=2.0.0
+pandas>=2.0.0                # Data analysis & aggregation
+openpyxl>=3.1.0              # Excel export (diagnose_db.py, exports)
+
+# =============================================================================
+# TESTING
+# =============================================================================
+pytest>=7.4.0                # Test framework
+pytest-asyncio>=0.21.0       # Async test support
+httpx>=0.25.0                # Async HTTP client (for testing FastAPI)
 
 # =============================================================================
 # UTILITIES
 # =============================================================================
-python-dotenv>=1.0.0
+python-dotenv>=1.0.0         # Environment variable management
 
 # =============================================================================
-# DATABASE (optional - for PostgreSQL)
+# DATABASE (Optional - PostgreSQL)
 # =============================================================================
-# psycopg2-binary>=2.9.0  # Uncomment if using PostgreSQL instead of SQLite
+# psycopg2-binary>=2.9.0     # Uncomment for PostgreSQL instead of SQLite
 
+# =============================================================================
+# DEVELOPMENT (Optional)
+# =============================================================================
+ black>=23.0.0              # Code formatter
+ ruff>=0.1.0                # Fast linter
+ mypy>=1.6.0                # Type checking
