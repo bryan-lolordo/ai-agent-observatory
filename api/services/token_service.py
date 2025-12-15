@@ -8,7 +8,7 @@ Returns proper TokenStoryResponse model.
 
 from typing import List, Dict, Any
 from collections import defaultdict
-from api.models import TokenStoryResponse, TokenSummary, TopOffender
+from api.models import TokenImbalanceStoryResponse, TokenImbalanceSummary, TopOffender
 from api.config.story_definitions import get_story_recommendations
 from api.utils.formatters import format_tokens
 
@@ -17,7 +17,7 @@ TOKEN_RATIO_WARNING = 10
 TOKEN_RATIO_CRITICAL = 20
 
 
-def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> TokenStoryResponse:
+def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> TokenImbalanceStoryResponse:
     """
     Layer 1: Token efficiency summary.
     
@@ -27,13 +27,13 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> TokenS
         days: Number of days analyzed
     
     Returns:
-        TokenStoryResponse model
+        TokenImbalanceStoryResponse model
     """
     if not calls:
-        return TokenStoryResponse(
+        return TokenImbalanceStoryResponse(
             status="ok",
             health_score=100.0,
-            summary=TokenSummary(
+            summary=TokenImbalanceSummary(
                 total_calls=0,
                 issue_count=0,
                 avg_ratio=0.0,
@@ -52,10 +52,10 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> TokenS
     llm_calls = [c for c in calls if (c.get('prompt_tokens') or 0) > 0]
     
     if not llm_calls:
-        return TokenStoryResponse(
+        return TokenImbalanceStoryResponse(
             status="ok",
             health_score=100.0,
-            summary=TokenSummary(
+            summary=TokenImbalanceSummary(
                 total_calls=0,
                 issue_count=0,
                 avg_ratio=0.0,
@@ -170,10 +170,10 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> TokenS
         health_score = 100.0
         status = "ok"
     
-    return TokenStoryResponse(
+    return TokenImbalanceStoryResponse(
         status=status,
         health_score=health_score,
-        summary=TokenSummary(
+        summary=TokenImbalanceSummary(
             total_calls=len(llm_calls),
             issue_count=issue_count,
             avg_ratio=avg_ratio,

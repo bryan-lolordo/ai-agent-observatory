@@ -66,8 +66,8 @@ ai-agent-observatory/
 │   │   ├── __init__.py
 │   │   ├── alerts.py                           # ⏳ LATER - GET/POST /api/alerts, /api/alerts/rules
 │   │   ├── analytics.py                        # ⏳ LATER - GET /api/analytics/timeseries, /trends
-│   │   ├── calls.py                            # ⏳ LATER - Layer 3: GET /api/calls/{id}
 │   │   ├── experiments.py                      # ⏳ LATER - GET/POST /api/experiments
+│   │   ├── llm_calls.py                        # ⏳ LATER - Layer 3: GET /api/calls/{id}
 │   │   ├── metadata.py                         # ✅ NOW - GET /api/projects, /models, /agents, /operations
 │   │   ├── optimizations.py                    # ⏳ LATER - Story 8: GET/POST /api/optimizations
 │   │   ├── stories.py                          # ✅ NOW - GET /api/stories, /api/stories/{id}
@@ -79,11 +79,11 @@ ai-agent-observatory/
 │   │   ├── analytics_service.py                # ⏳ LATER - Time series, trends, correlations
 │   │   ├── batch_service.py                    # ⏳ LATER - Bulk exports (CSV/JSON)
 │   │   ├── cache_service.py                    # ✅ NOW - Story 2: Cache opportunities
-│   │   ├── call_service.py                     # ⏳ LATER - Layer 3: Individual call detail
 │   │   ├── cost_service.py                     # ✅ NOW - Story 7: Cost analysis
 │   │   ├── dashboard_service.py                # ⏳ LATER - Custom dashboard configs
 │   │   ├── experiment_service.py               # ⏳ LATER - A/B testing logic
 │   │   ├── latency_service.py                  # ✅ NOW - Story 1: Latency analysis
+│   │   ├── llm_call_service.py                 # ⏳ LATER - Layer 3: Individual call detail
 │   │   ├── optimization_service.py             # ⏳ LATER - Story 8: Before/after tracking
 │   │   ├── prompt_service.py                   # ✅ NOW - Story 6: Prompt composition
 │   │   ├── quality_service.py                  # ✅ NOW - Story 4: Quality issues

@@ -3,12 +3,12 @@ Prompt Service - Story 6 Business Logic
 Location: api/services/prompt_service.py
 
 Handles prompt composition analysis.
-Returns proper PromptStoryResponse model.
+Returns proper SystemPromptStoryResponse model.
 """
 
 from typing import List, Dict, Any
 from collections import defaultdict
-from api.models import PromptStoryResponse, PromptSummary, TopOffender
+from api.models import SystemPromptStoryResponse, SystemPromptSummary, TopOffender
 from api.config.story_definitions import get_story_recommendations
 from api.utils.formatters import format_tokens, format_percentage
 
@@ -17,7 +17,7 @@ SYSTEM_PROMPT_WASTE_PCT = 0.30
 SYSTEM_PROMPT_HIGH_TOKENS = 1000
 
 
-def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> PromptStoryResponse:
+def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> SystemPromptStoryResponse:
     """
     Layer 1: Prompt composition summary.
     
@@ -27,13 +27,13 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> Prompt
         days: Number of days analyzed
     
     Returns:
-        PromptStoryResponse model
+        SystemPromptStoryResponse model
     """
     if not calls:
-        return PromptStoryResponse(
+        return SystemPromptStoryResponse(
             status="ok",
             health_score=100.0,
-            summary=PromptSummary(
+            summary=SystemPromptSummary(
                 total_calls=0,
                 issue_count=0,
                 avg_system_tokens=0,
@@ -53,10 +53,10 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> Prompt
     llm_calls = [c for c in calls if (c.get('prompt_tokens') or 0) > 0]
     
     if not llm_calls:
-        return PromptStoryResponse(
+        return SystemPromptStoryResponse(
             status="ok",
             health_score=100.0,
-            summary=PromptSummary(
+            summary=SystemPromptSummary(
                 total_calls=0,
                 issue_count=0,
                 avg_system_tokens=0,
@@ -202,10 +202,10 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> Prompt
     avg_user = sum(c.get('prompt_breakdown', {}).get('user_message_tokens', 0) for c in llm_calls) / len(llm_calls)
     avg_context = sum(c.get('prompt_breakdown', {}).get('chat_history_tokens', 0) for c in llm_calls) / len(llm_calls)
     
-    return PromptStoryResponse(
+    return SystemPromptStoryResponse(
         status=status,
         health_score=health_score,
-        summary=PromptSummary(
+        summary=SystemPromptSummary(
             total_calls=len(llm_calls),
             issue_count=issue_count,
             avg_system_tokens=int(avg_system),

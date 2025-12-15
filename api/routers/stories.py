@@ -11,7 +11,7 @@ from typing import Optional
 from datetime import datetime, timedelta
 
 from api.services import (
-    get_call_detail,
+    get_llm_call_detail,
     get_latency_summary,
     get_cache_summary,
     get_routing_summary,
@@ -27,8 +27,8 @@ from api.models import (
     CacheStoryResponse,
     RoutingStoryResponse,
     QualityStoryResponse,
-    TokenStoryResponse,
-    PromptStoryResponse,
+    TokenImbalanceStoryResponse,
+    SystemPromptStoryResponse,
     CostStoryResponse,
     OptimizationStoryResponse,
 )
@@ -139,7 +139,7 @@ def get_quality_story(
 # STORY 5: TOKEN EFFICIENCY
 # =============================================================================
 
-@router.get("/token-efficiency", response_model=TokenStoryResponse)
+@router.get("/token-efficiency", response_model=TokenImbalanceStoryResponse)
 def get_token_story(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
@@ -158,7 +158,7 @@ def get_token_story(
 # STORY 6: PROMPT COMPOSITION
 # =============================================================================
 
-@router.get("/prompt-composition", response_model=PromptStoryResponse)
+@router.get("/prompt-composition", response_model=SystemPromptStoryResponse)
 def get_prompt_story(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),

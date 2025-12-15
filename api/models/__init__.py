@@ -98,6 +98,13 @@ from .responses import (
 # =============================================================================
 
 from .optimization import (
+    # Simple models (used by optimization_service NOW)
+    OptimizationSummary,
+    BaselineMetrics,
+    OptimizationImpactSimple,
+    OptimizationStoryResponse,
+    
+    # Complex models (for future use)
     OptimizationRecord,
     BeforeAfterMetrics,
     OptimizationImpact,
@@ -310,6 +317,10 @@ __all__ = [
     "AllStoriesResponse",
     
     # Optimization
+    "OptimizationSummary",           
+    "BaselineMetrics",               
+    "OptimizationImpactSimple",      
+    "OptimizationStoryResponse",     
     "OptimizationRecord",
     "BeforeAfterMetrics",
     "OptimizationImpact",

@@ -14,7 +14,6 @@ from api.utils.data_fetcher import (
     get_available_operations,
     get_sessions,
     get_llm_calls,
-    get_conversation,
     get_project_overview,
     get_time_series_data,
     get_comparative_metrics,
@@ -39,22 +38,17 @@ from api.utils.aggregators import (
     calculate_time_series,
     calculate_session_kpis,
     group_by_time_period,
-    calculate_conversation_metrics,
-    calculate_experiment_metrics,
 )
 
-# Formatting utilities
+# Formatting utilities (only the ones that exist!)
 from api.utils.formatters import (
     format_cost,
     format_tokens,
     format_latency,
     format_percentage,
-    format_timestamp,
-    format_duration,
     format_number,
+    format_duration,
     format_model_name,
-    format_ratio,
-    format_relative_time,
 )
 
 # Exceptions
@@ -88,7 +82,6 @@ __all__ = [
     'get_available_operations',
     'get_sessions',
     'get_llm_calls',
-    'get_conversation',
     'get_project_overview',
     'get_time_series_data',
     'get_comparative_metrics',
@@ -111,20 +104,15 @@ __all__ = [
     'calculate_time_series',
     'calculate_session_kpis',
     'group_by_time_period',
-    'calculate_conversation_metrics',
-    'calculate_experiment_metrics',
     
     # Formatters
     'format_cost',
     'format_tokens',
     'format_latency',
     'format_percentage',
-    'format_timestamp',
     'format_duration',
     'format_number',
     'format_model_name',
-    'format_ratio',
-    'format_relative_time',
     
     # Exceptions
     'ObservatoryError',

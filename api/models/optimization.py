@@ -3,7 +3,7 @@ Optimization Tracking Models
 Location: api/models/optimization.py
 
 Models for Story 8: Optimization Impact tracking.
-Track before/after metrics when implementing optimizations.
+Includes both simple models (for current service) and complex models (for future enhancement).
 """
 
 from typing import Optional, List, Dict, Any, Literal
@@ -12,11 +12,114 @@ from datetime import datetime
 
 
 # =============================================================================
-# OPTIMIZATION RECORD
+# SIMPLE MODELS (Used by optimization_service.py NOW)
+# =============================================================================
+
+class OptimizationSummary(BaseModel):
+    """High-level optimization metrics summary."""
+    total_optimizations: int
+    total_cost_saved: float
+    total_latency_reduction: float  # As percentage (e.g., 0.75 = 75%)
+    avg_quality_improvement: float
+
+
+class BaselineMetrics(BaseModel):
+    """Baseline metrics before any optimization."""
+    total_calls: int
+    avg_latency_ms: float
+    avg_latency: str  # Formatted (e.g., "2.5s")
+    total_cost: float
+    total_cost_formatted: str  # Formatted (e.g., "$4.56")
+    avg_quality_score: float
+    cache_hit_rate: float
+    cache_hit_rate_formatted: str  # Formatted (e.g., "45%")
+    error_rate: float
+    error_rate_formatted: str  # Formatted (e.g., "2.1%")
+
+
+class OptimizationImpactSimple(BaseModel):
+    """Simplified impact measurement (used by service)."""
+    id: str
+    name: str
+    target_operation: str
+    implemented_date: datetime
+    
+    # Before metrics
+    before_avg_latency_ms: float
+    before_total_cost: float
+    before_avg_quality: float
+    
+    # After metrics
+    after_avg_latency_ms: float
+    after_total_cost: float
+    after_avg_quality: float
+    
+    # Improvements
+    cost_saved: float
+    latency_reduction_pct: float
+    quality_improvement: float
+
+
+class OptimizationStoryResponse(BaseModel):
+    """Story 8 response (what optimization_service actually returns)."""
+    mode: Literal["baseline", "impact"]
+    status: str  # "ok", "warning", "error"
+    health_score: float
+    
+    # Summary
+    summary: OptimizationSummary
+    
+    # Baseline (only in baseline mode)
+    baseline: Optional[BaselineMetrics] = None
+    
+    # Optimizations (only in impact mode)
+    optimizations: List[OptimizationImpactSimple] = Field(default_factory=list)
+    
+    # Data tables
+    detail_table: List[Dict[str, Any]] = Field(default_factory=list)
+    chart_data: List[Dict[str, Any]] = Field(default_factory=list)
+    
+    # Recommendations
+    recommendations: List[Dict[str, str]] = Field(default_factory=list)
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "mode": "baseline",
+                "status": "ok",
+                "health_score": 100.0,
+                "summary": {
+                    "total_optimizations": 0,
+                    "total_cost_saved": 0.0,
+                    "total_latency_reduction": 0.0,
+                    "avg_quality_improvement": 0.0
+                },
+                "baseline": {
+                    "total_calls": 175,
+                    "avg_latency_ms": 1973,
+                    "avg_latency": "2.0s",
+                    "total_cost": 3.64,
+                    "total_cost_formatted": "$3.64",
+                    "avg_quality_score": 7.4,
+                    "cache_hit_rate": 0.0,
+                    "cache_hit_rate_formatted": "0%",
+                    "error_rate": 0.091,
+                    "error_rate_formatted": "9.1%"
+                },
+                "optimizations": [],
+                "detail_table": [],
+                "chart_data": [],
+                "recommendations": []
+            }
+        }
+
+
+# =============================================================================
+# COMPLEX MODELS (For future enhancement - Story 8 full implementation)
 # =============================================================================
 
 class OptimizationRecord(BaseModel):
-    """Track an optimization implementation."""
+    """Track an optimization implementation (future use)."""
     id: str
     name: str
     description: Optional[str] = None
@@ -78,12 +181,8 @@ class OptimizationRecord(BaseModel):
         }
 
 
-# =============================================================================
-# IMPACT MEASUREMENT
-# =============================================================================
-
 class BeforeAfterMetrics(BaseModel):
-    """Before and after metrics."""
+    """Before and after metrics for detailed comparison."""
     before_value: float
     after_value: float
     change_value: float
@@ -92,7 +191,7 @@ class BeforeAfterMetrics(BaseModel):
 
 
 class OptimizationImpact(BaseModel):
-    """Measured impact of an optimization."""
+    """Measured impact of an optimization (complex version for future)."""
     optimization_id: str
     
     # Metrics measured
@@ -141,11 +240,11 @@ class OptimizationImpact(BaseModel):
 
 
 # =============================================================================
-# RESPONSE MODELS
+# FUTURE RESPONSE MODELS (For full Story 8 implementation)
 # =============================================================================
 
 class OptimizationListResponse(BaseModel):
-    """List of optimizations."""
+    """List of optimizations (future use)."""
     optimizations: List[OptimizationRecord]
     total: int
     
@@ -160,7 +259,7 @@ class OptimizationListResponse(BaseModel):
 
 
 class OptimizationDetailResponse(BaseModel):
-    """Detailed optimization with impact."""
+    """Detailed optimization with impact (future use)."""
     optimization: OptimizationRecord
     impact: Optional[OptimizationImpact] = None
     
@@ -173,7 +272,7 @@ class OptimizationDetailResponse(BaseModel):
 
 
 class OptimizationSummaryResponse(BaseModel):
-    """High-level optimization summary."""
+    """High-level optimization summary (future use - different from OptimizationStoryResponse)."""
     total_optimizations: int
     total_savings: Dict[str, float]  # {cost: 1.23, latency_ms: 5000}
     avg_improvement_pct: Dict[str, float]
@@ -186,7 +285,7 @@ class OptimizationSummaryResponse(BaseModel):
 
 
 # =============================================================================
-# CREATE/UPDATE MODELS
+# CREATE/UPDATE MODELS (Future use)
 # =============================================================================
 
 class CreateOptimizationRequest(BaseModel):

@@ -12,8 +12,8 @@ from collections import defaultdict
 from api.models import (
     OptimizationStoryResponse,
     OptimizationSummary,
-    OptimizationImpact,
     BaselineMetrics,
+    OptimizationImpactSimple,
 )
 from api.config.story_definitions import get_story_recommendations
 from api.utils.formatters import format_cost, format_latency, format_percentage
@@ -26,10 +26,10 @@ def get_summary(
     optimization_date: Optional[datetime] = None
 ) -> OptimizationStoryResponse:
     """
-    Layer 1: Optimization impact summary.
-    
+    summary: OptimizationStoryResponse = ...
+    baseline: BeforeAfterMetrics = ...
     Shows baseline metrics if no optimization_date provided,
-    otherwise shows before/after comparison.
+    return OptimizationStoryResponse(...)
     
     Args:
         calls: List of LLM call dictionaries
@@ -204,7 +204,7 @@ def _get_impact_summary(
     quality_improvement = after_avg_quality - before_avg_quality
     
     # Create optimization impact object
-    optimization = OptimizationImpact(
+    optimization = OptimizationImpactSimple(
         id="optimization_1",
         name="Optimization Deployed",
         target_operation="all",

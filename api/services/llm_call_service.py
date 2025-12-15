@@ -1,9 +1,12 @@
 """
-Call Service - Layer 3 Business Logic
-Location: api/services/call_service.py
+LLM Call Service - Layer 3 Business Logic
+Location: api/services/llm_call_service.py
 
 Handles full call detail with diagnosis and recommendations.
 Returns proper LLMCallResponse model.
+
+UPDATED: Renamed from call_service.py for SDK consistency
+UPDATED: Function renamed get_call_detail() → get_detail() for pattern consistency
 """
 
 from typing import Optional, List, Dict, Any
@@ -11,7 +14,7 @@ from api.utils.data_fetcher import get_llm_calls
 from api.models import LLMCallResponse
 
 
-def get_call_detail(call_id: str) -> Optional[LLMCallResponse]:
+def get_detail(call_id: str) -> Optional[LLMCallResponse]:
     """
     Get full call detail with diagnosis and recommendations.
     
@@ -63,24 +66,32 @@ def get_call_detail(call_id: str) -> Optional[LLMCallResponse]:
         # Content
         prompt=call.get('prompt'),
         response_text=call.get('response_text'),
+        system_prompt=call.get('system_prompt'),
+        user_message=call.get('user_message'),
         
         # Success/error
         success=call.get('success', True),
         error=call.get('error'),
-        
-        # Metadata (these are already parsed as dicts from data_fetcher)
-        routing_decision=call.get('routing_decision'),
-        cache_metadata=call.get('cache_metadata'),
-        quality_evaluation=call.get('quality_evaluation'),
-        prompt_breakdown=call.get('prompt_breakdown'),
-        model_config=call.get('model_config'),
+        error_type=call.get('error_type'),
         
         # Conversation tracking
         conversation_id=call.get('conversation_id'),
         turn_number=call.get('turn_number'),
+        user_id=call.get('user_id'),
         
-        # Diagnosis (our added insights)
-        diagnosis=diagnosis,
+        # Metadata (these are already parsed as dicts from data_fetcher)
+        prompt_breakdown=call.get('prompt_breakdown'),
+        routing_decision=call.get('routing_decision'),
+        cache_metadata=call.get('cache_metadata'),
+        quality_evaluation=call.get('quality_evaluation'),
+        
+        # Configuration
+        temperature=call.get('temperature'),
+        max_tokens=call.get('max_tokens'),
+        
+        # Observability
+        environment=call.get('environment'),
+        trace_id=call.get('trace_id'),
     )
 
 
