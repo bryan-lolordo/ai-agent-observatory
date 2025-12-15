@@ -1,231 +1,250 @@
 """
-Stories Router - All Story Endpoints (Layer 1 & 2)
+Stories Router - All Story Endpoints
 Location: api/routers/stories.py
 
-Handles:
-- Layer 1: GET /api/stories/{story_id} - Summary view
-- Layer 2: GET /api/stories/{story_id}/operations/{operation} - Operation detail
-- Special endpoints for caching and optimization impact
+Exposes all 8 optimization stories + call detail endpoint.
+Uses services layer for business logic.
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
 from datetime import datetime, timedelta
 
-from api.utils.data_fetcher import get_llm_calls
 from api.services import (
-    latency_service,
-    cache_service,
-    routing_service,
-    quality_service,
-    token_service,
-    prompt_service,
-    cost_service,
-    optimization_service,
+    get_call_detail,
+    get_latency_summary,
+    get_cache_summary,
+    get_routing_summary,
+    get_quality_summary,
+    get_token_summary,
+    get_prompt_summary,
+    get_cost_summary,
+    get_optimization_summary,
 )
+from api.models import (
+    LLMCallResponse,
+    LatencyStoryResponse,
+    CacheStoryResponse,
+    RoutingStoryResponse,
+    QualityStoryResponse,
+    TokenStoryResponse,
+    PromptStoryResponse,
+    CostStoryResponse,
+    OptimizationStoryResponse,
+)
+from api.utils.data_fetcher import get_llm_calls
 
-router = APIRouter()
+
+router = APIRouter(prefix="/api/stories", tags=["stories"])
 
 
 # =============================================================================
-# LAYER 1: STORY SUMMARY
+# HELPER: Get Calls with Filters
 # =============================================================================
 
-@router.get("/{story_id}")
-async def get_story_summary(
-    story_id: str,
+def _get_filtered_calls(
     project: Optional[str] = None,
-    days: int = Query(default=7, ge=1, le=90),
-    limit: int = Query(default=2000, ge=1, le=10000),
-):
-    """
-    Layer 1: Story summary with KPI cards + table.
-    
-    Args:
-        story_id: One of: latency, caching, routing, quality, 
-                  token-efficiency, prompt-composition, cost, optimization-impact
-        project: Filter by project name
-        days: Number of days to analyze (1-90)
-        limit: Maximum number of calls to analyze
-    
-    Returns:
-        {
-            "kpi_cards": {...},
-            "table": [...],
-            "insights": [...],
-            "meta": {...}
-        }
-    """
-    # Get data
+    days: int = 7,
+    limit: int = 2000,
+) -> list:
+    """Get LLM calls with common filters."""
     end_time = datetime.utcnow()
     start_time = end_time - timedelta(days=days)
     
-    calls = get_llm_calls(
+    return get_llm_calls(
         project_name=project,
         start_time=start_time,
         end_time=end_time,
         limit=limit,
     )
-    
-    # Route to appropriate service
-    services = {
-        "latency": latency_service.get_summary,
-        "caching": cache_service.get_summary,
-        "routing": routing_service.get_summary,
-        "quality": quality_service.get_summary,
-        "token-efficiency": token_service.get_summary,
-        "prompt-composition": prompt_service.get_summary,
-        "cost": cost_service.get_summary,
-        "optimization-impact": optimization_service.get_summary,
-    }
-    
-    if story_id not in services:
-        return {
-            "error": f"Unknown story: {story_id}",
-            "valid_stories": list(services.keys())
-        }
-    
-    result = services[story_id](calls, project, days)
-    return result
 
 
 # =============================================================================
-# LAYER 2: OPERATION DRILL-DOWN
+# STORY 1: LATENCY
 # =============================================================================
 
-@router.get("/{story_id}/operations/{operation}")
-async def get_operation_detail(
-    story_id: str,
-    operation: str,
+@router.get("/latency", response_model=LatencyStoryResponse)
+def get_latency_story(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
-    limit: int = Query(default=2000, ge=1, le=10000),
+    limit: int = Query(default=2000, le=5000),
 ):
     """
-    Layer 2: Operation-specific detail.
+    Story 1: Latency Monster
     
-    Args:
-        story_id: Story identifier
-        operation: Operation name (from Layer 1 table)
-        project: Filter by project name
-        days: Number of days to analyze
-        limit: Maximum number of calls
-    
-    Returns:
-        {
-            "operation_summary": {...},
-            "detail_breakdown": {...},
-            "calls_table": [...],
-            "recommendations": [...]
-        }
+    Returns operations with excessive response times.
     """
-    # Get data for this operation
-    end_time = datetime.utcnow()
-    start_time = end_time - timedelta(days=days)
-    
-    calls = get_llm_calls(
-        project_name=project,
-        operation=operation,
-        start_time=start_time,
-        end_time=end_time,
-        limit=limit,
-    )
-    
-    # Route to appropriate service
-    services = {
-        "latency": latency_service.get_operation_detail,
-        "caching": cache_service.get_operation_detail,
-        "routing": routing_service.get_operation_detail,
-        "quality": quality_service.get_operation_detail,
-        "token-efficiency": token_service.get_operation_detail,
-        "prompt-composition": prompt_service.get_operation_detail,
-        "cost": cost_service.get_operation_detail,
-    }
-    
-    if story_id not in services:
-        return {"error": f"Unknown story: {story_id}"}
-    
-    result = services[story_id](calls, operation, project, days)
-    return result
+    calls = _get_filtered_calls(project, days, limit)
+    return get_latency_summary(calls, project, days)
 
 
 # =============================================================================
-# STORY 2 SPECIAL: CACHING - DUPLICATE GROUPS
+# STORY 2: CACHING
 # =============================================================================
 
-@router.get("/caching/operations/{operation}/groups/{group_id}")
-async def get_duplicate_group(
-    operation: str,
-    group_id: str,
+@router.get("/cache", response_model=CacheStoryResponse)
+def get_cache_story(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
+    limit: int = Query(default=2000, le=5000),
 ):
     """
-    Layer 3 for Caching: Duplicate group detail.
+    Story 2: Zero Cache Hits
     
-    Shows all calls that share the same normalized prompt (duplicates).
-    
-    Args:
-        operation: Operation name
-        group_id: Hash of normalized prompt
-        project: Filter by project name
-        days: Number of days to analyze
-    
-    Returns:
-        {
-            "group_stats": {...},
-            "prompt": "...",
-            "response": "...",
-            "calls": [...],
-            "diagnosis": {...}
-        }
+    Returns caching opportunities (duplicate prompts).
     """
-    return cache_service.get_duplicate_group(operation, group_id, project, days)
+    calls = _get_filtered_calls(project, days, limit)
+    return get_cache_summary(calls, project, days)
 
 
 # =============================================================================
-# STORY 8 SPECIAL: OPTIMIZATION IMPACT
+# STORY 3: ROUTING
 # =============================================================================
 
-@router.get("/optimization-impact/optimizations/{optimization_id}")
-async def get_optimization_detail(optimization_id: str):
-    """
-    Layer 2 for Optimization Impact.
-    
-    Shows before/after comparison for a specific optimization.
-    
-    Args:
-        optimization_id: Unique identifier for optimization
-    
-    Returns:
-        {
-            "optimization_info": {...},
-            "before_after_comparison": {...},
-            "trend_data": [...],
-            "roi_analysis": {...}
-        }
-    """
-    return optimization_service.get_optimization_detail(optimization_id)
-
-
-@router.get("/optimization-impact/compare")
-async def compare_optimization_calls(
-    before: str = Query(..., description="Call ID from before optimization"),
-    after: str = Query(..., description="Call ID from after optimization"),
+@router.get("/routing", response_model=RoutingStoryResponse)
+def get_routing_story(
+    project: Optional[str] = None,
+    days: int = Query(default=7, ge=1, le=90),
+    limit: int = Query(default=2000, le=5000),
 ):
     """
-    Layer 3 for Optimization Impact: Side-by-side call comparison.
+    Story 3: Model Routing
+    
+    Returns routing opportunities (complexity mismatches).
+    """
+    calls = _get_filtered_calls(project, days, limit)
+    return get_routing_summary(calls, project, days)
+
+
+# =============================================================================
+# STORY 4: QUALITY
+# =============================================================================
+
+@router.get("/quality", response_model=QualityStoryResponse)
+def get_quality_story(
+    project: Optional[str] = None,
+    days: int = Query(default=7, ge=1, le=90),
+    limit: int = Query(default=2000, le=5000),
+):
+    """
+    Story 4: Quality Issues
+    
+    Returns errors, hallucinations, and quality problems.
+    """
+    calls = _get_filtered_calls(project, days, limit)
+    return get_quality_summary(calls, project, days)
+
+
+# =============================================================================
+# STORY 5: TOKEN EFFICIENCY
+# =============================================================================
+
+@router.get("/token-efficiency", response_model=TokenStoryResponse)
+def get_token_story(
+    project: Optional[str] = None,
+    days: int = Query(default=7, ge=1, le=90),
+    limit: int = Query(default=2000, le=5000),
+):
+    """
+    Story 5: Token Imbalance
+    
+    Returns operations with poor prompt:completion ratios.
+    """
+    calls = _get_filtered_calls(project, days, limit)
+    return get_token_summary(calls, project, days)
+
+
+# =============================================================================
+# STORY 6: PROMPT COMPOSITION
+# =============================================================================
+
+@router.get("/prompt-composition", response_model=PromptStoryResponse)
+def get_prompt_story(
+    project: Optional[str] = None,
+    days: int = Query(default=7, ge=1, le=90),
+    limit: int = Query(default=2000, le=5000),
+):
+    """
+    Story 6: System Prompt Waste
+    
+    Returns prompt composition and wasteful system prompts.
+    """
+    calls = _get_filtered_calls(project, days, limit)
+    return get_prompt_summary(calls, project, days)
+
+
+# =============================================================================
+# STORY 7: COST
+# =============================================================================
+
+@router.get("/cost", response_model=CostStoryResponse)
+def get_cost_story(
+    project: Optional[str] = None,
+    days: int = Query(default=7, ge=1, le=90),
+    limit: int = Query(default=2000, le=5000),
+):
+    """
+    Story 7: Cost Deep Dive
+    
+    Returns cost breakdown and concentration analysis.
+    """
+    calls = _get_filtered_calls(project, days, limit)
+    return get_cost_summary(calls, project, days)
+
+
+# =============================================================================
+# STORY 8: OPTIMIZATION IMPACT
+# =============================================================================
+
+@router.get("/optimization-impact", response_model=OptimizationStoryResponse)
+def get_optimization_story(
+    project: Optional[str] = None,
+    days: int = Query(default=7, ge=1, le=90),
+    limit: int = Query(default=2000, le=5000),
+    optimization_date: Optional[str] = None,
+):
+    """
+    Story 8: Optimization Impact
+    
+    Returns baseline metrics or before/after comparison.
     
     Args:
-        before: Call ID from before period
-        after: Call ID from after period
-    
-    Returns:
-        {
-            "before_call": {...},
-            "after_call": {...},
-            "differences": {...},
-            "quality_analysis": {...}
-        }
+        optimization_date: ISO date string (e.g., "2024-12-10") for comparison
     """
-    return optimization_service.compare_calls(before, after)
+    calls = _get_filtered_calls(project, days, limit)
+    
+    # Parse optimization date if provided
+    opt_date = None
+    if optimization_date:
+        try:
+            opt_date = datetime.fromisoformat(optimization_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid date format: {optimization_date}. Use ISO format (YYYY-MM-DD)"
+            )
+    
+    return get_optimization_summary(calls, project, days, opt_date)
+
+
+# =============================================================================
+# CALL DETAIL (Layer 3 - shared by all stories)
+# =============================================================================
+
+@router.get("/calls/{call_id}", response_model=LLMCallResponse)
+def get_call(call_id: str):
+    """
+    Get detailed information about a specific LLM call.
+    
+    Includes full prompt, response, tokens, cost, quality evaluation,
+    and comprehensive diagnosis with recommendations.
+    """
+    call_detail = get_call_detail(call_id)
+    
+    if not call_detail:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Call not found: {call_id}"
+        )
+    
+    return call_detail
