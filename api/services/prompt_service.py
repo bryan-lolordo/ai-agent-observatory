@@ -10,6 +10,7 @@ from typing import List, Dict, Any
 from collections import defaultdict
 from api.models import SystemPromptStoryResponse, SystemPromptSummary, TopOffender
 from api.config.story_definitions import get_story_recommendations
+from api.routers import llm_calls
 from api.utils.formatters import format_tokens, format_percentage
 
 # Thresholds
@@ -199,8 +200,8 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> System
     
     # Calculate averages
     avg_system = sum(all_system_tokens) / len(all_system_tokens) if all_system_tokens else 0
-    avg_user = sum(c.get('prompt_breakdown', {}).get('user_message_tokens', 0) for c in llm_calls) / len(llm_calls)
-    avg_context = sum(c.get('prompt_breakdown', {}).get('chat_history_tokens', 0) for c in llm_calls) / len(llm_calls)
+    avg_user = sum((c.get('prompt_breakdown') or {}).get('user_message_tokens', 0) for c in llm_calls) / len(llm_calls)
+    avg_context = sum((c.get('prompt_breakdown') or {}).get('chat_history_tokens', 0) for c in llm_calls) / len(llm_calls)
     
     return SystemPromptStoryResponse(
         status=status,

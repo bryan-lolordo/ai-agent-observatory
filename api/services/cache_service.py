@@ -73,7 +73,8 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> CacheS
         for call in op_calls:
             prompt = call.get('prompt') or ''
             if prompt:
-                prompt_hash = hashlib.md5(prompt.lower().strip().encode()).hexdigest()[:12]
+                normalized = ' '.join(prompt.lower().strip().split())
+                prompt_hash = hashlib.md5(normalized.encode()).hexdigest()[:12]
                 prompt_groups[prompt_hash].append(call)
         
         # Count duplicates
@@ -94,7 +95,7 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> CacheS
         total_duplicates += duplicate_count
         total_wasted_cost += wasted_cost
         
-        status = "🔴" if redundancy_pct > 0.5 else "🟡" if redundancy_pct > 0.2 else "🟢"
+        status = "🔴" if redundancy_pct > 0.5 else "🟡" if has_opportunity else "🟢"
         
         detail_table.append({
             'status': status,
@@ -140,7 +141,7 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> CacheS
     
     # Health score
     issue_count = len(ops_with_opportunity)
-    if issue_count == 0 and hit_rate > 0.5:
+    if issue_count == 0 or hit_rate >= 0.8:
         health_score = 100.0
         status = "ok"
     elif hit_rate > 0.3:

@@ -180,9 +180,6 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> Qualit
     elif error_rate >= ERROR_RATE_WARNING:
         health_score = max(50, 70 - (error_count * 3))
         status = "warning"
-    elif issue_count > 0:
-        health_score = max(70, 90 - (issue_count * 5))
-        status = "warning"
     else:
         health_score = 100.0
         status = "ok"

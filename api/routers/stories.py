@@ -239,7 +239,7 @@ def get_call(call_id: str):
     Includes full prompt, response, tokens, cost, quality evaluation,
     and comprehensive diagnosis with recommendations.
     """
-    call_detail = get_call_detail(call_id)
+    call_detail = get_llm_call_detail(call_id)
     
     if not call_detail:
         raise HTTPException(

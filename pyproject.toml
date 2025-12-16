@@ -38,21 +38,30 @@ classifiers = [
 ]
 
 dependencies = [
+    # Core dependencies
     "pydantic>=2.0.0",
     "sqlalchemy>=2.0.0",
+    # API dependencies
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "python-dotenv>=1.0.0",
+    # Data analysis
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",       # For coverage reports
+    "httpx>=0.25.0",           # For testing FastAPI
     "black>=23.0.0",
     "ruff>=0.1.0",
 ]
 dashboard = [
     "streamlit>=1.28.0",
     "plotly>=5.18.0",
-    "pandas>=2.0.0",
 ]
 
 [project.urls]
@@ -63,7 +72,7 @@ Issues = "https://github.com/yourusername/ai-agent-observatory/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["observatory*"]
+include = ["observatory*", "api*"]
 
 [tool.setuptools.package-data]
 observatory = ["py.typed"]
@@ -80,3 +89,21 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=api",
+    "--cov=observatory",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "api: API endpoint tests",
+    "slow: Slow running tests",
+]

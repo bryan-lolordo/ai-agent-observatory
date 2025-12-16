@@ -1,0 +1,493 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0 -- c:\Users\bjlol\Desktop\ai-agent-observatory\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\bjlol\Desktop\ai-agent-observatory
+configfile: pyproject.toml
+plugins: anyio-4.11.0, asyncio-1.3.0, cov-7.0.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 157 items
+
+tests/unit/services/test_cache_service.py::TestCacheSummaryEmpty::test_empty_calls_returns_valid_response PASSED [  0%]
+tests/unit/services/test_cache_service.py::TestCacheHitRate::test_calculates_cache_hit_rate PASSED [  1%]
+tests/unit/services/test_cache_service.py::TestCacheHitRate::test_no_cache_metadata PASSED [  1%]
+tests/unit/services/test_cache_service.py::TestDuplicateDetection::test_identifies_duplicate_prompts PASSED [  2%]
+tests/unit/services/test_cache_service.py::TestDuplicateDetection::test_case_insensitive_matching PASSED [  3%]
+tests/unit/services/test_cache_service.py::TestDuplicateDetection::test_whitespace_normalization FAILED [  3%]
+tests/unit/services/test_cache_service.py::TestDetailTable::test_groups_by_operation PASSED [  4%]
+tests/unit/services/test_cache_service.py::TestDetailTable::test_counts_unique_prompts PASSED [  5%]
+tests/unit/services/test_cache_service.py::TestDetailTable::test_calculates_redundancy_percentage PASSED [  5%]
+tests/unit/services/test_cache_service.py::TestDetailTable::test_status_indicators FAILED [  6%]
+tests/unit/services/test_cache_service.py::TestDetailTable::test_sorted_by_wasted_cost PASSED [  7%]
+tests/unit/services/test_cache_service.py::TestWastedCostCalculation::test_calculates_wasted_cost PASSED [  7%]
+tests/unit/services/test_cache_service.py::TestTopOffender::test_identifies_highest_wasted_cost PASSED [  8%]
+tests/unit/services/test_cache_service.py::TestTopOffender::test_top_offender_includes_diagnosis PASSED [  8%]
+tests/unit/services/test_cache_service.py::TestTopOffender::test_no_top_offender_without_opportunities PASSED [  9%]
+tests/unit/services/test_cache_service.py::TestHealthScore::test_perfect_health_with_good_hit_rate FAILED [ 10%]
+tests/unit/services/test_cache_service.py::TestHealthScore::test_health_degrades_with_opportunities PASSED [ 10%]
+tests/unit/services/test_cache_service.py::TestHealthScore::test_status_based_on_hit_rate PASSED [ 11%]
+tests/unit/services/test_cache_service.py::TestChartData::test_chart_data_limited_to_10 PASSED [ 12%]
+tests/unit/services/test_cache_service.py::TestChartData::test_chart_data_structure PASSED [ 12%]
+tests/unit/services/test_cache_service.py::TestCacheOpportunityThreshold::test_threshold_detection PASSED [ 13%]
+tests/unit/services/test_cost_service.py::test_cost_service PASSED       [ 14%]
+tests/unit/services/test_latency_service.py::TestLatencySummaryEmpty::test_empty_calls_returns_valid_response PASSED [ 14%]
+tests/unit/services/test_latency_service.py::TestLatencySummaryEmpty::test_empty_calls_has_no_recommendations PASSED [ 15%]
+tests/unit/services/test_latency_service.py::TestLatencySummaryBasic::test_single_fast_call PASSED [ 15%]
+tests/unit/services/test_latency_service.py::TestLatencySummaryBasic::test_calculates_correct_average PASSED [ 16%]
+tests/unit/services/test_latency_service.py::TestLatencyThresholds::test_warning_threshold_detection PASSED [ 17%]
+tests/unit/services/test_latency_service.py::TestLatencyThresholds::test_critical_threshold_detection PASSED [ 17%]
+tests/unit/services/test_latency_service.py::TestLatencyThresholds::test_mixed_thresholds PASSED [ 18%]
+tests/unit/services/test_latency_service.py::TestLatencyDetailTable::test_detail_table_groups_by_operation PASSED [ 19%]
+tests/unit/services/test_latency_service.py::TestLatencyDetailTable::test_detail_table_sorted_by_latency PASSED [ 19%]
+tests/unit/services/test_latency_service.py::TestLatencyDetailTable::test_detail_table_includes_call_count PASSED [ 20%]
+tests/unit/services/test_latency_service.py::TestLatencyDetailTable::test_detail_table_status_indicators PASSED [ 21%]
+tests/unit/services/test_latency_service.py::TestTopOffender::test_top_offender_identifies_slowest PASSED [ 21%]
+tests/unit/services/test_latency_service.py::TestTopOffender::test_top_offender_includes_diagnosis PASSED [ 22%]
+tests/unit/services/test_latency_service.py::TestTopOffender::test_no_top_offender_when_all_fast PASSED [ 22%]
+tests/unit/services/test_latency_service.py::TestChartData::test_chart_data_limited_to_10 PASSED [ 23%]
+tests/unit/services/test_latency_service.py::TestChartData::test_chart_data_structure PASSED [ 24%]
+tests/unit/services/test_latency_service.py::TestHealthScore::test_perfect_health_no_issues PASSED [ 24%]
+tests/unit/services/test_latency_service.py::TestHealthScore::test_health_degrades_with_warnings PASSED [ 25%]
+tests/unit/services/test_latency_service.py::TestHealthScore::test_health_degrades_more_with_critical PASSED [ 26%]
+tests/unit/services/test_latency_service.py::TestHealthScore::test_health_floors_at_zero PASSED [ 26%]
+tests/unit/services/test_latency_service.py::TestDiagnosis::test_diagnoses_high_completion_tokens PASSED [ 27%]
+tests/unit/services/test_latency_service.py::TestDiagnosis::test_diagnoses_large_prompt PASSED [ 28%]
+tests/unit/services/test_latency_service.py::TestLatencyFormatting::test_formats_milliseconds PASSED [ 28%]
+tests/unit/services/test_latency_service.py::TestLatencyFormatting::test_formats_seconds PASSED [ 29%]
+tests/unit/services/test_optimization_service.py::TestOptimizationSummaryEmpty::test_empty_calls_returns_valid_response PASSED [ 29%]
+tests/unit/services/test_optimization_service.py::TestBaselineMode::test_baseline_mode_without_date PASSED [ 30%]
+tests/unit/services/test_optimization_service.py::TestBaselineMode::test_baseline_calculates_metrics FAILED [ 31%]
+tests/unit/services/test_optimization_service.py::TestBaselineMode::test_baseline_calculates_cache_hit_rate PASSED [ 31%]
+tests/unit/services/test_optimization_service.py::TestBaselineMode::test_baseline_calculates_error_rate PASSED [ 32%]
+tests/unit/services/test_optimization_service.py::TestBaselineDetailTable::test_baseline_detail_table_groups_by_operation PASSED [ 33%]
+tests/unit/services/test_optimization_service.py::TestBaselineDetailTable::test_baseline_detail_table_sorted_by_cost PASSED [ 33%]
+tests/unit/services/test_optimization_service.py::TestImpactMode::test_impact_mode_with_date PASSED [ 34%]
+tests/unit/services/test_optimization_service.py::TestImpactMode::test_splits_calls_before_after PASSED [ 35%]
+tests/unit/services/test_optimization_service.py::TestImpactMode::test_calculates_cost_savings FAILED [ 35%]
+tests/unit/services/test_optimization_service.py::TestImpactMode::test_calculates_latency_reduction PASSED [ 36%]
+tests/unit/services/test_optimization_service.py::TestImpactMode::test_calculates_quality_improvement PASSED [ 36%]
+tests/unit/services/test_optimization_service.py::TestImpactInsufficientData::test_falls_back_to_baseline_no_before_data PASSED [ 37%]
+tests/unit/services/test_optimization_service.py::TestImpactInsufficientData::test_falls_back_to_baseline_no_after_data PASSED [ 38%]
+tests/unit/services/test_optimization_service.py::TestImpactHealthScore::test_perfect_health_all_improvements PASSED [ 38%]
+tests/unit/services/test_optimization_service.py::TestImpactHealthScore::test_good_health_cost_and_latency_improvements PASSED [ 39%]
+tests/unit/services/test_optimization_service.py::TestImpactHealthScore::test_warning_status_no_improvements PASSED [ 40%]
+tests/unit/services/test_optimization_service.py::TestOptimizationObject::test_optimization_has_required_fields PASSED [ 40%]
+tests/unit/services/test_optimization_service.py::TestSummaryMetrics::test_summary_total_optimizations PASSED [ 41%]
+tests/unit/services/test_optimization_service.py::TestSummaryMetrics::test_summary_aggregates_savings PASSED [ 42%]
+tests/unit/services/test_optimization_service.py::TestBaselineChartData::test_baseline_chart_data_limited_to_10 PASSED [ 42%]
+tests/unit/services/test_optimization_service.py::TestBaselineChartData::test_baseline_chart_data_structure PASSED [ 43%]
+tests/unit/services/test_optimization_service.py::TestFormatting::test_baseline_formats_cost PASSED [ 43%]
+tests/unit/services/test_optimization_service.py::TestFormatting::test_baseline_formats_latency PASSED [ 44%]
+tests/unit/services/test_optimization_service.py::TestFormatting::test_baseline_formats_percentages PASSED [ 45%]
+tests/unit/services/test_optimization_service.py::TestEdgeCases::test_handles_zero_latency_in_before PASSED [ 45%]
+tests/unit/services/test_optimization_service.py::TestEdgeCases::test_handles_missing_quality_scores PASSED [ 46%]
+tests/unit/services/test_prompt_service.py::TestPromptSummaryEmpty::test_empty_calls_returns_valid_response PASSED [ 47%]
+tests/unit/services/test_prompt_service.py::TestPromptSummaryEmpty::test_filters_non_llm_calls FAILED [ 47%]
+tests/unit/services/test_prompt_service.py::TestPromptBreakdown::test_uses_prompt_breakdown_when_available PASSED [ 48%]
+tests/unit/services/test_prompt_service.py::TestPromptBreakdown::test_estimates_when_breakdown_missing FAILED [ 49%]
+tests/unit/services/test_prompt_service.py::TestDetailTable::test_groups_by_operation PASSED [ 49%]
+tests/unit/services/test_prompt_service.py::TestDetailTable::test_calculates_averages_per_operation PASSED [ 50%]
+tests/unit/services/test_prompt_service.py::TestDetailTable::test_calculates_system_prompt_percentage PASSED [ 50%]
+tests/unit/services/test_prompt_service.py::TestDetailTable::test_sorted_by_redundant_tokens PASSED [ 51%]
+tests/unit/services/test_prompt_service.py::TestRedundantTokenCalculation::test_calculates_redundant_tokens PASSED [ 52%]
+tests/unit/services/test_prompt_service.py::TestRedundantTokenCalculation::test_single_call_has_no_redundancy PASSED [ 52%]
+tests/unit/services/test_prompt_service.py::TestWasteDetection::test_high_system_prompt_percentage_flagged PASSED [ 53%]
+tests/unit/services/test_prompt_service.py::TestWasteDetection::test_large_system_prompt_flagged PASSED [ 54%]
+tests/unit/services/test_prompt_service.py::TestWasteDetection::test_efficient_prompt_not_flagged PASSED [ 54%]
+tests/unit/services/test_prompt_service.py::TestStatusIndicators::test_red_status_for_waste PASSED [ 55%]
+tests/unit/services/test_prompt_service.py::TestStatusIndicators::test_green_status_for_efficient PASSED [ 56%]
+tests/unit/services/test_prompt_service.py::TestGlobalMetrics::test_calculates_total_system_tokens PASSED [ 56%]
+tests/unit/services/test_prompt_service.py::TestGlobalMetrics::test_identifies_largest_system_prompt PASSED [ 57%]
+tests/unit/services/test_prompt_service.py::TestGlobalMetrics::test_calculates_average_tokens PASSED [ 57%]
+tests/unit/services/test_prompt_service.py::TestTopOffender::test_identifies_most_redundant_tokens PASSED [ 58%]
+tests/unit/services/test_prompt_service.py::TestTopOffender::test_top_offender_includes_recommendation PASSED [ 59%]
+tests/unit/services/test_prompt_service.py::TestTopOffender::test_no_top_offender_without_waste PASSED [ 59%]
+tests/unit/services/test_prompt_service.py::TestRecommendations::test_compress_recommendation_for_large_prompts PASSED [ 60%]
+tests/unit/services/test_prompt_service.py::TestRecommendations::test_caching_recommendation_for_repeated_prompts PASSED [ 61%]
+tests/unit/services/test_prompt_service.py::TestHealthScore::test_perfect_health_efficient_prompts PASSED [ 61%]
+tests/unit/services/test_prompt_service.py::TestHealthScore::test_warning_status_moderate_waste PASSED [ 62%]
+tests/unit/services/test_prompt_service.py::TestHealthScore::test_error_status_severe_waste PASSED [ 63%]
+tests/unit/services/test_prompt_service.py::TestChartData::test_chart_data_limited_to_10 PASSED [ 63%]
+tests/unit/services/test_prompt_service.py::TestChartData::test_chart_data_structure PASSED [ 64%]
+tests/unit/services/test_quality_service.py::TestQualitySummaryEmpty::test_empty_calls_returns_valid_response PASSED [ 64%]
+tests/unit/services/test_quality_service.py::TestErrorDetection::test_counts_failed_calls PASSED [ 65%]
+tests/unit/services/test_quality_service.py::TestErrorDetection::test_error_with_message PASSED [ 66%]
+tests/unit/services/test_quality_service.py::TestErrorDetection::test_calculates_success_rate PASSED [ 66%]
+tests/unit/services/test_quality_service.py::TestHallucinationDetection::test_counts_hallucinations PASSED [ 67%]
+tests/unit/services/test_quality_service.py::TestHallucinationDetection::test_hallucination_flag PASSED [ 68%]
+tests/unit/services/test_quality_service.py::TestQualityScores::test_calculates_average_quality_score PASSED [ 68%]
+tests/unit/services/test_quality_service.py::TestQualityScores::test_ignores_calls_without_quality_eval PASSED [ 69%]
+tests/unit/services/test_quality_service.py::TestQualityScores::test_handles_missing_judge_score PASSED [ 70%]
+tests/unit/services/test_quality_service.py::TestDetailTable::test_groups_by_operation PASSED [ 70%]
+tests/unit/services/test_quality_service.py::TestDetailTable::test_counts_errors_per_operation PASSED [ 71%]
+tests/unit/services/test_quality_service.py::TestDetailTable::test_calculates_quality_metrics_per_operation PASSED [ 71%]
+tests/unit/services/test_quality_service.py::TestDetailTable::test_status_indicators PASSED [ 72%]
+tests/unit/services/test_quality_service.py::TestDetailTable::test_sorted_by_error_count PASSED [ 73%]
+tests/unit/services/test_quality_service.py::TestOperationsAffected::test_counts_operations_with_errors PASSED [ 73%]
+tests/unit/services/test_quality_service.py::TestTopOffender::test_identifies_most_errors PASSED [ 74%]
+tests/unit/services/test_quality_service.py::TestTopOffender::test_top_offender_includes_quality_score PASSED [ 75%]
+tests/unit/services/test_quality_service.py::TestTopOffender::test_no_top_offender_without_issues PASSED [ 75%]
+tests/unit/services/test_quality_service.py::TestErrorRateThresholds::test_warning_threshold PASSED [ 76%]
+tests/unit/services/test_quality_service.py::TestErrorRateThresholds::test_critical_threshold PASSED [ 77%]
+tests/unit/services/test_quality_service.py::TestErrorRateThresholds::test_below_warning_threshold FAILED [ 77%]
+tests/unit/services/test_quality_service.py::TestHealthScore::test_perfect_health_no_errors PASSED [ 78%]
+tests/unit/services/test_quality_service.py::TestHealthScore::test_health_degrades_with_critical_error_rate PASSED [ 78%]
+tests/unit/services/test_quality_service.py::TestHealthScore::test_health_degrades_with_warnings PASSED [ 79%]
+tests/unit/services/test_quality_service.py::TestChartData::test_chart_data_limited_to_10 PASSED [ 80%]
+tests/unit/services/test_quality_service.py::TestChartData::test_chart_data_structure PASSED [ 80%]
+tests/unit/services/test_quality_service.py::TestMixedQualityIssues::test_quality_issue_calls_fixture PASSED [ 81%]
+tests/unit/services/test_routing_service.py::test_routing_service PASSED [ 82%]
+tests/unit/services/test_token_service.py::TestTokenSummaryEmpty::test_empty_calls_returns_valid_response PASSED [ 82%]
+tests/unit/services/test_token_service.py::TestTokenSummaryEmpty::test_non_llm_calls_filtered_out FAILED [ 83%]
+tests/unit/services/test_token_service.py::TestRatioCalculation::test_calculates_prompt_to_completion_ratio PASSED [ 84%]
+tests/unit/services/test_token_service.py::TestRatioCalculation::test_average_ratio_calculation PASSED [ 84%]
+tests/unit/services/test_token_service.py::TestRatioCalculation::test_worst_ratio_identification PASSED [ 85%]
+tests/unit/services/test_token_service.py::TestRatioCalculation::test_zero_completion_tokens_handled PASSED [ 85%]
+tests/unit/services/test_token_service.py::TestDetailTable::test_groups_by_operation PASSED [ 86%]
+tests/unit/services/test_token_service.py::TestDetailTable::test_calculates_averages_per_operation PASSED [ 87%]
+tests/unit/services/test_token_service.py::TestDetailTable::test_status_indicators PASSED [ 87%]
+tests/unit/services/test_token_service.py::TestDetailTable::test_sorted_by_ratio_descending PASSED [ 88%]
+tests/unit/services/test_token_service.py::TestImbalanceThresholds::test_warning_threshold_detection PASSED [ 89%]
+tests/unit/services/test_token_service.py::TestImbalanceThresholds::test_critical_threshold_detection PASSED [ 89%]
+tests/unit/services/test_token_service.py::TestImbalanceThresholds::test_mixed_thresholds FAILED [ 90%]
+tests/unit/services/test_token_service.py::TestTopOffender::test_identifies_worst_ratio PASSED [ 91%]
+tests/unit/services/test_token_service.py::TestTopOffender::test_top_offender_includes_diagnosis PASSED [ 91%]
+tests/unit/services/test_token_service.py::TestTopOffender::test_no_top_offender_when_balanced PASSED [ 92%]
+tests/unit/services/test_token_service.py::TestDiagnosis::test_diagnoses_large_context_minimal_output PASSED [ 92%]
+tests/unit/services/test_token_service.py::TestDiagnosis::test_diagnoses_moderate_imbalance PASSED [ 93%]
+tests/unit/services/test_token_service.py::TestHealthScore::test_perfect_health_balanced_ratios PASSED [ 94%]
+tests/unit/services/test_token_service.py::TestHealthScore::test_health_degrades_with_warnings PASSED [ 94%]
+tests/unit/services/test_token_service.py::TestHealthScore::test_health_degrades_more_with_critical PASSED [ 95%]
+tests/unit/services/test_token_service.py::TestHealthScore::test_health_floors_at_30 PASSED [ 96%]
+tests/unit/services/test_token_service.py::TestChartData::test_chart_data_limited_to_10 PASSED [ 96%]
+tests/unit/services/test_token_service.py::TestChartData::test_chart_data_structure PASSED [ 97%]
+tests/unit/services/test_token_service.py::TestTokenFormatting::test_formats_token_counts PASSED [ 98%]
+tests/unit/services/test_token_service.py::TestTokenFormatting::test_formats_ratio_string PASSED [ 98%]
+tests/unit/services/test_token_service.py::TestImbalanceCounting::test_counts_imbalanced_operations PASSED [ 99%]
+tests/unit/services/test_token_service.py::TestImbalanceCounting::test_issue_count_matches_imbalanced_count PASSED [100%]
+
+================================== FAILURES ===================================
+____________ TestDuplicateDetection.test_whitespace_normalization _____________
+tests\unit\services\test_cache_service.py:101: in test_whitespace_normalization
+    assert result.summary.duplicate_prompts >= 3
+E   AssertionError: assert 2 >= 3
+E    +  where 2 = CacheSummary(total_calls=3, issue_count=1, cache_hits=0, cache_misses=0, hit_rate=0.0, hit_rate_formatted='0.0%', duplicate_prompts=2, potential_savings=0.01).duplicate_prompts
+E    +    where CacheSummary(total_calls=3, issue_count=1, cache_hits=0, cache_misses=0, hit_rate=0.0, hit_rate_formatted='0.0%', duplicate_prompts=2, potential_savings=0.01) = CacheStoryResponse(status='error', health_score=60.0, summary=CacheSummary(total_calls=3, issue_count=1, cache_hits=0, cache_misses=0, hit_rate=0.0, hit_rate_formatted='0.0%', duplicate_prompts=2, potential_savings=0.01), top_offender=TopOffender(agent='TestAgent', operation='search', value=0.01, value_formatted='$0.010', call_count=3, diagnosis='2 duplicate calls wasting $0.010'), detail_table=[{'status': '\U0001f534', 'operation': 'TestAgent.search', 'total_calls': 3, 'unique_prompts': 2, 'duplicate_count': 2, 'redundancy_pct': 0.6666666666666666, 'redundancy_formatted': '66.7%', 'wasted_cost': 0.01, 'wasted_cost_formatted': '$0.010', 'has_opportunity': True}], chart_data=[{'name': 'TestAgent.search', 'duplicates': 2, 'wasted_cost': 0.01}], recommendations=[{'title': 'Enable prompt caching', 'description': 'Cache repeated prompts with semantic similarity matching', 'impact': 'High'}, {'title': 'Normalize prompts', 'description': 'Remove variable content before caching (timestamps, IDs)', 'impact': 'Medium'}, {'title': 'Set appropriate TTL', 'description': 'Configure cache expiration based on data freshness needs', 'impact': 'Low'}]).summary
+___________________ TestDetailTable.test_status_indicators ____________________
+tests\unit\services\test_cache_service.py:167: in test_status_indicators
+    assert statuses["Agent.med"] == "\U0001f7e1"
+E   AssertionError: assert '\U0001f534' == '\U0001f7e1'
+E     
+E     - \U0001f7e1
+E     + \U0001f534
+___________ TestHealthScore.test_perfect_health_with_good_hit_rate ____________
+tests\unit\services\test_cache_service.py:254: in test_perfect_health_with_good_hit_rate
+    assert result.health_score == 100.0
+E   AssertionError: assert 85.0 == 100.0
+E    +  where 85.0 = CacheStoryResponse(status='warning', health_score=85.0, summary=CacheSummary(total_calls=2, issue_count=1, cache_hits=2, cache_misses=0, hit_rate=1.0, hit_rate_formatted='100.0%', duplicate_prompts=2, potential_savings=0.01), top_offender=TopOffender(agent='TestAgent', operation='test_operation', value=0.01, value_formatted='$0.010', call_count=2, diagnosis='2 duplicate calls wasting $0.010'), detail_table=[{'status': '\U0001f534', 'operation': 'TestAgent.test_operation', 'total_calls': 2, 'unique_prompts': 1, 'duplicate_count': 2, 'redundancy_pct': 1.0, 'redundancy_formatted': '100.0%', 'wasted_cost': 0.01, 'wasted_cost_formatted': '$0.010', 'has_opportunity': True}], chart_data=[{'name': 'TestAgent.test_operation', 'duplicates': 2, 'wasted_cost': 0.01}], recommendations=[{'title': 'Enable prompt caching', 'description': 'Cache repeated prompts with semantic similarity matching', 'impact': 'High'}, {'title': 'Normalize prompts', 'description': 'Remove variable content before caching (timestamps, IDs)', 'impact': 'Medium'}, {'title': 'Set appropriate TTL', 'description': 'Configure cache expiration based on data freshness needs', 'impact': 'Low'}]).health_score
+______________ TestBaselineMode.test_baseline_calculates_metrics ______________
+tests\unit\services\test_optimization_service.py:61: in test_baseline_calculates_metrics
+    assert result.baseline.total_cost == 0.30
+E   AssertionError: assert 0.30000000000000004 == 0.3
+E    +  where 0.30000000000000004 = BaselineMetrics(total_calls=2, avg_latency_ms=1500.0, avg_latency='1.5s', total_cost=0.30000000000000004, total_cost_formatted='$0.300', avg_quality_score=8.5, cache_hit_rate=0.0, cache_hit_rate_formatted='0.0%', error_rate=0.0, error_rate_formatted='0.0%').total_cost
+E    +    where BaselineMetrics(total_calls=2, avg_latency_ms=1500.0, avg_latency='1.5s', total_cost=0.30000000000000004, total_cost_formatted='$0.300', avg_quality_score=8.5, cache_hit_rate=0.0, cache_hit_rate_formatted='0.0%', error_rate=0.0, error_rate_formatted='0.0%') = OptimizationStoryResponse(mode='baseline', status='ok', health_score=100.0, summary=OptimizationSummary(total_optimizations=0, total_cost_saved=0.0, total_latency_reduction=0.0, avg_quality_improvement=0.0), baseline=BaselineMetrics(total_calls=2, avg_latency_ms=1500.0, avg_latency='1.5s', total_cost=0.30000000000000004, total_cost_formatted='$0.300', avg_quality_score=8.5, cache_hit_rate=0.0, cache_hit_rate_formatted='0.0%', error_rate=0.0, error_rate_formatted='0.0%'), optimizations=[], detail_table=[{'operation': 'TestAgent.test_operation', 'call_count': 2, 'avg_latency_ms': 1500.0, 'avg_latency': '1.5s', 'total_cost': 0.30000000000000004, 'total_cost_formatted': '$0.300'}], chart_data=[{'name': 'TestAgent.test_operation', 'latency': 1500.0, 'cost': 0.30000000000000004}], recommendations=[{'title': 'Optimize high-cost operations', 'description': 'Focus optimization efforts on the top 3 cost contributors', 'impact': 'High'}, {'title': 'Implement model routing', 'description': 'Route simple requests to cheaper models automatically', 'impact': 'High'}, {'title': 'Reduce prompt size', 'description': 'Compress or summarize context to reduce input tokens', 'impact': 'Medium'}]).baseline
+_________________ TestImpactMode.test_calculates_cost_savings _________________
+tests\unit\services\test_optimization_service.py:180: in test_calculates_cost_savings
+    assert optimization.cost_saved == 0.10
+E   AssertionError: assert 0.09999999999999998 == 0.1
+E    +  where 0.09999999999999998 = OptimizationImpactSimple(id='optimization_1', name='Optimization Deployed', target_operation='all', implemented_date=datetime.datetime(2025, 12, 13, 2, 36, 19, 908825), before_avg_latency_ms=1000.0, before_total_cost=0.3, before_avg_quality=0.0, after_avg_latency_ms=1000.0, after_total_cost=0.2, after_avg_quality=0.0, cost_saved=0.09999999999999998, latency_reduction_pct=0.0, quality_improvement=0.0).cost_saved
+______________ TestPromptSummaryEmpty.test_filters_non_llm_calls ______________
+tests\unit\services\test_prompt_service.py:41: in test_filters_non_llm_calls
+    make_call_dict(prompt_tokens=None),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\fixtures\sample_calls.py:227: in make_call_dict
+    total_tokens = prompt_tokens + completion_tokens
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: unsupported operand type(s) for +: 'NoneType' and 'int'
+__________ TestPromptBreakdown.test_estimates_when_breakdown_missing __________
+tests\unit\services\test_prompt_service.py:85: in test_estimates_when_breakdown_missing
+    result = get_summary(calls, project=None, days=7)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api\services\prompt_service.py:202: in get_summary
+    avg_user = sum(c.get('prompt_breakdown', {}).get('user_message_tokens', 0) for c in llm_calls) / len(llm_calls)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api\services\prompt_service.py:202: in <genexpr>
+    avg_user = sum(c.get('prompt_breakdown', {}).get('user_message_tokens', 0) for c in llm_calls) / len(llm_calls)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'get'
+____________ TestErrorRateThresholds.test_below_warning_threshold _____________
+tests\unit\services\test_quality_service.py:334: in test_below_warning_threshold
+    assert result.status == "ok"
+E   AssertionError: assert 'warning' == 'ok'
+E     
+E     - ok
+E     + warning
+____________ TestTokenSummaryEmpty.test_non_llm_calls_filtered_out ____________
+tests\unit\services\test_token_service.py:38: in test_non_llm_calls_filtered_out
+    make_call_dict(prompt_tokens=None, completion_tokens=0),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\fixtures\sample_calls.py:227: in make_call_dict
+    total_tokens = prompt_tokens + completion_tokens
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: unsupported operand type(s) for +: 'NoneType' and 'int'
+________________ TestImbalanceThresholds.test_mixed_thresholds ________________
+tests\unit\services\test_token_service.py:193: in test_mixed_thresholds
+    assert result.summary.imbalanced_count >= 2
+E   AssertionError: assert 1 >= 2
+E    +  where 1 = TokenImbalanceSummary(total_calls=4, issue_count=1, avg_ratio=19.03216374269006, avg_ratio_formatted='19.0:1', worst_ratio=36.8421052631579, worst_ratio_formatted='36.8:1', imbalanced_count=1).imbalanced_count
+E    +    where TokenImbalanceSummary(total_calls=4, issue_count=1, avg_ratio=19.03216374269006, avg_ratio_formatted='19.0:1', worst_ratio=36.8421052631579, worst_ratio_formatted='36.8:1', imbalanced_count=1) = TokenImbalanceStoryResponse(status='error', health_score=50.0, summary=TokenImbalanceSummary(total_calls=4, issue_count=1, avg_ratio=19.03216374269006, avg_ratio_formatted='19.0:1', worst_ratio=36.8421052631579, worst_ratio_formatted='36.8:1', imbalanced_count=1), top_offender=TopOffender(agent='TestAgent', operation='chat', value=36.8421052631579, value_formatted='37:1', call_count=2, diagnosis='Consider summarizing history or reducing context.'), detail_table=[{'status': '\U0001f534', 'operation': 'TestAgent.chat', 'call_count': 2, 'avg_prompt_tokens': 1750, 'avg_prompt': '1,750.0 tokens', 'avg_completion_tokens': 47, 'avg_completion': '47.5 tokens', 'ratio': 36.8421052631579, 'ratio_formatted': '37:1', 'total_cost': 0.02, 'is_imbalanced': True, 'is_critical': True}, {'status': '\U0001f7e2', 'operation': 'TestAgent.analyze', 'call_count': 2, 'avg_prompt_tokens': 550, 'avg_prompt': '550.0 tokens', 'avg_completion_tokens': 450, 'avg_completion': '450.0 tokens', 'ratio': 1.2222222222222223, 'ratio_formatted': '1:1', 'total_cost': 0.02, 'is_imbalanced': False, 'is_critical': False}], chart_data=[{'name': 'TestAgent.chat', 'prompt': 1750, 'completion': 47, 'ratio': 36.8421052631579}, {'name': 'TestAgent.analyze', 'prompt': 550, 'completion': 450, 'ratio': 1.2222222222222223}], recommendations=[{'title': 'Implement sliding window', 'description': 'Limit chat history to last N messages', 'impact': 'High'}, {'title': 'Summarize history', 'description': 'Use a summary of older messages instead of full history', 'impact': 'High'}, {'title': 'Review context necessity', 'description': 'Ensure all included context is actually needed', 'impact': 'Medium'}]).summary
+============================== warnings summary ===============================
+api\models\base.py:35
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\base.py:35: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ErrorResponse(BaseModel):
+
+.venv\Lib\site-packages\pydantic\_internal\_config.py:383
+  c:\Users\bjlol\Desktop\ai-agent-observatory\.venv\Lib\site-packages\pydantic\_internal\_config.py:383: UserWarning: Valid config keys have changed in V2:
+  * 'schema_extra' has been renamed to 'json_schema_extra'
+    warnings.warn(message, UserWarning)
+
+api\models\base.py:71
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\base.py:71: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class PaginatedResponse(BaseModel, Generic[T]):
+
+api\models\base.py:96
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\base.py:96: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HealthResponse(BaseModel):
+
+api\models\base.py:120
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\base.py:120: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SuccessResponse(BaseModel):
+
+api\models\base.py:136
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\base.py:136: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class CreatedResponse(BaseModel):
+
+api\models\base.py:154
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\base.py:154: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class DeletedResponse(BaseModel):
+
+api\models\llm_call.py:60
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\llm_call.py:60: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class LLMCallResponse(BaseModel):
+
+api\models\llm_call.py:151
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\llm_call.py:151: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class LLMCallListResponse(BaseModel):
+
+api\models\filters.py:26
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\filters.py:26: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validator('end_date')
+
+api\models\metadata.py:56
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\metadata.py:56: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ProjectsResponse(BaseModel):
+
+api\models\metadata.py:77
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\metadata.py:77: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ModelsResponse(BaseModel):
+
+api\models\metadata.py:99
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\metadata.py:99: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AgentsResponse(BaseModel):
+
+api\models\metadata.py:121
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\metadata.py:121: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class OperationsResponse(BaseModel):
+
+api\models\responses.py:34
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\responses.py:34: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ChartDataPoint(BaseModel):
+
+api\models\optimization.py:63
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\optimization.py:63: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class OptimizationStoryResponse(BaseModel):
+
+api\models\optimization.py:121
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\optimization.py:121: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class OptimizationRecord(BaseModel):
+
+api\models\optimization.py:193
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\optimization.py:193: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class OptimizationImpact(BaseModel):
+
+api\models\analytics.py:27
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\analytics.py:27: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class TimeSeriesResponse(BaseModel):
+
+api\models\analytics.py:67
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\analytics.py:67: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class MultiSeriesResponse(BaseModel):
+
+api\models\analytics.py:90
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\analytics.py:90: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class TrendAnalysis(BaseModel):
+
+api\models\analytics.py:148
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\analytics.py:148: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ComparisonMetrics(BaseModel):
+
+api\models\analytics.py:204
+  C:\Users\bjlol\Desktop\ai-agent-observatory\api\models\analytics.py:204: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class DistributionAnalysis(BaseModel):
+
+tests/unit/services/test_cache_service.py: 186 warnings
+tests/unit/services/test_latency_service.py: 77 warnings
+tests/unit/services/test_optimization_service.py: 37 warnings
+tests/unit/services/test_prompt_service.py: 130 warnings
+tests/unit/services/test_quality_service.py: 581 warnings
+tests/unit/services/test_token_service.py: 67 warnings
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\fixtures\sample_calls.py:234: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    'timestamp': timestamp or datetime.utcnow(),
+
+tests/unit/services/test_optimization_service.py::TestImpactMode::test_impact_mode_with_date
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:132: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestImpactMode::test_splits_calls_before_after
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:148: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestImpactMode::test_calculates_cost_savings
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:169: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestImpactMode::test_calculates_latency_reduction
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:185: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestImpactMode::test_calculates_quality_improvement
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:201: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestImpactInsufficientData::test_falls_back_to_baseline_no_before_data
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:227: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestImpactInsufficientData::test_falls_back_to_baseline_no_after_data
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:241: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestImpactHealthScore::test_perfect_health_all_improvements
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:259: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestImpactHealthScore::test_good_health_cost_and_latency_improvements
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:286: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestImpactHealthScore::test_warning_status_no_improvements
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:309: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestOptimizationObject::test_optimization_has_required_fields
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:336: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestSummaryMetrics::test_summary_total_optimizations
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:364: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestSummaryMetrics::test_summary_aggregates_savings
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:378: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestEdgeCases::test_handles_zero_latency_in_before
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:462: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/unit/services/test_optimization_service.py::TestEdgeCases::test_handles_missing_quality_scores
+  C:\Users\bjlol\Desktop\ai-agent-observatory\tests\unit\services\test_optimization_service.py:477: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=============================== tests coverage ================================
+______________ coverage: platform win32, python 3.12.10-final-0 _______________
+
+Name                                   Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------
+api\__init__.py                            2      0   100%
+api\config\__init__.py                     4      0   100%
+api\config\plugin_map.py                  48     29    40%   216-217, 231-232, 246-247, 261-262, 267, 272, 280, 288, 301-311, 333-334, 344-345, 350-351, 356-357
+api\config\settings.py                    54     16    70%   127-130, 135, 140, 146-160
+api\config\story_definitions.py           26     10    62%   426, 436, 441, 446, 451, 456-458, 463, 472
+api\dependencies.py                        7      7     0%   15-40
+api\main.py                               17      4    76%   58, 70, 82-83
+api\models\__init__.py                    19      0   100%
+api\models\alerts.py                      60      0   100%
+api\models\analytics.py                   88      0   100%
+api\models\base.py                        59      0   100%
+api\models\batch.py                       32      0   100%
+api\models\code_location.py               40      5    88%   21-26
+api\models\conversation.py                47      0   100%
+api\models\dashboard.py                   26      0   100%
+api\models\experiment.py                  33      0   100%
+api\models\filters.py                     80     14    82%   29-31, 35-50
+api\models\llm_call.py                    88      0   100%
+api\models\metadata.py                    64      0   100%
+api\models\optimization.py               115      0   100%
+api\models\responses.py                  107      0   100%
+api\models\user_preferences.py            35      0   100%
+api\models\webhooks.py                    62      0   100%
+api\routers\__init__.py                    3      0   100%
+api\routers\alerts.py                      2      2     0%   4-6
+api\routers\analytics.py                   2      2     0%   4-6
+api\routers\experiments.py                 2      2     0%   4-6
+api\routers\llm_calls.py                  10     10     0%   6-30
+api\routers\metadata.py                   19      5    74%   35, 51, 67, 83, 102
+api\routers\optimizations.py               2      2     0%   4-6
+api\routers\stories.py                    55     29    47%   51-54, 77-78, 96-97, 115-116, 134-135, 153-154, 172-173, 191-192, 214-227, 242-250
+api\routers\webhooks.py                    2      2     0%   4-6
+api\services\__init__.py                  10      0   100%
+api\services\alert_service.py              0      0   100%
+api\services\analytics_service.py          0      0   100%
+api\services\batch_service.py              0      0   100%
+api\services\cache_service.py             59      2    97%   144-145
+api\services\cost_service.py              46     39    15%   31-152
+api\services\dashboard_service.py          0      0   100%
+api\services\experiment_service.py         0      0   100%
+api\services\latency_service.py           68      0   100%
+api\services\llm_call_service.py         136    130     4%   30-45, 114-257, 278-325
+api\services\optimization_service.py      64      0   100%
+api\services\prompt_service.py            85      1    99%   56
+api\services\quality_service.py           69      0   100%
+api\services\routing_service.py           74     66    11%   32-191
+api\services\token_service.py             65      1    98%   55
+api\services\webhook_service.py            0      0   100%
+api\utils\__init__.py                      5      0   100%
+api\utils\aggregators.py                 221    202     9%   27-29, 38-75, 80-118, 123-164, 169-172, 181-214, 231-271, 296-334, 359-392, 413-443, 452-477, 500-520, 533-565, 589-628
+api\utils\data_fetcher.py                277    249    10%   48-71, 83-86, 92, 101-102, 107-108, 113-114, 119-120, 131-132, 182-219, 238-250, 263-495, 504-550, 569-578, 586-614, 622-660, 671-720, 733-785, 823-928, 951-964, 992-1005
+api\utils\exceptions.py                   46     10    78%   20-22, 62, 72, 100, 119, 152, 172-185
+api\utils\formatters.py                  100     72    28%   29, 63, 91-99, 114-133, 147-154, 167-176, 190, 204-208, 223-225, 239-259, 272-303
+observatory\__init__.py                   12      1    92%   277
+observatory\cache.py                     151    117    23%   46-48, 124-139, 164-174, 178, 202-214, 224-227, 231, 255-313, 337-381, 398-423, 427-432, 451, 465, 473-485, 498-502, 539
+observatory\collector.py                 183    150    18%   56-58, 63-86, 105-108, 116-133, 142-168, 298-482, 499-508, 519-526, 537-544, 563-586, 596-637, 653-659, 678-681, 689, 693, 697, 701, 705, 709, 713, 717, 721
+observatory\judge.py                     202    167    17%   65-76, 133-146, 154-155, 159-160, 164-165, 169-170, 188-200, 232-235, 263-266, 283-319, 330-364, 383-419, 438-469, 488-502, 556-601, 607-632, 636-641, 649-652, 667-670, 709
+observatory\models.py                    340     42    88%   55-57, 62-64, 89-91, 134-136, 162-164, 185-187, 192-194, 217-219, 244-246, 251-253, 441-443, 448-450, 455-457, 462-464
+observatory\prompts.py                   146    104    29%   46, 95-107, 143-179, 183, 187, 218-252, 256-264, 268-278, 282-293, 314-317, 334-337, 354-361, 369-373, 406, 423-442, 446, 450-452, 483, 534-547, 582-584
+observatory\router.py                    147    112    24%   49-72, 138-155, 163, 207-221, 225-226, 254-305, 309-321, 325-326, 335-348, 364-409, 413, 420-421, 430, 438, 458-460, 493
+observatory\storage.py                   331    195    41%   202-207, 214, 238, 267-328, 445-481, 575-581, 585-590, 598-604, 608-614, 633-674, 682-687, 691-702, 706-717, 721-732, 740-747, 756-772, 781-797
+--------------------------------------------------------------------
+TOTAL                                   4047   1799    56%
+Coverage HTML written to dir htmlcov
+=========================== short test summary info ===========================
+FAILED tests/unit/services/test_cache_service.py::TestDuplicateDetection::test_whitespace_normalization - AssertionError: assert 2 >= 3
+ +  where 2 = CacheSummary(total_calls=3, issue_count=1, cache_hits=0, cache_misses=0, hit_rate=0.0, hit_rate_formatted='0.0%', duplicate_prompts=2, potential_savings=0.01).duplicate_prompts
+ +    where CacheSummary(total_calls=3, issue_count=1, cache_hits=0, cache_misses=0, hit_rate=0.0, hit_rate_formatted='0.0%', duplicate_prompts=2, potential_savings=0.01) = CacheStoryResponse(status='error', health_score=60.0, summary=CacheSummary(total_calls=3, issue_count=1, cache_hits=0, cache_misses=0, hit_rate=0.0, hit_rate_formatted='0.0%', duplicate_prompts=2, potential_savings=0.01), top_offender=TopOffender(agent='TestAgent', operation='search', value=0.01, value_formatted='$0.010', call_count=3, diagnosis='2 duplicate calls wasting $0.010'), detail_table=[{'status': '\U0001f534', 'operation': 'TestAgent.search', 'total_calls': 3, 'unique_prompts': 2, 'duplicate_count': 2, 'redundancy_pct': 0.6666666666666666, 'redundancy_formatted': '66.7%', 'wasted_cost': 0.01, 'wasted_cost_formatted': '$0.010', 'has_opportunity': True}], chart_data=[{'name': 'TestAgent.search', 'duplicates': 2, 'wasted_cost': 0.01}], recommendations=[{'title': 'Enable prompt caching', 'description': 'Cache repeated prompts with semantic similarity matching', 'impact': 'High'}, {'title': 'Normalize prompts', 'description': 'Remove variable content before caching (timestamps, IDs)', 'impact': 'Medium'}, {'title': 'Set appropriate TTL', 'description': 'Configure cache expiration based on data freshness needs', 'impact': 'Low'}]).summary
+FAILED tests/unit/services/test_cache_service.py::TestDetailTable::test_status_indicators - AssertionError: assert '\U0001f534' == '\U0001f7e1'\n  \n  - \U0001f7e1\n  + \U0001f534
+FAILED tests/unit/services/test_cache_service.py::TestHealthScore::test_perfect_health_with_good_hit_rate - AssertionError: assert 85.0 == 100.0
+ +  where 85.0 = CacheStoryResponse(status='warning', health_score=85.0, summary=CacheSummary(total_calls=2, issue_count=1, cache_hits=2, cache_misses=0, hit_rate=1.0, hit_rate_formatted='100.0%', duplicate_prompts=2, potential_savings=0.01), top_offender=TopOffender(agent='TestAgent', operation='test_operation', value=0.01, value_formatted='$0.010', call_count=2, diagnosis='2 duplicate calls wasting $0.010'), detail_table=[{'status': '\U0001f534', 'operation': 'TestAgent.test_operation', 'total_calls': 2, 'unique_prompts': 1, 'duplicate_count': 2, 'redundancy_pct': 1.0, 'redundancy_formatted': '100.0%', 'wasted_cost': 0.01, 'wasted_cost_formatted': '$0.010', 'has_opportunity': True}], chart_data=[{'name': 'TestAgent.test_operation', 'duplicates': 2, 'wasted_cost': 0.01}], recommendations=[{'title': 'Enable prompt caching', 'description': 'Cache repeated prompts with semantic similarity matching', 'impact': 'High'}, {'title': 'Normalize prompts', 'description': 'Remove variable content before caching (timestamps, IDs)', 'impact': 'Medium'}, {'title': 'Set appropriate TTL', 'description': 'Configure cache expiration based on data freshness needs', 'impact': 'Low'}]).health_score
+FAILED tests/unit/services/test_optimization_service.py::TestBaselineMode::test_baseline_calculates_metrics - AssertionError: assert 0.30000000000000004 == 0.3
+ +  where 0.30000000000000004 = BaselineMetrics(total_calls=2, avg_latency_ms=1500.0, avg_latency='1.5s', total_cost=0.30000000000000004, total_cost_formatted='$0.300', avg_quality_score=8.5, cache_hit_rate=0.0, cache_hit_rate_formatted='0.0%', error_rate=0.0, error_rate_formatted='0.0%').total_cost
+ +    where BaselineMetrics(total_calls=2, avg_latency_ms=1500.0, avg_latency='1.5s', total_cost=0.30000000000000004, total_cost_formatted='$0.300', avg_quality_score=8.5, cache_hit_rate=0.0, cache_hit_rate_formatted='0.0%', error_rate=0.0, error_rate_formatted='0.0%') = OptimizationStoryResponse(mode='baseline', status='ok', health_score=100.0, summary=OptimizationSummary(total_optimizations=0, total_cost_saved=0.0, total_latency_reduction=0.0, avg_quality_improvement=0.0), baseline=BaselineMetrics(total_calls=2, avg_latency_ms=1500.0, avg_latency='1.5s', total_cost=0.30000000000000004, total_cost_formatted='$0.300', avg_quality_score=8.5, cache_hit_rate=0.0, cache_hit_rate_formatted='0.0%', error_rate=0.0, error_rate_formatted='0.0%'), optimizations=[], detail_table=[{'operation': 'TestAgent.test_operation', 'call_count': 2, 'avg_latency_ms': 1500.0, 'avg_latency': '1.5s', 'total_cost': 0.30000000000000004, 'total_cost_formatted': '$0.300'}], chart_data=[{'name': 'TestAgent.test_operation', 'latency': 1500.0, 'cost': 0.30000000000000004}], recommendations=[{'title': 'Optimize high-cost operations', 'description': 'Focus optimization efforts on the top 3 cost contributors', 'impact': 'High'}, {'title': 'Implement model routing', 'description': 'Route simple requests to cheaper models automatically', 'impact': 'High'}, {'title': 'Reduce prompt size', 'description': 'Compress or summarize context to reduce input tokens', 'impact': 'Medium'}]).baseline
+FAILED tests/unit/services/test_optimization_service.py::TestImpactMode::test_calculates_cost_savings - AssertionError: assert 0.09999999999999998 == 0.1
+ +  where 0.09999999999999998 = OptimizationImpactSimple(id='optimization_1', name='Optimization Deployed', target_operation='all', implemented_date=datetime.datetime(2025, 12, 13, 2, 36, 19, 908825), before_avg_latency_ms=1000.0, before_total_cost=0.3, before_avg_quality=0.0, after_avg_latency_ms=1000.0, after_total_cost=0.2, after_avg_quality=0.0, cost_saved=0.09999999999999998, latency_reduction_pct=0.0, quality_improvement=0.0).cost_saved
+FAILED tests/unit/services/test_prompt_service.py::TestPromptSummaryEmpty::test_filters_non_llm_calls - TypeError: unsupported operand type(s) for +: 'NoneType' and 'int'
+FAILED tests/unit/services/test_prompt_service.py::TestPromptBreakdown::test_estimates_when_breakdown_missing - AttributeError: 'NoneType' object has no attribute 'get'
+FAILED tests/unit/services/test_quality_service.py::TestErrorRateThresholds::test_below_warning_threshold - AssertionError: assert 'warning' == 'ok'
+  
+  - ok
+  + warning
+FAILED tests/unit/services/test_token_service.py::TestTokenSummaryEmpty::test_non_llm_calls_filtered_out - TypeError: unsupported operand type(s) for +: 'NoneType' and 'int'
+FAILED tests/unit/services/test_token_service.py::TestImbalanceThresholds::test_mixed_thresholds - AssertionError: assert 1 >= 2
+ +  where 1 = TokenImbalanceSummary(total_calls=4, issue_count=1, avg_ratio=19.03216374269006, avg_ratio_formatted='19.0:1', worst_ratio=36.8421052631579, worst_ratio_formatted='36.8:1', imbalanced_count=1).imbalanced_count
+ +    where TokenImbalanceSummary(total_calls=4, issue_count=1, avg_ratio=19.03216374269006, avg_ratio_formatted='19.0:1', worst_ratio=36.8421052631579, worst_ratio_formatted='36.8:1', imbalanced_count=1) = TokenImbalanceStoryResponse(status='error', health_score=50.0, summary=TokenImbalanceSummary(total_calls=4, issue_count=1, avg_ratio=19.03216374269006, avg_ratio_formatted='19.0:1', worst_ratio=36.8421052631579, worst_ratio_formatted='36.8:1', imbalanced_count=1), top_offender=TopOffender(agent='TestAgent', operation='chat', value=36.8421052631579, value_formatted='37:1', call_count=2, diagnosis='Consider summarizing history or reducing context.'), detail_table=[{'status': '\U0001f534', 'operation': 'TestAgent.chat', 'call_count': 2, 'avg_prompt_tokens': 1750, 'avg_prompt': '1,750.0 tokens', 'avg_completion_tokens': 47, 'avg_completion': '47.5 tokens', 'ratio': 36.8421052631579, 'ratio_formatted': '37:1', 'total_cost': 0.02, 'is_imbalanced': True, 'is_critical': True}, {'status': '\U0001f7e2', 'operation': 'TestAgent.analyze', 'call_count': 2, 'avg_prompt_tokens': 550, 'avg_prompt': '550.0 tokens', 'avg_completion_tokens': 450, 'avg_completion': '450.0 tokens', 'ratio': 1.2222222222222223, 'ratio_formatted': '1:1', 'total_cost': 0.02, 'is_imbalanced': False, 'is_critical': False}], chart_data=[{'name': 'TestAgent.chat', 'prompt': 1750, 'completion': 47, 'ratio': 36.8421052631579}, {'name': 'TestAgent.analyze', 'prompt': 550, 'completion': 450, 'ratio': 1.2222222222222223}], recommendations=[{'title': 'Implement sliding window', 'description': 'Limit chat history to last N messages', 'impact': 'High'}, {'title': 'Summarize history', 'description': 'Use a summary of older messages instead of full history', 'impact': 'High'}, {'title': 'Review context necessity', 'description': 'Ensure all included context is actually needed', 'impact': 'Medium'}]).summary
+================ 10 failed, 147 passed, 1116 warnings in 1.95s ================

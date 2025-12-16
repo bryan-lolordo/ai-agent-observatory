@@ -59,6 +59,15 @@ logs/
 htmlcov/
 .tox/
 
+# Additional test artifacts
+coverage.xml
+nosetests.xml
+test-results/
+*.cover
+*.py,cover
+*.test
+tests/__pycache__/
+
 # Jupyter
 .ipynb_checkpoints/
 

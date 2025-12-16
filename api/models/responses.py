@@ -1,6 +1,6 @@
 """
 Story Response Models
-Location: api/models/story_responses.py
+Location: api/models/responses.py
 
 Pydantic models for story API responses.
 Defines the contract between backend and frontend.
@@ -89,39 +89,42 @@ class CostSummary(BaseModel):
     issue_count: int  # Operations with concentrated cost
     total_cost: float
     total_cost_formatted: str
-    top_3_concentration: float  # 0-1, what % top 3 ops represent
     avg_cost_per_call: float
+    potential_savings: float
+    top_3_concentration: float  # 0-1, what % top 3 ops represent
 
 
 class SystemPromptSummary(BaseModel):
     """Summary metrics for system prompt story."""
     total_calls: int
     issue_count: int  # High system prompt token operations
-    avg_system_tokens: float
-    avg_total_tokens: float
-    system_token_pct: float  # 0-1
-    system_token_pct_formatted: str
-    wasted_tokens: int  # Excess system tokens
+    avg_system_tokens: int
+    avg_user_tokens: int
+    avg_context_tokens: int
+    total_system_tokens: int
+    largest_system_prompt: int
+    total_redundant_tokens: int
 
 
 class TokenImbalanceSummary(BaseModel):
     """Summary metrics for token imbalance story."""
     total_calls: int
     issue_count: int  # High ratio operations
-    avg_prompt_tokens: float
-    avg_completion_tokens: float
     avg_ratio: float  # prompt:completion ratio
-    critical_count: int  # >20:1
-    warning_count: int  # >10:1
+    avg_ratio_formatted: str  # "15.2:1"
+    worst_ratio: float
+    worst_ratio_formatted: str  # "40.5:1"
+    imbalanced_count: int
 
 
 class RoutingSummary(BaseModel):
     """Summary metrics for routing story."""
     total_calls: int
     issue_count: int  # Misrouted calls
-    routed_calls: int  # Calls with routing decision
-    high_complexity_on_cheap: int  # Complex tasks on cheap models
-    low_complexity_on_expensive: int  # Simple tasks on expensive models
+    upgrade_candidates: int  # High complexity on cheap models
+    downgrade_candidates: int  # Low complexity on expensive models
+    high_complexity_calls: int
+    misrouted_calls: int
     potential_savings: float
 
 
@@ -129,12 +132,14 @@ class QualitySummary(BaseModel):
     """Summary metrics for quality story."""
     total_calls: int
     issue_count: int  # Failed/low-quality calls
-    evaluated_calls: int
-    avg_quality_score: float  # 0-1
-    avg_quality_score_formatted: str  # "85.2%"
     error_count: int
-    hallucination_count: int
     error_rate: float  # 0-1
+    error_rate_formatted: str  # "5.2%"
+    success_count: int
+    success_rate: float  # 0-1
+    avg_quality_score: float  # 0-10
+    hallucination_count: int
+    operations_affected: int
 
 
 # =============================================================================
