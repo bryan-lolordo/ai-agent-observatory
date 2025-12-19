@@ -86,3 +86,312 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ============================================================================
+   RAINBOW SCROLLBAR SYSTEM 🌈
+   Story-specific scrollbars matching the rainbow theme
+   ============================================================================ */
+
+/* Base scrollbar styling (Webkit browsers: Chrome, Safari, Edge) */
+.story-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.story-scrollbar::-webkit-scrollbar-track {
+  background: #1f2937; /* gray-800 */
+  border-radius: 6px;
+}
+
+.story-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 6px;
+  transition: background 0.2s ease;
+}
+
+.story-scrollbar::-webkit-scrollbar-thumb:hover {
+  opacity: 0.8;
+}
+
+.story-scrollbar::-webkit-scrollbar-corner {
+  background: #1f2937; /* gray-800 */
+}
+
+/* Thin variant for tables and compact areas */
+.story-scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.story-scrollbar-thin::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 4px;
+}
+
+.story-scrollbar-thin::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+}
+
+/* ============================================================================
+   STORY 1: LATENCY - Orange 🌐
+   ============================================================================ */
+.story-scrollbar.latency::-webkit-scrollbar-thumb {
+  background: #f97316; /* orange-500 */
+  border: 2px solid #1f2937;
+}
+
+.story-scrollbar.latency::-webkit-scrollbar-thumb:hover {
+  background: #ea580c; /* orange-600 */
+}
+
+.story-scrollbar-thin.latency::-webkit-scrollbar-thumb {
+  background: #f97316;
+}
+
+.story-scrollbar-thin.latency::-webkit-scrollbar-thumb:hover {
+  background: #ea580c;
+}
+
+/* Firefox */
+.story-scrollbar.latency,
+.story-scrollbar-thin.latency {
+  scrollbar-width: thin;
+  scrollbar-color: #f97316 #1f2937;
+}
+
+/* ============================================================================
+   STORY 2: CACHE - Pink 💾
+   ============================================================================ */
+.story-scrollbar.cache::-webkit-scrollbar-thumb {
+  background: #ec4899; /* pink-500 */
+  border: 2px solid #1f2937;
+}
+
+.story-scrollbar.cache::-webkit-scrollbar-thumb:hover {
+  background: #db2777; /* pink-600 */
+}
+
+.story-scrollbar-thin.cache::-webkit-scrollbar-thumb {
+  background: #ec4899;
+}
+
+.story-scrollbar-thin.cache::-webkit-scrollbar-thumb:hover {
+  background: #db2777;
+}
+
+/* Firefox */
+.story-scrollbar.cache,
+.story-scrollbar-thin.cache {
+  scrollbar-width: thin;
+  scrollbar-color: #ec4899 #1f2937;
+}
+
+/* ============================================================================
+   STORY 3: ROUTING - Purple 🔀
+   ============================================================================ */
+.story-scrollbar.routing::-webkit-scrollbar-thumb {
+  background: #8b5cf6; /* purple-500 */
+  border: 2px solid #1f2937;
+}
+
+.story-scrollbar.routing::-webkit-scrollbar-thumb:hover {
+  background: #7c3aed; /* purple-600 */
+}
+
+.story-scrollbar-thin.routing::-webkit-scrollbar-thumb {
+  background: #8b5cf6;
+}
+
+.story-scrollbar-thin.routing::-webkit-scrollbar-thumb:hover {
+  background: #7c3aed;
+}
+
+/* Firefox */
+.story-scrollbar.routing,
+.story-scrollbar-thin.routing {
+  scrollbar-width: thin;
+  scrollbar-color: #8b5cf6 #1f2937;
+}
+
+/* ============================================================================
+   STORY 4: QUALITY - Red ❌
+   ============================================================================ */
+.story-scrollbar.quality::-webkit-scrollbar-thumb {
+  background: #ef4444; /* red-500 */
+  border: 2px solid #1f2937;
+}
+
+.story-scrollbar.quality::-webkit-scrollbar-thumb:hover {
+  background: #dc2626; /* red-600 */
+}
+
+.story-scrollbar-thin.quality::-webkit-scrollbar-thumb {
+  background: #ef4444;
+}
+
+.story-scrollbar-thin.quality::-webkit-scrollbar-thumb:hover {
+  background: #dc2626;
+}
+
+/* Firefox */
+.story-scrollbar.quality,
+.story-scrollbar-thin.quality {
+  scrollbar-width: thin;
+  scrollbar-color: #ef4444 #1f2937;
+}
+
+/* ============================================================================
+   STORY 5: TOKEN - Yellow ⚖️
+   ============================================================================ */
+.story-scrollbar.token::-webkit-scrollbar-thumb {
+  background: #eab308; /* yellow-500 */
+  border: 2px solid #1f2937;
+}
+
+.story-scrollbar.token::-webkit-scrollbar-thumb:hover {
+  background: #ca8a04; /* yellow-600 */
+}
+
+.story-scrollbar-thin.token::-webkit-scrollbar-thumb {
+  background: #eab308;
+}
+
+.story-scrollbar-thin.token::-webkit-scrollbar-thumb:hover {
+  background: #ca8a04;
+}
+
+/* Firefox */
+.story-scrollbar.token,
+.story-scrollbar-thin.token {
+  scrollbar-width: thin;
+  scrollbar-color: #eab308 #1f2937;
+}
+
+/* ============================================================================
+   STORY 6: PROMPT - Cyan 📝
+   ============================================================================ */
+.story-scrollbar.prompt::-webkit-scrollbar-thumb {
+  background: #06b6d4; /* cyan-500 */
+  border: 2px solid #1f2937;
+}
+
+.story-scrollbar.prompt::-webkit-scrollbar-thumb:hover {
+  background: #0891b2; /* cyan-600 */
+}
+
+.story-scrollbar-thin.prompt::-webkit-scrollbar-thumb {
+  background: #06b6d4;
+}
+
+.story-scrollbar-thin.prompt::-webkit-scrollbar-thumb:hover {
+  background: #0891b2;
+}
+
+/* Firefox */
+.story-scrollbar.prompt,
+.story-scrollbar-thin.prompt {
+  scrollbar-width: thin;
+  scrollbar-color: #06b6d4 #1f2937;
+}
+
+/* ============================================================================
+   STORY 7: COST - Amber 💰
+   ============================================================================ */
+.story-scrollbar.cost::-webkit-scrollbar-thumb {
+  background: #f59e0b; /* amber-500 */
+  border: 2px solid #1f2937;
+}
+
+.story-scrollbar.cost::-webkit-scrollbar-thumb:hover {
+  background: #d97706; /* amber-600 */
+}
+
+.story-scrollbar-thin.cost::-webkit-scrollbar-thumb {
+  background: #f59e0b;
+}
+
+.story-scrollbar-thin.cost::-webkit-scrollbar-thumb:hover {
+  background: #d97706;
+}
+
+/* Firefox */
+.story-scrollbar.cost,
+.story-scrollbar-thin.cost {
+  scrollbar-width: thin;
+  scrollbar-color: #f59e0b #1f2937;
+}
+
+/* ============================================================================
+   STORY 8: OPTIMIZATION - Green 🎯
+   ============================================================================ */
+.story-scrollbar.optimization::-webkit-scrollbar-thumb {
+  background: #22c55e; /* green-500 */
+  border: 2px solid #1f2937;
+}
+
+.story-scrollbar.optimization::-webkit-scrollbar-thumb:hover {
+  background: #16a34a; /* green-600 */
+}
+
+.story-scrollbar-thin.optimization::-webkit-scrollbar-thumb {
+  background: #22c55e;
+}
+
+.story-scrollbar-thin.optimization::-webkit-scrollbar-thumb:hover {
+  background: #16a34a;
+}
+
+/* Firefox */
+.story-scrollbar.optimization,
+.story-scrollbar-thin.optimization {
+  scrollbar-width: thin;
+  scrollbar-color: #22c55e #1f2937;
+}
+
+/* ============================================================================
+   DEFAULT SCROLLBAR (Gray for non-story pages)
+   ============================================================================ */
+.default-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.default-scrollbar::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 4px;
+}
+
+.default-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563; /* gray-600 */
+  border-radius: 4px;
+}
+
+.default-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6b7280; /* gray-500 */
+}
+
+/* Firefox */
+.default-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #4b5563 #1f2937;
+}
+
+/* ============================================================================
+   USAGE EXAMPLES
+   ============================================================================ */
+
+/* 
+  Tables (thin scrollbar):
+  <div className="overflow-auto max-h-80 story-scrollbar-thin latency">
+  
+  Large content areas (normal scrollbar):
+  <div className="overflow-auto story-scrollbar latency">
+  
+  Modals/Dialogs:
+  <div className="overflow-auto story-scrollbar-thin latency">
+  
+  Code blocks:
+  <div className="overflow-auto story-scrollbar-thin latency">
+  
+  Sidebar navigation:
+  <div className="overflow-auto story-scrollbar default-scrollbar">
+*/

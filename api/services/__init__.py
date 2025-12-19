@@ -3,33 +3,91 @@ Services Package
 Location: api/services/__init__.py
 
 Business logic layer - converts data to response models.
-All services return proper Pydantic models.
+All services return dicts for simplicity.
 
-UPDATED: Changed call_service → llm_call_service for SDK consistency
-UPDATED: All services now follow consistent pattern: get_detail() with alias
+Complete: All 8 stories implemented.
 """
 
 from .llm_call_service import get_detail as get_llm_call_detail
+
+# Story 1 - Latency Monster
 from .latency_service import get_summary as get_latency_summary
-from .cache_service import get_summary as get_cache_summary
-from .routing_service import get_summary as get_routing_summary
-from .quality_service import get_summary as get_quality_summary
-from .token_service import get_summary as get_token_summary
-from .prompt_service import get_summary as get_prompt_summary
-from .cost_service import get_summary as get_cost_summary
-from .optimization_service import get_summary as get_optimization_summary
+
+# Story 2 - Cache Strategy
+from .cache_service import (
+    get_summary as get_cache_summary,
+    get_operation_detail as get_cache_operation_detail,
+    get_opportunity_detail as get_cache_opportunity_detail,
+)
+
+# Story 3 - Model Routing
+from .routing_service import (
+    get_summary as get_routing_summary,
+    get_operation_detail as get_routing_operation_detail,
+)
+
+# Story 4 - Quality Monitoring
+from .quality_service import (
+    get_summary as get_quality_summary,
+    get_operation_detail as get_quality_operation_detail,
+)
+
+# Story 5 - Token Efficiency
+from .token_service import (
+    get_summary as get_token_summary,
+    get_operation_detail as get_token_operation_detail,
+)
+
+# Story 6 - Prompt Composition
+from .prompt_service import (
+    get_summary as get_prompt_summary,
+    get_operation_detail as get_prompt_operation_detail,
+)
+
+# Story 7 - Cost Analysis
+from .cost_service import (
+    get_summary as get_cost_summary,
+    get_operation_detail as get_cost_operation_detail,
+)
+
+# Story 8 - Optimization Impact
+from .optimization_service import (
+    get_summary as get_optimization_summary,
+)
+
 
 __all__ = [
     # Layer 3 - Call detail (shared by all stories)
-    "get_llm_call_detail",       # Story endpoint - call detail with diagnosis
+    "get_llm_call_detail",
     
-    # Layer 1 & 2 - Story summaries
-    "get_latency_summary",       # Story 1 - Latency Monster
-    "get_cache_summary",         # Story 2 - Zero Cache Hits
-    "get_routing_summary",       # Story 3 - Model Routing
-    "get_quality_summary",       # Story 4 - Quality Issues
-    "get_token_summary",         # Story 5 - Token Imbalance
-    "get_prompt_summary",        # Story 6 - System Prompt Waste
-    "get_cost_summary",          # Story 7 - Cost Deep Dive
-    "get_optimization_summary",  # Story 8 - Optimization Impact
+    # Story 1 - Latency Monster
+    "get_latency_summary",
+    
+    # Story 2 - Cache Strategy
+    "get_cache_summary",
+    "get_cache_operation_detail",
+    "get_cache_opportunity_detail",
+    
+    # Story 3 - Model Routing
+    "get_routing_summary",
+    "get_routing_operation_detail",
+    
+    # Story 4 - Quality Monitoring
+    "get_quality_summary",
+    "get_quality_operation_detail",
+    
+    # Story 5 - Token Efficiency
+    "get_token_summary",
+    "get_token_operation_detail",
+    
+    # Story 6 - Prompt Composition
+    "get_prompt_summary",
+    "get_prompt_operation_detail",
+    
+    # Story 7 - Cost Analysis
+    "get_cost_summary",
+    "get_cost_operation_detail",
+    
+    # Story 8 - Optimization Impact
+    "get_optimization_summary",
 ]

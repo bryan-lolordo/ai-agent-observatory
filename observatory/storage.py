@@ -796,6 +796,29 @@ class Storage:
         finally:
             db.close()
 
+    # =============================================================================
+    # ADD THIS METHOD TO Storage CLASS
+    # =============================================================================
+
+    def get_llm_call_by_id(self, call_id: str) -> Optional[LLMCall]:
+        """
+        Get a single LLM call by its ID.
+        
+        Used by Layer 3 (Call Detail) to fetch complete call information.
+        
+        Args:
+            call_id: Unique identifier for the LLM call
+            
+        Returns:
+            LLMCall model if found, None otherwise
+        """
+        db: DBSession = self.SessionLocal()
+        try:
+            llm_call_db = db.query(LLMCallDB).filter(LLMCallDB.id == call_id).first()
+            return self._from_llm_call_db(llm_call_db) if llm_call_db else None
+        finally:
+            db.close()
+
 
 # Singleton instance for easy access
-ObservatoryStorage = Storage
+ObservatoryStorage = Storage()

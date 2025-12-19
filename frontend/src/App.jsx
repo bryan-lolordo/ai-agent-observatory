@@ -1,7 +1,164 @@
-import Stories from './components/Stories';
+/**
+ * App - Main Application Component
+ * 
+ * Sets up routing for the Observatory dashboard and all story pages.
+ * Includes Header with filters and Footer.
+ */
+
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+
+// Layout
+import Header from './components/layout/Header';
+import Footer from './components/layout/Footer';
+
+// Pages - Dashboard
+import Dashboard from './pages/Dashboard';
+
+// Pages - Shared Call Detail (Layer 3 for all stories)
+import CallDetail from './pages/stories/CallDetail';
+
+// Pages - Latency Story (Layers 1 & 2)
+import Latency from './pages/stories/latency';
+import LatencyOperationDetail from './pages/stories/latency/OperationDetail';
+
+// Pages - Cache Story (Layers 1 & 2)
+import Cache from './pages/stories/cache';
+import CacheOperationDetail from './pages/stories/cache/OperationDetail';
+import CacheOpportunityDetail from './pages/stories/cache/OpportunityDetail';
+
+// Pages - Routing Story (Layers 1 & 2)
+import Routing from './pages/stories/routing';
+import RoutingOperationDetail from './pages/stories/routing/OperationDetail';
+
+// Pages - Quality Story (Layers 1 & 2)
+import Quality from './pages/stories/quality';
+import QualityOperationDetail from './pages/stories/quality/OperationDetail';
+
+// Pages - Token Story (Layers 1 & 2)
+import Token from './pages/stories/token';
+import TokenOperationDetail from './pages/stories/token/OperationDetail';
+
+// Pages - Prompt Story (Layers 1 & 2)
+import Prompt from './pages/stories/prompt';
+import PromptOperationDetail from './pages/stories/prompt/OperationDetail';
+
+// Pages - Cost Story (Layers 1 & 2)
+import Cost from './pages/stories/cost';
+import CostOperationDetail from './pages/stories/cost/OperationDetail';
+
+// Pages - Optimization Story (Layers 1 & 2)
+import Optimization from './pages/stories/optimization';
+import OptimizationComparisonDetail from './pages/stories/optimization/ComparisonDetail';
 
 function App() {
-  return <Stories />;
+  // Global filter state
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [timeRange, setTimeRange] = useState(7); // Default: 7 days
+  const [projects, setProjects] = useState([]);
+
+  // Fetch available projects on mount
+  useEffect(() => {
+    fetch('/api/projects')
+      .then(res => {
+        if (!res.ok) {
+          console.warn('Projects endpoint not available yet');
+          return { projects: [] };
+        }
+        return res.json();
+      })
+      .then(data => setProjects(data.projects || []))
+      .catch(err => {
+        console.warn('Failed to load projects:', err);
+        setProjects([]);
+      });
+  }, []);
+
+  return (
+    <BrowserRouter>
+      <div className="min-h-screen bg-gray-950 flex flex-col">
+        
+        {/* Header - Sticky navigation with filters */}
+        <Header 
+          selectedProject={selectedProject}
+          onProjectChange={setSelectedProject}
+          timeRange={timeRange}
+          onTimeRangeChange={setTimeRange}
+          projects={projects}
+        />
+
+        {/* Main Content Area */}
+        <main className="flex-1">
+          <Routes>
+            {/* Dashboard */}
+            <Route path="/" element={<Dashboard />} />
+            
+            {/* ============================================= */}
+            {/* SHARED: Call Detail (Layer 3 for all stories) */}
+            {/* Theme determined by ?from= query param         */}
+            {/* ============================================= */}
+            <Route path="/stories/calls/:callId" element={<CallDetail />} />
+            
+            {/* ============================================= */}
+            {/* LATENCY STORY - Layers 1 & 2                  */}
+            {/* ============================================= */}
+            <Route path="/stories/latency" element={<Latency />} />
+            <Route path="/stories/latency/operations/:agent/:operation" element={<LatencyOperationDetail />} />
+            
+            {/* ============================================= */}
+            {/* CACHE STORY - Layers 1 & 2                    */}
+            {/* ============================================= */}
+            <Route path="/stories/cache" element={<Cache />} />
+            <Route path="/stories/cache/operations/:agent/:operation" element={<CacheOperationDetail />} />
+            <Route path="/stories/cache/operations/:agent/:operation/groups/:group_id" element={<CacheOpportunityDetail />} />
+            
+            {/* ============================================= */}
+            {/* ROUTING STORY - Layers 1 & 2                  */}
+            {/* ============================================= */}
+            <Route path="/stories/routing" element={<Routing />} />
+            <Route path="/stories/routing/operations/:agent/:operation" element={<RoutingOperationDetail />} />
+            
+            {/* ============================================= */}
+            {/* QUALITY STORY - Layers 1 & 2                  */}
+            {/* ============================================= */}
+            <Route path="/stories/quality" element={<Quality />} />
+            <Route path="/stories/quality/operations/:agent/:operation" element={<QualityOperationDetail />} />
+            
+            {/* ============================================= */}
+            {/* TOKEN EFFICIENCY STORY - Layers 1 & 2         */}
+            {/* ============================================= */}
+            <Route path="/stories/token_imbalance" element={<Token />} />
+            <Route path="/stories/token_imbalance/operations/:agent/:operation" element={<TokenOperationDetail />} />
+            
+            {/* ============================================= */}
+            {/* PROMPT COMPOSITION STORY - Layers 1 & 2       */}
+            {/* ============================================= */}
+            <Route path="/stories/system_prompt" element={<Prompt />} />
+            <Route path="/stories/system_prompt/operations/:agent/:operation" element={<PromptOperationDetail />} />
+            
+            {/* ============================================= */}
+            {/* COST ANALYSIS STORY - Layers 1 & 2            */}
+            {/* ============================================= */}
+            <Route path="/stories/cost" element={<Cost />} />
+            <Route path="/stories/cost/operations/:agent/:operation" element={<CostOperationDetail />} />
+            
+            {/* ============================================= */}
+            {/* OPTIMIZATION IMPACT STORY - Layers 1 & 2      */}
+            {/* ============================================= */}
+            <Route path="/stories/optimization" element={<Optimization />} />
+            <Route path="/stories/optimization/comparisons/:comparisonId" element={<OptimizationComparisonDetail />} />
+            
+            {/* Catch-all redirect */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+
+        {/* Footer - Bottom navigation and links */}
+        <Footer />
+
+      </div>
+    </BrowserRouter>
+  );
 }
 
 export default App;

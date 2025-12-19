@@ -140,7 +140,8 @@ ai-agent-observatory/
 │       │   ├── stories/                            # Story-Specific Components
 │       │   │   ├── CallDetail.jsx                      # Call detail display
 │       │   │   ├── OperationTable.jsx                  # Operation data table
-│       │   │   └── StoryCard.jsx                       # Story summary card
+│       │   │   ├── StoryCard.jsx                       # Story summary card
+│       │   │   └── StoryNavTabs.jsx                    # 🌈 NEW: Rainbow nav tabs
 │       │   │
 │       │   └── ui/                                 # 🎨 shadcn/ui components (installed)
 │       │       ├── badge.jsx                           # Badge component (status indicators)

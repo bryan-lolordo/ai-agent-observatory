@@ -17,7 +17,7 @@ from api.utils.data_fetcher import (
 )
 
 
-router = APIRouter(prefix="/api/metadata", tags=["metadata"])
+router = APIRouter(prefix="/api", tags=["metadata"])
 
 
 # =============================================================================

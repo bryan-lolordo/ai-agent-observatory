@@ -50,7 +50,9 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> Latenc
     
     # Calculate metrics
     latencies = [c.get('latency_ms', 0) for c in calls]
-    avg_latency = sum(latencies) / len(latencies)
+    # Filter out None values before calculating average
+    valid_latencies = [lat for lat in latencies if lat is not None]
+    avg_latency = sum(valid_latencies) / len(valid_latencies) if valid_latencies else 0
     max_latency = max(latencies)
     
     # Group by operation
@@ -68,7 +70,9 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> Latenc
     
     for op, op_calls in by_operation.items():
         op_latencies = [c.get('latency_ms', 0) for c in op_calls]
-        avg = sum(op_latencies) / len(op_latencies)
+        # Filter out None values before calculating average
+        valid_op_latencies = [lat for lat in op_latencies if lat is not None]
+        avg = sum(valid_op_latencies) / len(valid_op_latencies) if valid_op_latencies else 0
         max_lat = max(op_latencies)
         
         is_critical = avg > LATENCY_CRITICAL_MS
