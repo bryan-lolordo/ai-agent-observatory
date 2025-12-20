@@ -97,16 +97,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Stories Section Header */}
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-100 mb-2">
-            📊 Stories
-          </h2>
-          <p className="text-gray-400">
-            Click any story to investigate issues and find optimization opportunities
-          </p>
-        </div>
-
         {/* Rainbow Story Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {stories.map((story) => {
@@ -124,54 +114,6 @@ export default function Dashboard() {
               />
             );
           })}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-100 mb-2">
-              📈 Top Issues
-            </h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Most critical problems requiring attention
-            </p>
-            <button 
-              onClick={() => navigate('/stories/latency')}
-              className="text-sm text-orange-400 hover:text-orange-300"
-            >
-              View slowest operations →
-            </button>
-          </div>
-
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-100 mb-2">
-              💰 Cost Savings
-            </h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Biggest opportunities to reduce spending
-            </p>
-            <button 
-              onClick={() => navigate('/stories/cost')}
-              className="text-sm text-amber-400 hover:text-amber-300"
-            >
-              View cost analysis →
-            </button>
-          </div>
-
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-100 mb-2">
-              🎯 Quick Wins
-            </h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Easy optimizations with high impact
-            </p>
-            <button 
-              onClick={() => navigate('/stories/cache')}
-              className="text-sm text-pink-400 hover:text-pink-300"
-            >
-              View caching opportunities →
-            </button>
-          </div>
         </div>
 
       </div>

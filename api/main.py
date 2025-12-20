@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
 from api.routers import stories_router, metadata_router
+from api.routers.calls import router as calls_router
 
 
 # =============================================================================
@@ -46,6 +47,7 @@ app.add_middleware(
 
 app.include_router(stories_router)
 app.include_router(metadata_router)
+app.include_router(calls_router, prefix="/api")
 
 
 # =============================================================================

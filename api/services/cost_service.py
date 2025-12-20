@@ -1,275 +1,225 @@
 """
-Prompt Service - Story 6 Business Logic
-Location: api/services/prompt_service.py
+Cost Service - Story 7 Business Logic
+Location: api/services/cost_service.py
 
-Layer 1: get_summary() - Prompt composition overview
-Layer 2: get_operation_detail() - Operation prompt structure analysis
-Layer 3: Shared CallDetail (uses llm_call_service.py)
+Handles cost analysis and breakdown.
+Returns proper CostStoryResponse model.
 """
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 from collections import defaultdict
-from datetime import datetime
+from api.models import CostStoryResponse, CostSummary, TopOffender
+from api.config.story_definitions import get_story_recommendations
+from api.utils.formatters import format_cost, format_percentage
 
-# =============================================================================
-# CONSTANTS & THRESHOLDS
-# =============================================================================
-
-THRESHOLDS = {
-    "system_pct_high": 50.0,     # System > 50% = high
-    "history_pct_high": 40.0,    # History > 40% = concerning
-    "variability_low": 0.05,     # <5% variation = static
-    "variability_high": 0.20,    # >20% variation = dynamic
-}
+# Thresholds
+COST_CONCENTRATION_THRESHOLD = 0.70
+HIGH_COST_THRESHOLD = 0.15  # >15% of total = high cost operation
+MEDIUM_COST_THRESHOLD = 0.05  # >5% of total = medium cost
 
 
-# =============================================================================
-# HELPER FUNCTIONS
-# =============================================================================
-
-def _get_token_breakdown(call: Dict) -> Dict:
-    """Extract token breakdown from call data."""
-    breakdown = {
-        "system_prompt_tokens": call.get("system_prompt_tokens") or 0,
-        "user_message_tokens": call.get("user_message_tokens") or 0,
-        "chat_history_tokens": call.get("chat_history_tokens") or 0,
-    }
-    
-    # Try prompt_breakdown JSON if columns are empty
-    prompt_breakdown = call.get("prompt_breakdown") or {}
-    if isinstance(prompt_breakdown, dict):
-        if not breakdown["system_prompt_tokens"]:
-            breakdown["system_prompt_tokens"] = prompt_breakdown.get("system_prompt_tokens") or 0
-        if not breakdown["user_message_tokens"]:
-            breakdown["user_message_tokens"] = prompt_breakdown.get("user_message_tokens") or 0
-        if not breakdown["chat_history_tokens"]:
-            breakdown["chat_history_tokens"] = prompt_breakdown.get("chat_history_tokens") or 0
-    
-    return breakdown
-
-
-def _calculate_variability(values: List[float]) -> float:
-    """Calculate coefficient of variation (std/mean)."""
-    if not values or len(values) < 2:
-        return 0.0
-    
-    mean = sum(values) / len(values)
-    if mean == 0:
-        return 0.0
-    
-    variance = sum((x - mean) ** 2 for x in values) / len(values)
-    std = variance ** 0.5
-    return std / mean
-
-
-def _get_cache_status(
-    has_history: bool,
-    system_variability: float,
-    system_tokens: int
-) -> Tuple[str, str, str]:
-    """
-    Determine cache readiness status.
-    
-    Returns (status, emoji, label)
-    """
-    if system_tokens == 0:
-        return ("none", "➖", "No System Prompt")
-    
-    if system_variability > THRESHOLDS["variability_high"]:
-        return ("not_ready", "❌", "Not Cache Ready")
-    
-    if has_history:
-        if system_variability <= THRESHOLDS["variability_low"]:
-            return ("partial", "⚠️", "Partial (has history)")
-        return ("not_ready", "❌", "Not Cache Ready")
-    
-    if system_variability <= THRESHOLDS["variability_low"]:
-        return ("ready", "✅", "Cache Ready")
-    
-    return ("partial", "⚠️", "Partial")
-
-
-def _format_timestamp(ts: Any) -> str:
-    """Format timestamp for display."""
-    if not ts:
-        return "—"
-    
-    if isinstance(ts, str):
-        try:
-            ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        except:
-            return ts[:16] if len(ts) > 16 else ts
-    
-    if isinstance(ts, datetime):
-        return ts.strftime("%b %d, %I:%M %p")
-    
-    return str(ts)
-
-
-# =============================================================================
-# LAYER 1: SUMMARY
-# =============================================================================
-
-def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> Dict:
-    """
-    Layer 1: Prompt composition summary.
-    
-    Returns overview of prompt structure across operations.
-    """
-    # Filter to only LLM calls with tokens
-    llm_calls = [c for c in calls if (c.get("prompt_tokens") or 0) > 0]
-    
-    if not llm_calls:
-        return {
-            "status": "ok",
-            "health_score": 100.0,
-            "summary": {
-                "total_calls": 0,
-                "avg_system_tokens": 0,
-                "avg_user_tokens": 0,
-                "avg_history_tokens": 0,
-                "system_pct": 0,
-                "user_pct": 0,
-                "history_pct": 0,
-                "cache_ready_count": 0,
-                "total_operations": 0,
-            },
-            "composition_chart": [],
-            "detail_table": [],
-        }
-    
-    # Global token aggregates
-    total_system = 0
-    total_user = 0
-    total_history = 0
-    
-    for call in llm_calls:
-        breakdown = _get_token_breakdown(call)
-        total_system += breakdown["system_prompt_tokens"]
-        total_user += breakdown["user_message_tokens"]
-        total_history += breakdown["chat_history_tokens"]
-    
-    n = len(llm_calls)
-    avg_system = total_system / n
-    avg_user = total_user / n
-    avg_history = total_history / n
-    total_avg = avg_system + avg_user + avg_history
-    
-    if total_avg > 0:
-        system_pct = (avg_system / total_avg) * 100
-        user_pct = (avg_user / total_avg) * 100
-        history_pct = (avg_history / total_avg) * 100
+def _get_status(cost_share: float) -> tuple:
+    """Get status and emoji based on cost share."""
+    if cost_share >= HIGH_COST_THRESHOLD:
+        return ("high", "🔴")
+    elif cost_share >= MEDIUM_COST_THRESHOLD:
+        return ("medium", "🟡")
     else:
-        system_pct = user_pct = history_pct = 0
+        return ("low", "🟢")
+
+
+def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> CostStoryResponse:
+    """
+    Layer 1: Cost analysis summary.
+    
+    Args:
+        calls: List of LLM call dictionaries
+        project: Project name filter
+        days: Number of days analyzed
+    
+    Returns:
+        CostStoryResponse model
+    """
+    if not calls:
+        return CostStoryResponse(
+            status="ok",
+            health_score=100.0,
+            summary=CostSummary(
+                total_calls=0,
+                issue_count=0,
+                total_cost=0.0,
+                total_cost_formatted="$0.00",
+                avg_cost_formatted="$0.000",
+                avg_cost_per_call=0.0,
+                potential_savings=0.0,
+                potential_savings_formatted="$0.00",
+                top_3_concentration=0.0,
+                top_3_concentration_formatted="0%",
+            ),
+            top_offender=None,
+            detail_table=[],
+            chart_data=[],
+            recommendations=[],
+        )
+    
+    total_cost = sum(c.get('total_cost', 0) or 0 for c in calls)
+    total_calls = len(calls)
+    avg_cost_per_call = total_cost / total_calls if total_calls > 0 else 0
+    
+    if total_cost == 0:
+        return CostStoryResponse(
+            status="ok",
+            health_score=100.0,
+            summary=CostSummary(
+                total_calls=total_calls,
+                issue_count=0,
+                total_cost=0.0,
+                total_cost_formatted="$0.00",
+                avg_cost_formatted="$0.000",
+                avg_cost_per_call=0.0,
+                potential_savings=0.0,
+                potential_savings_formatted="$0.00",
+                top_3_concentration=0.0,
+                top_3_concentration_formatted="0%",
+            ),
+            top_offender=None,
+            detail_table=[],
+            chart_data=[],
+            recommendations=[],
+        )
     
     # Group by operation
-    by_operation = defaultdict(list)
-    for call in llm_calls:
-        agent = call.get("agent_name") or "Unknown"
-        op = call.get("operation") or "unknown"
-        by_operation[(agent, op)].append(call)
+    by_operation = defaultdict(lambda: {'calls': [], 'cost': 0})
+    for call in calls:
+        agent = call.get('agent_name') or 'Unknown'
+        operation = call.get('operation') or 'unknown'
+        op_key = f"{agent}.{operation}"
+        cost = call.get('total_cost', 0) or 0
+        by_operation[op_key]['calls'].append(call)
+        by_operation[op_key]['cost'] += cost
+        by_operation[op_key]['agent'] = agent
+        by_operation[op_key]['operation'] = operation
     
+    # Build detail table
     detail_table = []
-    cache_ready_count = 0
-    
-    for (agent, op), op_calls in by_operation.items():
-        # Calculate averages
-        system_tokens_list = []
-        user_tokens_list = []
-        history_tokens_list = []
+    for op_key, data in by_operation.items():
+        cost_share = data['cost'] / total_cost if total_cost > 0 else 0
+        avg_cost = data['cost'] / len(data['calls']) if data['calls'] else 0
         
-        for call in op_calls:
-            breakdown = _get_token_breakdown(call)
-            system_tokens_list.append(breakdown["system_prompt_tokens"])
-            user_tokens_list.append(breakdown["user_message_tokens"])
-            history_tokens_list.append(breakdown["chat_history_tokens"])
+        # Calculate total tokens
+        total_prompt_tokens = sum(c.get('prompt_tokens', 0) or 0 for c in data['calls'])
+        total_completion_tokens = sum(c.get('completion_tokens', 0) or 0 for c in data['calls'])
         
-        avg_sys = sum(system_tokens_list) / len(system_tokens_list) if system_tokens_list else 0
-        avg_usr = sum(user_tokens_list) / len(user_tokens_list) if user_tokens_list else 0
-        avg_hist = sum(history_tokens_list) / len(history_tokens_list) if history_tokens_list else 0
-        
-        # Calculate system prompt variability
-        system_variability = _calculate_variability(system_tokens_list)
-        has_history = avg_hist > 0
-        
-        # Determine cache status
-        cache_status, cache_emoji, cache_label = _get_cache_status(
-            has_history, system_variability, int(avg_sys)
-        )
-        
-        if cache_status == "ready":
-            cache_ready_count += 1
+        # Get status
+        status, status_emoji = _get_status(cost_share)
         
         detail_table.append({
-            "agent_name": agent,
-            "operation_name": op,
-            "avg_system_tokens": int(avg_sys),
-            "avg_system_formatted": f"{int(avg_sys):,}",
-            "avg_user_tokens": int(avg_usr),
-            "avg_user_formatted": f"{int(avg_usr):,}",
-            "avg_history_tokens": int(avg_hist),
-            "avg_history_formatted": f"{int(avg_hist):,}",
-            "cache_status": cache_status,
-            "cache_emoji": cache_emoji,
-            "cache_label": cache_label,
-            "system_variability": round(system_variability * 100, 1),
-            "call_count": len(op_calls),
+            # Frontend expected field names
+            'agent_name': data['agent'],
+            'operation_name': data['operation'],
+            'total_cost': data['cost'],
+            'total_cost_formatted': format_cost(data['cost']),
+            'cost_pct': cost_share,
+            'cost_pct_formatted': format_percentage(cost_share),
+            'call_count': len(data['calls']),
+            'avg_cost': avg_cost,
+            'avg_cost_formatted': format_cost(avg_cost),
+            'total_prompt_tokens': total_prompt_tokens,
+            'total_completion_tokens': total_completion_tokens,
+            'status': status,
+            'status_emoji': status_emoji,
+            # Keep original names for backward compatibility
+            'operation': op_key,
+            'agent': data['agent'],
+            'cost_share': cost_share,
+            'cost_share_formatted': format_percentage(cost_share),
         })
     
-    # Sort by system tokens (highest first)
-    detail_table.sort(key=lambda x: -x["avg_system_tokens"])
+    # Sort by cost (highest first)
+    detail_table.sort(key=lambda x: -x['total_cost'])
     
-    # Composition chart data
-    composition_chart = [
-        {"component": "System Prompt", "tokens": int(avg_system), "percentage": round(system_pct, 1), "color": "#8b5cf6"},
-        {"component": "User Message", "tokens": int(avg_user), "percentage": round(user_pct, 1), "color": "#22c55e"},
-        {"component": "Chat History", "tokens": int(avg_history), "percentage": round(history_pct, 1), "color": "#f97316"},
-    ]
+    # Calculate top 3 concentration
+    top_3_cost = sum(op['total_cost'] for op in detail_table[:3])
+    top_3_concentration = top_3_cost / total_cost if total_cost > 0 else 0
     
-    # Calculate health score
-    cache_ready_pct = (cache_ready_count / len(by_operation) * 100) if by_operation else 0
-    health_score = min(100, 50 + cache_ready_pct * 0.5)
+    # Calculate potential savings (estimate 20% reduction through optimization)
+    potential_savings = total_cost * 0.20
     
-    if history_pct > 50:
-        health_score = max(40, health_score - 20)
+    # Chart data with frontend expected field names
+    chart_data = []
+    for row in detail_table[:10]:
+        pct = (row['total_cost'] / total_cost * 100) if total_cost > 0 else 0
+        chart_data.append({
+            'name': row['operation_name'],
+            'value': row['total_cost'],
+            'cost': row['total_cost'],
+            'calls': row['call_count'],
+            'percentage': round(pct, 1),
+        })
     
-    status = "ok" if health_score >= 70 else "warning" if health_score >= 50 else "error"
+    # Count high-cost operations as issues
+    issue_count = sum(1 for op in detail_table if op['status'] == 'high')
     
-    return {
-        "status": status,
-        "health_score": round(health_score, 1),
-        "summary": {
-            "total_calls": len(llm_calls),
-            "avg_system_tokens": int(avg_system),
-            "avg_system_formatted": f"{int(avg_system):,}",
-            "avg_user_tokens": int(avg_user),
-            "avg_user_formatted": f"{int(avg_user):,}",
-            "avg_history_tokens": int(avg_history),
-            "avg_history_formatted": f"{int(avg_history):,}",
-            "system_pct": round(system_pct, 1),
-            "user_pct": round(user_pct, 1),
-            "history_pct": round(history_pct, 1),
-            "cache_ready_count": cache_ready_count,
-            "total_operations": len(by_operation),
-        },
-        "composition_chart": composition_chart,
-        "detail_table": detail_table,
-    }
+    # Top offender (highest total cost)
+    top_offender = None
+    if detail_table:
+        top_row = detail_table[0]
+        
+        top_offender = TopOffender(
+            agent=top_row['agent_name'],
+            operation=top_row['operation_name'],
+            value=top_row['total_cost'],
+            value_formatted=format_cost(top_row['total_cost']),
+            call_count=top_row['call_count'],
+            diagnosis=f"{top_row['cost_pct_formatted']} of total cost",
+        )
+    
+    # Health score
+    has_concentration = top_3_concentration > COST_CONCENTRATION_THRESHOLD
+    if has_concentration:
+        health_score = max(60, 80 - (int(top_3_concentration * 100) - 70))
+        status = "warning"
+    else:
+        health_score = 100.0
+        status = "ok"
+    
+    return CostStoryResponse(
+        status=status,
+        health_score=health_score,
+        summary=CostSummary(
+            total_calls=total_calls,
+            issue_count=issue_count,
+            total_cost=total_cost,
+            total_cost_formatted=format_cost(total_cost),
+            avg_cost_per_call=avg_cost_per_call,
+            avg_cost_formatted=format_cost(avg_cost_per_call),
+            potential_savings=potential_savings,
+            potential_savings_formatted=format_cost(potential_savings),
+            top_3_concentration=top_3_concentration,
+            top_3_concentration_formatted=format_percentage(top_3_concentration),
+        ),
+        top_offender=top_offender,
+        detail_table=detail_table,
+        chart_data=chart_data,
+        recommendations=get_story_recommendations('cost'),
+    )
 
-
-# =============================================================================
-# LAYER 2: OPERATION DETAIL
-# =============================================================================
 
 def get_operation_detail(
     calls: List[Dict],
     agent: str,
     operation: str
-) -> Optional[Dict]:
+) -> Dict[str, Any]:
     """
-    Layer 2: Operation prompt structure analysis.
+    Layer 2: Operation cost detail.
     
-    Returns detailed breakdown of prompt composition for an operation.
+    Args:
+        calls: List of LLM call dictionaries
+        agent: Agent name
+        operation: Operation name
+    
+    Returns:
+        Operation cost breakdown
     """
     # Filter calls for this operation
     op_calls = [
@@ -280,134 +230,35 @@ def get_operation_detail(
     if not op_calls:
         return None
     
-    # Calculate aggregates
-    system_tokens_list = []
-    user_tokens_list = []
-    history_tokens_list = []
+    # Calculate totals
+    total_cost = sum(c.get('total_cost', 0) or 0 for c in op_calls)
+    total_prompt_tokens = sum(c.get('prompt_tokens', 0) or 0 for c in op_calls)
+    total_completion_tokens = sum(c.get('completion_tokens', 0) or 0 for c in op_calls)
+    call_count = len(op_calls)
     
-    for call in op_calls:
-        breakdown = _get_token_breakdown(call)
-        system_tokens_list.append(breakdown["system_prompt_tokens"])
-        user_tokens_list.append(breakdown["user_message_tokens"])
-        history_tokens_list.append(breakdown["chat_history_tokens"])
+    avg_cost = total_cost / call_count if call_count > 0 else 0
+    avg_prompt_tokens = total_prompt_tokens / call_count if call_count > 0 else 0
+    avg_completion_tokens = total_completion_tokens / call_count if call_count > 0 else 0
     
-    avg_system = sum(system_tokens_list) / len(system_tokens_list) if system_tokens_list else 0
-    avg_user = sum(user_tokens_list) / len(user_tokens_list) if user_tokens_list else 0
-    avg_history = sum(history_tokens_list) / len(history_tokens_list) if history_tokens_list else 0
-    total_avg = avg_system + avg_user + avg_history
-    
-    # Percentages
-    if total_avg > 0:
-        system_pct = (avg_system / total_avg) * 100
-        user_pct = (avg_user / total_avg) * 100
-        history_pct = (avg_history / total_avg) * 100
-    else:
-        system_pct = user_pct = history_pct = 0
-    
-    # Variability
-    system_variability = _calculate_variability(system_tokens_list)
-    has_history = avg_history > 0
-    
-    # Cache status
-    cache_status, cache_emoji, cache_label = _get_cache_status(
-        has_history, system_variability, int(avg_system)
-    )
-    
-    # Composition breakdown
-    composition = [
-        {
-            "component": "System Prompt",
-            "tokens": int(avg_system),
-            "percentage": round(system_pct, 1),
-            "status": "warning" if system_variability > THRESHOLDS["variability_high"] else "ok",
-            "status_label": "Dynamic" if system_variability > THRESHOLDS["variability_high"] else "Static",
-        },
-        {
-            "component": "User Message",
-            "tokens": int(avg_user),
-            "percentage": round(user_pct, 1),
-            "status": "ok",
-            "status_label": "Expected dynamic",
-        },
-        {
-            "component": "Chat History",
-            "tokens": int(avg_history),
-            "percentage": round(history_pct, 1),
-            "status": "warning" if history_pct > THRESHOLDS["history_pct_high"] else "ok",
-            "status_label": "Large" if history_pct > THRESHOLDS["history_pct_high"] else "Normal" if avg_history > 0 else "None",
-        },
-    ]
-    
-    # Build calls list
-    calls_list = []
-    for i, call in enumerate(op_calls[:50]):  # Limit to 50
-        breakdown = _get_token_breakdown(call)
-        
-        # Get prompt preview
-        prompt = call.get("prompt") or ""
-        system_prompt = ""
-        if isinstance(call.get("prompt_breakdown"), dict):
-            system_prompt = call["prompt_breakdown"].get("system_prompt") or ""
-        
-        calls_list.append({
-            "call_id": call.get("id"),
-            "index": i + 1,
-            "timestamp": call.get("timestamp"),
-            "timestamp_formatted": _format_timestamp(call.get("timestamp")),
-            "system_tokens": breakdown["system_prompt_tokens"],
-            "system_formatted": f"{breakdown['system_prompt_tokens']:,}",
-            "user_tokens": breakdown["user_message_tokens"],
-            "user_formatted": f"{breakdown['user_message_tokens']:,}",
-            "history_tokens": breakdown["chat_history_tokens"],
-            "history_formatted": f"{breakdown['chat_history_tokens']:,}",
-            "system_preview": (system_prompt[:50] + "...") if len(system_prompt) > 50 else system_prompt,
-            "user_preview": (prompt[:50] + "...") if len(prompt) > 50 else prompt,
-        })
-    
-    # Determine cache issue reason
-    cache_issue_reason = None
-    if cache_status == "not_ready":
-        if system_variability > THRESHOLDS["variability_high"]:
-            cache_issue_reason = "System prompt contains dynamic content that changes between calls"
-        elif has_history:
-            cache_issue_reason = "Chat history in prompt prevents consistent caching"
-    elif cache_status == "partial":
-        if has_history:
-            cache_issue_reason = "System prompt is static but chat history varies"
+    # Get min/max costs
+    costs = [c.get('total_cost', 0) or 0 for c in op_calls]
+    min_cost = min(costs) if costs else 0
+    max_cost = max(costs) if costs else 0
     
     return {
         "agent_name": agent,
         "operation_name": operation,
-        
-        # Cache status
-        "cache_status": cache_status,
-        "cache_emoji": cache_emoji,
-        "cache_label": cache_label,
-        "cache_issue_reason": cache_issue_reason,
-        
-        # Averages
-        "avg_system_tokens": int(avg_system),
-        "avg_system_formatted": f"{int(avg_system):,}",
-        "avg_user_tokens": int(avg_user),
-        "avg_user_formatted": f"{int(avg_user):,}",
-        "avg_history_tokens": int(avg_history),
-        "avg_history_formatted": f"{int(avg_history):,}",
-        "total_prompt_tokens": int(total_avg),
-        "total_prompt_formatted": f"{int(total_avg):,}",
-        
-        # Percentages
-        "system_pct": round(system_pct, 1),
-        "user_pct": round(user_pct, 1),
-        "history_pct": round(history_pct, 1),
-        
-        # Variability
-        "system_variability": round(system_variability * 100, 1),
-        "system_variability_label": "High" if system_variability > THRESHOLDS["variability_high"] else "Low",
-        
-        # Composition breakdown
-        "composition": composition,
-        
-        # Calls
-        "calls": calls_list,
-        "call_count": len(op_calls),
+        "call_count": call_count,
+        "total_cost": total_cost,
+        "total_cost_formatted": format_cost(total_cost),
+        "avg_cost": avg_cost,
+        "avg_cost_formatted": format_cost(avg_cost),
+        "min_cost": min_cost,
+        "min_cost_formatted": format_cost(min_cost),
+        "max_cost": max_cost,
+        "max_cost_formatted": format_cost(max_cost),
+        "total_prompt_tokens": total_prompt_tokens,
+        "total_completion_tokens": total_completion_tokens,
+        "avg_prompt_tokens": int(avg_prompt_tokens),
+        "avg_completion_tokens": int(avg_completion_tokens),
     }

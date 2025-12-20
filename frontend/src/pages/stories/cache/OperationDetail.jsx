@@ -2,7 +2,7 @@
  * Layer 2: Cache Operation Detail
  * 
  * Shows cache opportunities for a specific operation with type filters.
- * Matches Latency story UI pattern.
+ * This is the original cache-specific design (not Layer2Table).
  */
 
 import { useState, useEffect } from 'react';
@@ -23,7 +23,7 @@ const CACHE_TYPE_FILTERS = [
   { id: 'high_value', name: 'High-Value', emoji: '💎' },
 ];
 
-export default function OperationDetail() {
+export default function CacheOperationDetail() {
   const { agent, operation } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();

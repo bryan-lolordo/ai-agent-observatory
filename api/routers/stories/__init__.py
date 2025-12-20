@@ -32,7 +32,6 @@ from .token import router as token_router
 from .prompt import router as prompt_router
 from .cost import router as cost_router
 from .optimization import router as optimization_router
-from .calls import router as calls_router
 
 # Import services for summary endpoint
 from api.services import (
@@ -137,8 +136,6 @@ router.include_router(prompt_router)        # /api/stories/system_prompt
 router.include_router(cost_router)          # /api/stories/cost
 router.include_router(optimization_router)  # /api/stories/optimization
 
-# Call detail router (Layer 3)
-router.include_router(calls_router)         # /api/stories/calls/{call_id}
 
 
 # =============================================================================

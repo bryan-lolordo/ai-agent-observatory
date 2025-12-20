@@ -1,149 +1,113 @@
 /**
  * Layer 2: Routing Operation Detail
  * 
- * Shows calls for a specific operation with quality scores and routing badge.
- * Matches Latency/Cache Layer 2 pattern - NO StoryNavTabs.
+ * Uses Layer2Table component for full-featured data exploration.
+ * Shows all calls for a specific operation (or all calls if no operation selected).
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { STORY_THEMES } from '../../../config/theme';
-import { InlineLoading } from '../../../components/common/Loading';
-import { formatNumber, formatCurrency, formatLatency } from '../../../utils/formatters';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { StoryPageSkeleton } from '../../../components/common/Loading';
+import StoryNavTabs from '../../../components/stories/StoryNavTabs';
+import Layer2Table from '../../../components/Layer2Table';
+import { formatNumber, formatCurrency } from '../../../utils/formatters';
 
-const QUICK_FILTERS = {
-  ALL: 'all',
-  LOW_QUALITY: 'low-quality',
-  HIGH_QUALITY: 'high-quality',
-  RECENT: 'recent',
-};
+const STORY_ID = 'routing';
+const theme = STORY_THEMES.routing;
 
 export default function RoutingOperationDetail() {
   const { agent, operation } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const theme = STORY_THEMES.routing;
-
+  
   // State
-  const [data, setData] = useState(null);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeQuickFilter, setActiveQuickFilter] = useState(QUICK_FILTERS.ALL);
-  const [searchText, setSearchText] = useState('');
-
-  // Get initial filter from URL
-  useEffect(() => {
-    const filter = searchParams.get('filter');
-    if (filter) {
-      setActiveQuickFilter(filter);
+  const [stats, setStats] = useState(null);
+  
+  // Get initial filter from URL if coming from Layer 1
+  const initialQuickFilter = searchParams.get('filter') || 'all';
+  
+  // Build initial column filters if operation is specified
+  const initialFilters = useMemo(() => {
+    const filters = {};
+    
+    if (operation) {
+      filters.operation = [operation];
     }
-  }, [searchParams]);
-
-  // Fetch data
+    
+    if (agent) {
+      filters.agent_name = [agent];
+    }
+    
+    return filters;
+  }, [agent, operation]);
+  
+  // Fetch all calls
   useEffect(() => {
     fetchData();
-  }, [agent, operation]);
-
+  }, []);
+  
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(
-        `/api/stories/routing/operations/${encodeURIComponent(agent)}/${encodeURIComponent(operation)}`
-      );
+      const response = await fetch('/api/calls?days=7');
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP ${response.status}`);
+        throw new Error(`HTTP ${response.status}`);
       }
       
       const result = await response.json();
-      setData(result);
+      setData(result.calls || []);
+      
+      // Calculate stats
+      if (result.calls?.length > 0) {
+        const calls = result.calls;
+        const totalCost = calls.reduce((sum, c) => sum + (c.total_cost || 0), 0);
+        const models = [...new Set(calls.map(c => c.model_name))];
+        const errors = calls.filter(c => c.status === 'error').length;
+        
+        setStats({
+          total: calls.length,
+          totalCost,
+          modelCount: models.length,
+          errors,
+        });
+      }
     } catch (err) {
-      console.error('Error fetching routing operation detail:', err);
+      console.error('Error fetching calls:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
-
-  // Apply filters
-  const getFilteredCalls = () => {
-    let filtered = [...(data?.calls || [])];
-
-    // Apply quick filter
-    switch (activeQuickFilter) {
-      case QUICK_FILTERS.LOW_QUALITY:
-        filtered = filtered.filter(call => call.quality !== null && call.quality < 7);
-        break;
-      case QUICK_FILTERS.HIGH_QUALITY:
-        filtered = filtered.filter(call => call.quality !== null && call.quality >= 8);
-        break;
-      case QUICK_FILTERS.RECENT:
-        // Last 24 hours
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        filtered = filtered.filter(call => new Date(call.timestamp) > oneDayAgo);
-        break;
-      case QUICK_FILTERS.ALL:
-      default:
-        break;
-    }
-
-    // Apply search filter (search in call_id)
-    if (searchText) {
-      filtered = filtered.filter(call => 
-        call.call_id?.toLowerCase().includes(searchText.toLowerCase())
-      );
-    }
-
-    return filtered;
-  };
-
-  const filteredCalls = getFilteredCalls();
-
+  
   // Navigation handlers
-  const handleCallClick = (callId) => {
-    navigate(`/stories/calls/${callId}?from=routing`);
+  const handleBack = () => {
+    navigate('/stories/routing');
   };
-
-  // Quick filter button component
-  const QuickFilterButton = ({ filter, icon, label }) => {
-    const isActive = activeQuickFilter === filter;
-    return (
-      <button
-        onClick={() => setActiveQuickFilter(filter)}
-        className={`
-          px-4 py-2 rounded-lg font-semibold text-sm transition-all
-          ${isActive 
-            ? `${theme.bg} text-white border-2 ${theme.border}` 
-            : 'bg-gray-800 text-gray-400 border border-gray-700 hover:border-purple-500'
-          }
-        `}
-      >
-        {icon} {label}
-      </button>
-    );
+  
+  const handleRowClick = (row) => {
+    navigate(`/stories/calls/${row.call_id}?from=routing`);
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-950 p-8 flex items-center justify-center">
-        <InlineLoading text="Loading operation details..." />
-      </div>
-    );
-  }
-
+  
+  // Loading state
+  if (loading) return <StoryPageSkeleton />;
+  
+  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-gray-950 p-8">
         <div className="max-w-7xl mx-auto">
           <button
-            onClick={() => navigate('/stories/routing')}
-            className={`mb-6 flex items-center gap-2 text-sm ${theme.text} hover:${theme.textLight} transition`}
+            onClick={handleBack}
+            className={`mb-6 flex items-center gap-2 text-sm ${theme.text} hover:underline`}
           >
-            ← Back to Routing Analysis
+            ← Back to Model Routing Overview
           </button>
           <div className="bg-red-900/20 border border-red-500 rounded-lg p-6">
             <h2 className="text-xl font-bold text-red-400 mb-2">Error Loading Data</h2>
@@ -159,271 +123,82 @@ export default function RoutingOperationDetail() {
       </div>
     );
   }
-
-  const {
-    agent_name = agent,
-    operation_name = operation,
-    complexity = null,
-    complexity_formatted = '—',
-    complexity_label = 'Unknown',
-    complexity_emoji = '⚪',
-    avg_quality = null,
-    avg_quality_formatted = '—',
-    quality_status = 'unknown',
-    avg_cost_formatted = '$0.00',
-    call_count = 0,
-    primary_model = '—',
-    opportunity = 'keep',
-    opportunity_emoji = '✓',
-    opportunity_label = 'Keep',
-    suggested_model = null,
-    calls = [],
-    quality_distribution = [],
-  } = data || {};
-
-  // Badge colors based on opportunity
-  const badgeColors = {
-    upgrade: 'bg-red-600 border-red-400 text-white',
-    downgrade: 'bg-blue-600 border-blue-400 text-white',
-    keep: 'bg-green-600 border-green-400 text-white',
-  };
-
+  
+  // Build page title
+  const pageTitle = operation 
+    ? `${agent}.${operation}` 
+    : agent 
+      ? `${agent} Agent` 
+      : 'All Calls';
+  
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
+      {/* Story Navigation */}
+      <StoryNavTabs activeStory="routing" />
+
       <div className="max-w-7xl mx-auto p-8">
         
         {/* Back Button */}
         <button
-          onClick={() => navigate('/stories/routing')}
-          className={`mb-6 flex items-center gap-2 text-sm ${theme.text} hover:${theme.textLight} transition`}
+          onClick={handleBack}
+          className={`mb-6 flex items-center gap-2 text-sm ${theme.text} hover:underline`}
         >
-          ← Back to Routing Analysis
+          ← Back to Model Routing Overview
         </button>
-
-        {/* Page Header with Badge */}
-        <div className="mb-8">
-          <div className="flex items-center gap-4 mb-2">
+        
+        {/* Page Header */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
             <h1 className={`text-3xl font-bold ${theme.text} flex items-center gap-3`}>
               <span className="text-4xl">{theme.emoji}</span>
-              {agent_name}.{operation_name}
+              {pageTitle}
             </h1>
-            
-            {/* Routing Badge */}
-            <div className={`px-3 py-1 rounded-full border-2 ${badgeColors[opportunity]} text-sm font-semibold`}>
-              {opportunity_emoji} {opportunity_label.toUpperCase()}
-              {suggested_model && ` → ${suggested_model}`}
-            </div>
           </div>
           <p className="text-gray-400">
-            Dashboard &gt; Routing Analysis &gt; {agent_name} &gt; {operation_name}
+            Dashboard &gt; Model Routing &gt; {operation ? 'Operation Detail' : 'All Calls'}
           </p>
-          
-          {/* Summary Stats */}
-          <div className="mt-4 flex gap-6 text-sm">
-            <span className="text-gray-400">
-              Complexity: <span className={theme.text}>{complexity_emoji} {complexity_formatted} ({complexity_label})</span>
-            </span>
-            <span className="text-gray-400">
-              Avg Quality: <span className={
-                quality_status === 'good' ? 'text-green-400' :
-                quality_status === 'ok' ? 'text-yellow-400' :
-                quality_status === 'poor' ? 'text-red-400' :
-                'text-gray-300'
-              }>{avg_quality_formatted}</span>
-            </span>
-            <span className="text-gray-400">
-              Avg Cost: <span className={theme.text}>{avg_cost_formatted}</span>
-            </span>
-            <span className="text-gray-400">
-              Model: <span className="text-gray-300">{primary_model}</span>
-            </span>
-          </div>
         </div>
-
-        {/* Main Content Card */}
-        <div className={`rounded-lg border-2 ${theme.border} bg-gray-900 overflow-hidden mb-8`}>
-          
-          {/* Card Header */}
-          <div className={`${theme.bgLight} p-6 border-b-2 ${theme.border}`}>
-            <h3 className={`text-lg font-semibold ${theme.text}`}>
-              📊 Calls for {agent_name}.{operation_name} ({call_count} total)
-            </h3>
-          </div>
-
-          {/* Filters Section */}
-          <div className="p-6 space-y-4 border-b border-gray-800">
-            
-            {/* Quick Filters */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-2">
-                QUICK FILTERS:
-              </label>
-              <div className="flex flex-wrap gap-2">
-                <QuickFilterButton filter={QUICK_FILTERS.ALL} icon="🎯" label="All Calls" />
-                <QuickFilterButton filter={QUICK_FILTERS.LOW_QUALITY} icon="🔴" label="Low Quality (<7)" />
-                <QuickFilterButton filter={QUICK_FILTERS.HIGH_QUALITY} icon="🟢" label="High Quality (≥8)" />
-                <QuickFilterButton filter={QUICK_FILTERS.RECENT} icon="⏱️" label="Recent 24h" />
-              </div>
-            </div>
-
-            {/* Advanced Filters */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-2">
-                ADVANCED FILTERS:
-              </label>
-              <div className="flex flex-wrap gap-3">
-                <input
-                  type="text"
-                  placeholder="🔍 Search by call ID..."
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-100 focus:border-purple-500 focus:outline-none"
-                />
-
-                <button
-                  onClick={() => {
-                    setActiveQuickFilter(QUICK_FILTERS.ALL);
-                    setSearchText('');
-                  }}
-                  className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-400 hover:text-purple-400 hover:border-purple-500 transition"
-                >
-                  Clear All
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-800 sticky top-0">
-                <tr className={`border-b-2 ${theme.border}`}>
-                  <th className={`text-left py-3 px-4 ${theme.textLight}`}>Time</th>
-                  <th className={`text-left py-3 px-4 ${theme.textLight}`}>ID</th>
-                  <th className={`text-center py-3 px-4 ${theme.textLight}`}>Quality</th>
-                  <th className={`text-right py-3 px-4 ${theme.textLight}`}>Latency</th>
-                  <th className={`text-right py-3 px-4 ${theme.textLight}`}>Tokens</th>
-                  <th className={`text-right py-3 px-4 ${theme.textLight}`}>Cost</th>
-                  <th className={`text-left py-3 px-4 ${theme.textLight}`}>Model</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCalls.length === 0 ? (
-                  <tr>
-                    <td colSpan="7" className="py-8 text-center text-gray-500">
-                      No calls match the current filters
-                    </td>
-                  </tr>
-                ) : (
-                  filteredCalls.map((call, idx) => {
-                    const isLowQuality = call.quality !== null && call.quality < 7;
-                    const isHighQuality = call.quality !== null && call.quality >= 8;
-                    
-                    return (
-                      <tr
-                        key={call.call_id || idx}
-                        onClick={() => handleCallClick(call.call_id)}
-                        className={`border-b border-gray-800 cursor-pointer transition-all hover:bg-gradient-to-r hover:${theme.gradient} hover:border-l-4 hover:${theme.border}`}
-                      >
-                        <td className="py-3 px-4 text-gray-400">
-                          {call.timestamp_formatted}
-                        </td>
-                        <td className="py-3 px-4 font-mono text-xs text-gray-500">
-                          {call.call_id?.substring(0, 8) || '—'}...
-                        </td>
-                        <td className={`py-3 px-4 text-center font-bold ${
-                          isLowQuality ? 'text-red-400' : 
-                          isHighQuality ? 'text-green-400' : 
-                          'text-yellow-400'
-                        }`}>
-                          {call.quality_formatted}
-                        </td>
-                        <td className="py-3 px-4 text-right text-gray-300">
-                          {call.latency_formatted}
-                        </td>
-                        <td className="py-3 px-4 text-right text-gray-300">
-                          {formatNumber(call.total_tokens)}
-                        </td>
-                        <td className="py-3 px-4 text-right text-gray-300">
-                          {call.cost_formatted}
-                        </td>
-                        <td className="py-3 px-4 text-gray-400 text-xs">
-                          {call.model_name}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Footer */}
-          <div className="p-4 bg-gray-800 border-t border-gray-700 flex justify-between items-center text-sm text-gray-400">
-            <span>
-              Showing {filteredCalls.length} of {calls.length} calls
-              {filteredCalls.length !== calls.length && (
-                <span className={theme.text}> (filtered)</span>
-              )}
-            </span>
-            <button className="text-gray-400 hover:text-purple-400 transition">
-              Export CSV
-            </button>
-          </div>
-        </div>
-
-        {/* Quality Distribution Histogram */}
-        {quality_distribution.length > 0 && (
-          <div className={`rounded-lg border-2 ${theme.border} bg-gray-900 p-6`}>
-            <h3 className={`text-lg font-semibold ${theme.text} mb-6`}>
-              📊 Quality Distribution
-            </h3>
-            
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart 
-                data={quality_distribution}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis 
-                  dataKey="score" 
-                  stroke="#9ca3af"
-                  tick={{ fill: '#9ca3af', fontSize: 11 }}
-                  label={{ value: 'Quality Score', position: 'insideBottom', offset: -5, fill: '#9ca3af' }}
-                />
-                <YAxis 
-                  stroke="#9ca3af"
-                  tick={{ fill: '#9ca3af', fontSize: 11 }}
-                  label={{ value: 'Count', angle: -90, position: 'insideLeft', fill: '#9ca3af' }}
-                />
-                <Tooltip 
-                  contentStyle={{
-                    backgroundColor: '#111827',
-                    border: `2px solid ${theme.color}`,
-                    borderRadius: '8px',
-                    color: '#f3f4f6'
-                  }}
-                  formatter={(value, name) => [value, 'Calls']}
-                  labelFormatter={(label) => `Score: ${label}`}
-                />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {quality_distribution.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={entry.score < 7 ? '#ef4444' : entry.score >= 8 ? '#22c55e' : '#eab308'}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-            
-            <p className="text-xs text-gray-400 mt-4 text-center">
-              Red = Below 7 (poor) • Yellow = 7-8 (OK) • Green = 8+ (good)
-            </p>
+        
+        {/* Summary Stats Bar */}
+        {stats && (
+          <div className="mb-6 flex flex-wrap gap-4">
+            <StatBadge label="Total" value={formatNumber(stats.total)} />
+            <StatBadge label="Total Cost" value={formatCurrency(stats.totalCost)} theme={theme} />
+            <StatBadge label="Models Used" value={stats.modelCount} />
+            <StatBadge 
+              label="Errors" 
+              value={`${stats.errors} (${((stats.errors / stats.total) * 100).toFixed(1)}%)`}
+              color={stats.errors > 0 ? 'text-red-400' : 'text-green-400'}
+            />
           </div>
         )}
-
+        
+        {/* Layer2Table */}
+        <Layer2Table
+          storyId={STORY_ID}
+          data={data}
+          initialFilters={initialFilters}
+          initialQuickFilter={initialQuickFilter}
+          onRowClick={handleRowClick}
+          loading={loading}
+        />
+        
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// StatBadge - Summary stat display
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StatBadge({ label, value, theme, color }) {
+  const textColor = color || (theme ? theme.text : 'text-gray-300');
+  
+  return (
+    <div className="px-4 py-2 bg-gray-900 rounded-lg border border-gray-700">
+      <span className="text-xs text-gray-500">{label}: </span>
+      <span className={`font-semibold ${textColor}`}>{value}</span>
     </div>
   );
 }

@@ -1,23 +1,22 @@
 /**
- * Layer 2: Latency Operation Detail
+ * Layer 2: Cache All Calls View
  * 
  * Uses Layer2Table component for full-featured data exploration.
- * Shows all calls for a specific operation (or all calls if no operation selected).
+ * Shows all calls (accessed via KPI cards in Layer 1).
  */
 
-import { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { STORY_THEMES } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import Layer2Table from '../../../components/Layer2Table';
-import { formatNumber } from '../../../utils/formatters';
+import { formatNumber, formatCurrency } from '../../../utils/formatters';
 
-const STORY_ID = 'latency';
-const theme = STORY_THEMES.latency;
+const STORY_ID = 'cache';
+const theme = STORY_THEMES.cache;
 
-export default function LatencyOperationDetail() {
-  const { agent, operation } = useParams();
+export default function CacheAllCalls() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
@@ -30,22 +29,8 @@ export default function LatencyOperationDetail() {
   // Get initial filter from URL if coming from Layer 1
   const initialQuickFilter = searchParams.get('filter') || 'all';
   
-  // Build initial column filters if operation is specified
-  const initialFilters = useMemo(() => {
-    const filters = {};
-    
-    // Filter by operation (just the operation name, not combined)
-    if (operation) {
-      filters.operation = [operation];
-    }
-    
-    // Filter by agent
-    if (agent) {
-      filters.agent_name = [agent];
-    }
-    
-    return filters;
-  }, [agent, operation]);
+  // No initial column filters - showing all calls
+  const initialFilters = {};
   
   // Fetch all calls
   useEffect(() => {
@@ -57,7 +42,6 @@ export default function LatencyOperationDetail() {
       setLoading(true);
       setError(null);
       
-      // Fetch all calls for this story (Layer 2 = all calls)
       const response = await fetch('/api/calls?days=7');
       
       if (!response.ok) {
@@ -69,13 +53,16 @@ export default function LatencyOperationDetail() {
       
       // Calculate stats
       if (result.calls?.length > 0) {
-        const latencies = result.calls.map(c => c.latency_ms).filter(Boolean);
+        const calls = result.calls;
+        const cachedCalls = calls.filter(c => c.cached);
+        const totalCost = calls.reduce((sum, c) => sum + (c.total_cost || 0), 0);
+        
         setStats({
-          total: result.calls.length,
-          avg: latencies.length ? (latencies.reduce((a, b) => a + b, 0) / latencies.length / 1000).toFixed(2) : 0,
-          max: latencies.length ? (Math.max(...latencies) / 1000).toFixed(2) : 0,
-          min: latencies.length ? (Math.min(...latencies) / 1000).toFixed(2) : 0,
-          errors: result.calls.filter(c => c.status === 'error').length,
+          total: calls.length,
+          cached: cachedCalls.length,
+          hitRate: calls.length ? ((cachedCalls.length / calls.length) * 100).toFixed(1) : 0,
+          totalCost: totalCost,
+          errors: calls.filter(c => c.status === 'error').length,
         });
       }
     } catch (err) {
@@ -88,12 +75,11 @@ export default function LatencyOperationDetail() {
   
   // Navigation handlers
   const handleBack = () => {
-    navigate('/stories/latency');
+    navigate('/stories/cache');
   };
   
   const handleRowClick = (row) => {
-    // Navigate to Layer 3 (call detail)
-    navigate(`/stories/calls/${row.call_id}?from=latency`);
+    navigate(`/stories/calls/${row.call_id}?from=cache`);
   };
   
   // Loading state
@@ -108,7 +94,7 @@ export default function LatencyOperationDetail() {
             onClick={handleBack}
             className={`mb-6 flex items-center gap-2 text-sm ${theme.text} hover:underline`}
           >
-            ← Back to Latency Overview
+            ← Back to Cache Overview
           </button>
           <div className="bg-red-900/20 border border-red-500 rounded-lg p-6">
             <h2 className="text-xl font-bold text-red-400 mb-2">Error Loading Data</h2>
@@ -125,17 +111,10 @@ export default function LatencyOperationDetail() {
     );
   }
   
-  // Build page title
-  const pageTitle = operation 
-    ? `${agent}.${operation}` 
-    : agent 
-      ? `${agent} Agent` 
-      : 'All Calls';
-  
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
       {/* Story Navigation */}
-      <StoryNavTabs activeStory="latency" />
+      <StoryNavTabs activeStory="cache" />
 
       <div className="max-w-7xl mx-auto p-8">
         
@@ -144,7 +123,7 @@ export default function LatencyOperationDetail() {
           onClick={handleBack}
           className={`mb-6 flex items-center gap-2 text-sm ${theme.text} hover:underline`}
         >
-          ← Back to Latency Overview
+          ← Back to Cache Overview
         </button>
         
         {/* Page Header */}
@@ -152,21 +131,21 @@ export default function LatencyOperationDetail() {
           <div className="flex items-center justify-between mb-2">
             <h1 className={`text-3xl font-bold ${theme.text} flex items-center gap-3`}>
               <span className="text-4xl">{theme.emoji}</span>
-              {pageTitle}
+              All Calls
             </h1>
           </div>
           <p className="text-gray-400">
-            Dashboard &gt; Latency Analysis &gt; {operation ? 'Operation Detail' : 'All Calls'}
+            Dashboard &gt; Caching Strategy &gt; All Calls
           </p>
         </div>
         
         {/* Summary Stats Bar */}
         {stats && (
           <div className="mb-6 flex flex-wrap gap-4">
-            <StatBadge label="Avg" value={`${stats.avg}s`} theme={theme} />
-            <StatBadge label="Max" value={`${stats.max}s`} color="text-red-400" />
-            <StatBadge label="Min" value={`${stats.min}s`} color="text-green-400" />
             <StatBadge label="Total" value={formatNumber(stats.total)} />
+            <StatBadge label="Cached" value={formatNumber(stats.cached)} theme={theme} />
+            <StatBadge label="Hit Rate" value={`${stats.hitRate}%`} color={stats.hitRate > 50 ? 'text-green-400' : 'text-yellow-400'} />
+            <StatBadge label="Total Cost" value={formatCurrency(stats.totalCost)} />
             <StatBadge 
               label="Errors" 
               value={`${stats.errors} (${((stats.errors / stats.total) * 100).toFixed(1)}%)`}

@@ -5,6 +5,8 @@
  * and recommendations. Used by all stories for drill-down.
  * 
  * Theming is determined by `?from=` query param.
+ * 
+ * Updated with 2E Design pattern to match Layer 2.
  */
 
 import { useState, useEffect } from 'react';
@@ -13,7 +15,7 @@ import { STORY_THEMES } from '../../config/theme';
 import { InlineLoading } from '../../components/common/Loading';
 
 // =============================================================================
-// COLLAPSIBLE SECTION COMPONENT
+// COLLAPSIBLE SECTION COMPONENT (2E Design)
 // =============================================================================
 
 function CollapsibleSection({ title, tokenCount, content, theme, defaultOpen = false }) {
@@ -23,33 +25,32 @@ function CollapsibleSection({ title, tokenCount, content, theme, defaultOpen = f
     e.stopPropagation();
     if (content) {
       await navigator.clipboard.writeText(content);
-      // Could add toast notification here
     }
   };
 
   return (
-    <div className={`border ${theme.border} rounded-lg overflow-hidden`}>
+    <div className="border border-gray-700 rounded-lg overflow-hidden">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between p-4 ${theme.bgLight} hover:bg-opacity-80 transition-colors`}
+        className="w-full flex items-center justify-between p-4 bg-gray-800/50 hover:bg-gray-800 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <span className={`transition-transform ${isOpen ? 'rotate-90' : ''}`}>▶</span>
-          <span className={`font-semibold ${theme.text}`}>{title}</span>
+          <span className={`transition-transform text-gray-400 ${isOpen ? 'rotate-90' : ''}`}>▶</span>
+          <span className="font-medium text-gray-200">{title}</span>
           {tokenCount !== null && tokenCount !== undefined && (
-            <span className="text-gray-400 text-sm">({tokenCount.toLocaleString()} tokens)</span>
+            <span className="text-gray-500 text-sm">({tokenCount.toLocaleString()} tokens)</span>
           )}
         </div>
         <button
           onClick={handleCopy}
-          className="px-3 py-1 text-sm text-gray-400 hover:text-white bg-gray-800 rounded transition-colors"
+          className="px-3 py-1 text-sm text-gray-400 hover:text-white bg-gray-900 rounded transition-colors"
         >
           Copy
         </button>
       </button>
       
       {isOpen && (
-        <div className="p-4 bg-gray-900 border-t border-gray-800">
+        <div className="p-4 bg-gray-900 border-t border-gray-700">
           <pre className="whitespace-pre-wrap text-sm text-gray-300 font-mono overflow-x-auto max-h-96 overflow-y-auto">
             {content || '(empty)'}
           </pre>
@@ -60,7 +61,7 @@ function CollapsibleSection({ title, tokenCount, content, theme, defaultOpen = f
 }
 
 // =============================================================================
-// KPI CARD COMPONENT
+// KPI CARD COMPONENT (2E Design)
 // =============================================================================
 
 function KPICard({ label, value, subtext, status, theme }) {
@@ -72,8 +73,8 @@ function KPICard({ label, value, subtext, status, theme }) {
   };
 
   return (
-    <div className={`p-4 rounded-lg border ${theme.border} ${theme.bgLight}`}>
-      <div className="text-sm text-gray-400 mb-1">{label}</div>
+    <div className="p-4 rounded-lg border border-gray-700 bg-gray-900">
+      <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label}</div>
       <div className={`text-2xl font-bold ${statusColors[status] || statusColors.neutral}`}>
         {value}
       </div>
@@ -86,11 +87,11 @@ function KPICard({ label, value, subtext, status, theme }) {
 // ISSUE BADGE COMPONENT
 // =============================================================================
 
-function IssueBadge({ issue, theme }) {
+function IssueBadge({ issue }) {
   const severityConfig = {
-    critical: { bg: 'bg-red-900/50', border: 'border-red-500', text: 'text-red-400', icon: '🔴' },
-    warning: { bg: 'bg-yellow-900/50', border: 'border-yellow-500', text: 'text-yellow-400', icon: '🟡' },
-    info: { bg: 'bg-blue-900/50', border: 'border-blue-500', text: 'text-blue-400', icon: '🔵' },
+    critical: { bg: 'bg-red-900/30', border: 'border-red-500/50', text: 'text-red-400', icon: '🔴' },
+    warning: { bg: 'bg-yellow-900/30', border: 'border-yellow-500/50', text: 'text-yellow-400', icon: '🟡' },
+    info: { bg: 'bg-blue-900/30', border: 'border-blue-500/50', text: 'text-blue-400', icon: '🔵' },
   };
   
   const config = severityConfig[issue.severity] || severityConfig.info;
@@ -118,7 +119,7 @@ function RecommendationCard({ rec, theme }) {
   };
 
   return (
-    <div className={`p-4 rounded-lg border ${theme.border} bg-gray-800`}>
+    <div className="p-4 rounded-lg border border-gray-700 bg-gray-800/50">
       <div className="flex items-center justify-between mb-2">
         <span className={`font-semibold ${theme.text}`}>💡 {rec.action}</span>
         <span className={`text-xs px-2 py-1 rounded ${impactColors[rec.impact]} bg-gray-900`}>
@@ -135,6 +136,27 @@ function RecommendationCard({ rec, theme }) {
           Expected: {rec.estimated_improvement}
         </div>
       )}
+    </div>
+  );
+}
+
+// =============================================================================
+// SECTION WRAPPER (2E Design Pattern)
+// =============================================================================
+
+function Section({ title, emoji, theme, children }) {
+  return (
+    <div className="mb-8 rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
+      {/* 2E Header Divider */}
+      <div className={`h-1 ${theme.bg}`} />
+      <div className="p-4 border-b border-gray-700 bg-gray-900">
+        <h3 className="text-sm font-medium text-gray-300 uppercase tracking-wide">
+          {emoji} {title}
+        </h3>
+      </div>
+      <div className="p-4">
+        {children}
+      </div>
     </div>
   );
 }
@@ -167,7 +189,8 @@ export default function CallDetail() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/stories/calls/${encodeURIComponent(callId)}`);
+      // ✅ CORRECT ENDPOINT: /api/calls/{call_id}
+      const response = await fetch(`/api/calls/${encodeURIComponent(callId)}`);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -186,7 +209,6 @@ export default function CallDetail() {
 
   // Handle back navigation
   const handleBack = () => {
-    // Try to go back, or fall back to story page
     if (window.history.length > 1) {
       navigate(-1);
     } else {
@@ -226,7 +248,7 @@ export default function CallDetail() {
           >
             ← Back
           </button>
-          <div className="bg-red-900/20 border border-red-500 rounded-lg p-6">
+          <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-6">
             <h2 className="text-xl font-bold text-red-400 mb-2">Error Loading Call</h2>
             <p className="text-gray-300">{error}</p>
             <button
@@ -267,7 +289,7 @@ export default function CallDetail() {
               <span className="text-4xl">{theme.emoji}</span>
               Call Detail
             </h1>
-            <code className="text-sm text-gray-500 font-mono">
+            <code className="text-sm text-gray-500 font-mono bg-gray-900 px-3 py-1 rounded">
               {callId.substring(0, 16)}...
             </code>
           </div>
@@ -313,20 +335,14 @@ export default function CallDetail() {
 
         {/* Diagnosis Section */}
         {data.diagnosis && data.diagnosis.issues && data.diagnosis.issues.length > 0 && (
-          <div className={`mb-8 rounded-lg border-2 ${theme.border} bg-gray-900 overflow-hidden`}>
-            <div className={`${theme.bgLight} p-4 border-b-2 ${theme.border}`}>
-              <h3 className={`text-lg font-semibold ${theme.text}`}>
-                🎯 Diagnosis & Recommendations
-              </h3>
-            </div>
-            
-            <div className="p-6 space-y-6">
+          <Section title="Diagnosis & Recommendations" emoji="🎯" theme={theme}>
+            <div className="space-y-6">
               {/* Issues */}
               <div>
-                <h4 className="text-sm font-semibold text-gray-400 mb-3">ISSUES DETECTED</h4>
+                <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Issues Detected</h4>
                 <div className="space-y-3">
                   {data.diagnosis.issues.map((issue, idx) => (
-                    <IssueBadge key={idx} issue={issue} theme={theme} />
+                    <IssueBadge key={idx} issue={issue} />
                   ))}
                 </div>
               </div>
@@ -334,7 +350,7 @@ export default function CallDetail() {
               {/* Recommendations */}
               {data.diagnosis.recommendations && data.diagnosis.recommendations.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-400 mb-3">RECOMMENDATIONS</h4>
+                  <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Recommendations</h4>
                   <div className="grid md:grid-cols-2 gap-3">
                     {data.diagnosis.recommendations.map((rec, idx) => (
                       <RecommendationCard key={idx} rec={rec} theme={theme} />
@@ -345,19 +361,19 @@ export default function CallDetail() {
               
               {/* Comparison */}
               {data.comparison && data.comparison.available && (
-                <div className={`p-4 rounded-lg ${theme.bgLight} border ${theme.border}`}>
-                  <h4 className="text-sm font-semibold text-gray-400 mb-2">📊 COMPARISON</h4>
+                <div className="p-4 rounded-lg bg-gray-800/50 border border-gray-700">
+                  <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">📊 Comparison</h4>
                   <div className="grid grid-cols-3 gap-4 text-sm">
                     <div>
-                      <div className="text-gray-400">This call</div>
+                      <div className="text-gray-500 text-xs">This call</div>
                       <div className={`font-bold ${theme.text}`}>{(data.latency_ms / 1000).toFixed(1)}s</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Operation avg</div>
+                      <div className="text-gray-500 text-xs">Operation avg</div>
                       <div className="font-bold text-gray-300">{(data.comparison.operation_avg_latency_ms / 1000).toFixed(1)}s</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Ratio</div>
+                      <div className="text-gray-500 text-xs">Ratio</div>
                       <div className={`font-bold ${data.comparison.latency_ratio > 2 ? 'text-red-400' : 'text-green-400'}`}>
                         {data.comparison.latency_ratio}x
                       </div>
@@ -369,18 +385,12 @@ export default function CallDetail() {
                 </div>
               )}
             </div>
-          </div>
+          </Section>
         )}
 
         {/* Prompt Section */}
-        <div className={`mb-8 rounded-lg border-2 ${theme.border} bg-gray-900 overflow-hidden`}>
-          <div className={`${theme.bgLight} p-4 border-b-2 ${theme.border}`}>
-            <h3 className={`text-lg font-semibold ${theme.text}`}>
-              📝 Prompt
-            </h3>
-          </div>
-          
-          <div className="p-4 space-y-3">
+        <Section title="Prompt" emoji="📝" theme={theme}>
+          <div className="space-y-3">
             {data.system_prompt && (
               <CollapsibleSection
                 title="System Prompt"
@@ -418,93 +428,77 @@ export default function CallDetail() {
               />
             )}
           </div>
-        </div>
+        </Section>
 
         {/* Response Section */}
-        <div className={`mb-8 rounded-lg border-2 ${theme.border} bg-gray-900 overflow-hidden`}>
-          <div className={`${theme.bgLight} p-4 border-b-2 ${theme.border}`}>
-            <h3 className={`text-lg font-semibold ${theme.text}`}>
-              💬 Response
-            </h3>
-          </div>
-          
-          <div className="p-4">
-            <CollapsibleSection
-              title="Response"
-              tokenCount={data.completion_tokens}
-              content={data.response_text}
-              theme={theme}
-              defaultOpen={true}
-            />
-          </div>
-        </div>
+        <Section title="Response" emoji="💬" theme={theme}>
+          <CollapsibleSection
+            title="Response"
+            tokenCount={data.completion_tokens}
+            content={data.response_text}
+            theme={theme}
+            defaultOpen={true}
+          />
+        </Section>
 
         {/* Metadata Section */}
-        <div className={`mb-8 rounded-lg border-2 ${theme.border} bg-gray-900 overflow-hidden`}>
-          <div className={`${theme.bgLight} p-4 border-b-2 ${theme.border}`}>
-            <h3 className={`text-lg font-semibold ${theme.text}`}>
-              📊 Metadata
-            </h3>
-          </div>
-          
-          <div className="p-4">
-            <div className="grid md:grid-cols-2 gap-4 text-sm">
-              <div className="space-y-2">
-                <div className="flex justify-between py-2 border-b border-gray-800">
-                  <span className="text-gray-400">Model</span>
-                  <span className="font-mono">{data.model_name || '—'}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-800">
-                  <span className="text-gray-400">Provider</span>
-                  <span className="font-mono">{data.provider || '—'}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-800">
-                  <span className="text-gray-400">Temperature</span>
-                  <span className={`font-mono ${data.temperature === null ? 'text-yellow-400' : ''}`}>
-                    {data.temperature !== null ? data.temperature : '(not set)'}
-                  </span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-800">
-                  <span className="text-gray-400">Max Tokens</span>
-                  <span className={`font-mono ${data.max_tokens === null ? 'text-yellow-400' : ''}`}>
-                    {data.max_tokens !== null ? data.max_tokens : '(not set)'}
-                  </span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-800">
-                  <span className="text-gray-400">Cached</span>
-                  <span className={data.cache_hit ? 'text-green-400' : 'text-gray-500'}>
-                    {data.cache_hit ? '✅ Yes' : '❌ No'}
-                  </span>
-                </div>
+        <Section title="Metadata" emoji="📊" theme={theme}>
+          <div className="grid md:grid-cols-2 gap-4 text-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between py-2 border-b border-gray-800">
+                <span className="text-gray-500">Model</span>
+                <span className="font-mono text-gray-300">{data.model_name || '—'}</span>
               </div>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between py-2 border-b border-gray-800">
-                  <span className="text-gray-400">Session ID</span>
-                  <span className="font-mono text-xs">{data.session_id?.substring(0, 16) || '—'}...</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-800">
-                  <span className="text-gray-400">Conversation ID</span>
-                  <span className="font-mono text-xs">{data.conversation_id?.substring(0, 16) || '—'}...</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-800">
-                  <span className="text-gray-400">Turn Number</span>
-                  <span className="font-mono">{data.turn_number || '—'}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-800">
-                  <span className="text-gray-400">User ID</span>
-                  <span className="font-mono text-xs">{data.user_id?.substring(0, 16) || '—'}...</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-800">
-                  <span className="text-gray-400">Retry Count</span>
-                  <span className={`font-mono ${data.retry_count > 0 ? 'text-yellow-400' : ''}`}>
-                    {data.retry_count || 0}
-                  </span>
-                </div>
+              <div className="flex justify-between py-2 border-b border-gray-800">
+                <span className="text-gray-500">Provider</span>
+                <span className="font-mono text-gray-300">{data.provider || '—'}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-gray-800">
+                <span className="text-gray-500">Temperature</span>
+                <span className={`font-mono ${data.temperature === null ? 'text-yellow-400' : 'text-gray-300'}`}>
+                  {data.temperature !== null ? data.temperature : '(not set)'}
+                </span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-gray-800">
+                <span className="text-gray-500">Max Tokens</span>
+                <span className={`font-mono ${data.max_tokens === null ? 'text-yellow-400' : 'text-gray-300'}`}>
+                  {data.max_tokens !== null ? data.max_tokens : '(not set)'}
+                </span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-gray-800">
+                <span className="text-gray-500">Cached</span>
+                <span className={data.cache_hit ? 'text-green-400' : 'text-gray-500'}>
+                  {data.cache_hit ? '✅ Yes' : '❌ No'}
+                </span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between py-2 border-b border-gray-800">
+                <span className="text-gray-500">Session ID</span>
+                <span className="font-mono text-xs text-gray-300">{data.session_id?.substring(0, 16) || '—'}...</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-gray-800">
+                <span className="text-gray-500">Conversation ID</span>
+                <span className="font-mono text-xs text-gray-300">{data.conversation_id?.substring(0, 16) || '—'}...</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-gray-800">
+                <span className="text-gray-500">Turn Number</span>
+                <span className="font-mono text-gray-300">{data.turn_number || '—'}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-gray-800">
+                <span className="text-gray-500">User ID</span>
+                <span className="font-mono text-xs text-gray-300">{data.user_id?.substring(0, 16) || '—'}...</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-gray-800">
+                <span className="text-gray-500">Retry Count</span>
+                <span className={`font-mono ${data.retry_count > 0 ? 'text-yellow-400' : 'text-gray-300'}`}>
+                  {data.retry_count || 0}
+                </span>
               </div>
             </div>
           </div>
-        </div>
+        </Section>
 
         {/* Actions Footer */}
         <div className="flex justify-between items-center py-4 border-t border-gray-800">
@@ -518,7 +512,7 @@ export default function CallDetail() {
           <div className="flex gap-3">
             <button
               onClick={handleExportJSON}
-              className={`px-4 py-2 border ${theme.border} rounded-lg ${theme.text} hover:${theme.bgLight} transition-colors`}
+              className={`px-4 py-2 border border-gray-700 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors`}
             >
               Export JSON
             </button>

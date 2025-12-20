@@ -1,8 +1,8 @@
 """
-LLM Call Detail Service (Layer 3)
+LLM Call Detail Service (Layer 2 + Layer 3)
 Location: api/services/llm_call_service.py
 
-Business logic for single call detail with diagnosis and recommendations.
+Business logic for call listings and single call detail with diagnosis.
 Shared by all stories for drill-down functionality.
 """
 
@@ -32,7 +32,7 @@ THRESHOLDS = {
 
 
 # =============================================================================
-# MAIN FUNCTION
+# MAIN FUNCTION - SINGLE CALL DETAIL (Layer 3)
 # =============================================================================
 
 def get_detail(call_id: str) -> Optional[Dict[str, Any]]:
@@ -68,60 +68,66 @@ def get_detail(call_id: str) -> Optional[Dict[str, Any]]:
         "timestamp": call.timestamp.isoformat() if call.timestamp else None,
         "agent_name": call.agent_name,
         "operation": call.operation,
-        "session_id": call.session_id,
+        "session_id": getattr(call, 'session_id', None),
         
         # Model Config
         "model_name": call.model_name,
-        "provider": call.provider.value if call.provider else None,
-        "temperature": call.temperature,
-        "max_tokens": call.max_tokens,
-        "top_p": call.top_p,
+        "provider": call.provider.value if getattr(call, 'provider', None) else None,
+        "temperature": getattr(call, 'temperature', None),
+        "max_tokens": getattr(call, 'max_tokens', None),
+        "top_p": getattr(call, 'top_p', None),
         
         # Metrics
         "latency_ms": call.latency_ms,
         "prompt_tokens": call.prompt_tokens,
         "completion_tokens": call.completion_tokens,
         "total_tokens": call.total_tokens,
-        "prompt_cost": call.prompt_cost,
-        "completion_cost": call.completion_cost,
+        "prompt_cost": getattr(call, 'prompt_cost', None),
+        "completion_cost": getattr(call, 'completion_cost', None),
         "total_cost": call.total_cost,
         
         # Token Breakdown
-        "system_prompt_tokens": call.system_prompt_tokens,
-        "user_message_tokens": call.user_message_tokens,
-        "chat_history_tokens": call.chat_history_tokens,
-        "conversation_context_tokens": call.conversation_context_tokens,
-        "tool_definitions_tokens": call.tool_definitions_tokens,
+        "system_prompt_tokens": getattr(call, 'system_prompt_tokens', None),
+        "user_message_tokens": getattr(call, 'user_message_tokens', None),
+        "chat_history_tokens": getattr(call, 'chat_history_tokens', None),
+        "conversation_context_tokens": getattr(call, 'conversation_context_tokens', None),
+        "tool_definitions_tokens": getattr(call, 'tool_definitions_tokens', None),
         
         # Content
-        "prompt": call.prompt,
-        "system_prompt": _extract_system_prompt(call),
-        "user_message": _extract_user_message(call),
-        "response_text": call.response_text,
+        "prompt": getattr(call, 'prompt', None),
+        "system_prompt": getattr(call, 'system_prompt', None) or _extract_system_prompt(call),
+        "user_message": getattr(call, 'user_message', None) or _extract_user_message(call),
+        "response_text": getattr(call, 'response_text', None),
         
         # Quality
         "success": call.success,
-        "error": call.error,
-        "error_type": call.error_type,
-        "error_code": call.error_code,
-        "judge_score": _get_judge_score(call),
-        "hallucination_flag": _get_hallucination_flag(call),
+        "error": getattr(call, 'error', None),
+        "error_type": getattr(call, 'error_type', None),
+        "error_code": getattr(call, 'error_code', None),
+        "judge_score": getattr(call, 'judge_score', None) or _get_judge_score(call),
+        "hallucination_flag": getattr(call, 'hallucination_flag', None) if getattr(call, 'hallucination_flag', None) is not None else _get_hallucination_flag(call),
         "quality_reasoning": _get_quality_reasoning(call),
+        "confidence_score": getattr(call, 'confidence_score', None),
         
         # Cache
-        "cache_hit": _get_cache_hit(call),
-        "cache_key": _get_cache_key(call),
+        "cache_hit": getattr(call, 'cache_hit', None) if getattr(call, 'cache_hit', None) is not None else _get_cache_hit(call),
+        "cache_key": getattr(call, 'cache_key', None) or _get_cache_key(call),
+        "cached_prompt_tokens": getattr(call, 'cached_prompt_tokens', None),
         
         # Context
-        "conversation_id": call.conversation_id,
-        "turn_number": call.turn_number,
-        "user_id": call.user_id,
+        "conversation_id": getattr(call, 'conversation_id', None),
+        "turn_number": getattr(call, 'turn_number', None),
+        "user_id": getattr(call, 'user_id', None),
         
         # Streaming
-        "time_to_first_token_ms": call.time_to_first_token_ms,
+        "time_to_first_token_ms": getattr(call, 'time_to_first_token_ms', None),
         
         # Retry info
-        "retry_count": call.retry_count,
+        "retry_count": getattr(call, 'retry_count', None),
+        
+        # Routing
+        "complexity_score": getattr(call, 'complexity_score', None),
+        "chosen_model": getattr(call, 'chosen_model', None),
         
         # Comparison with operation averages
         "comparison": comparison,
@@ -129,6 +135,131 @@ def get_detail(call_id: str) -> Optional[Dict[str, Any]]:
         # Diagnosis and recommendations
         "diagnosis": diagnosis,
     }
+
+
+# =============================================================================
+# LIST CALLS (Layer 2) - EXPANDED
+# =============================================================================
+
+def get_calls(
+    days: int = 7,
+    operation: Optional[str] = None,
+    agent: Optional[str] = None,
+    limit: int = 500
+) -> List[Dict[str, Any]]:
+    """
+    Get list of LLM calls with optional filters.
+    
+    Used by Layer 2 tables in all stories. Returns comprehensive
+    data for filtering, sorting, and display.
+    
+    Args:
+        days: Number of days to look back
+        operation: Filter by operation name
+        agent: Filter by agent name  
+        limit: Maximum number of calls to return
+        
+    Returns:
+        List of call summaries with all fields needed for Layer 2
+    """
+    end_time = datetime.utcnow()
+    start_time = end_time - timedelta(days=days)
+    
+    try:
+        calls = ObservatoryStorage.get_llm_calls(
+            agent_name=agent,
+            operation=operation,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+        )
+    except Exception as e:
+        print(f"Error fetching calls: {e}")
+        return []
+    
+    # Convert to comprehensive summary format for Layer 2
+    result = []
+    for c in calls:
+        # Safely extract values with fallbacks
+        cache_hit = False
+        if hasattr(c, 'cache_hit') and c.cache_hit is not None:
+            cache_hit = c.cache_hit
+        elif hasattr(c, 'cache_metadata') and c.cache_metadata:
+            cache_hit = getattr(c.cache_metadata, 'cache_hit', False)
+        
+        judge_score = None
+        if hasattr(c, 'judge_score') and c.judge_score is not None:
+            judge_score = c.judge_score
+        elif hasattr(c, 'quality_evaluation') and c.quality_evaluation:
+            judge_score = getattr(c.quality_evaluation, 'judge_score', None)
+        
+        hallucination_flag = False
+        if hasattr(c, 'hallucination_flag') and c.hallucination_flag is not None:
+            hallucination_flag = c.hallucination_flag
+        elif hasattr(c, 'quality_evaluation') and c.quality_evaluation:
+            hallucination_flag = getattr(c.quality_evaluation, 'hallucination_flag', False)
+        
+        result.append({
+            # Identity
+            "call_id": c.id,
+            "timestamp": c.timestamp.isoformat() if c.timestamp else None,
+            "agent_name": c.agent_name,
+            "operation": c.operation,
+            "session_id": getattr(c, 'session_id', None),
+            
+            # Model
+            "model_name": c.model_name,
+            "provider": c.provider.value if hasattr(c, 'provider') and c.provider else None,
+            "temperature": getattr(c, 'temperature', None),
+            
+            # Performance
+            "latency_ms": c.latency_ms,
+            "time_to_first_token_ms": getattr(c, 'time_to_first_token_ms', None),
+            
+            # Tokens - Basic
+            "prompt_tokens": c.prompt_tokens,
+            "completion_tokens": c.completion_tokens,
+            "total_tokens": c.total_tokens,
+            
+            # Tokens - Breakdown (for Prompt Composition story)
+            "system_prompt_tokens": getattr(c, 'system_prompt_tokens', None),
+            "user_message_tokens": getattr(c, 'user_message_tokens', None),
+            "chat_history_tokens": getattr(c, 'chat_history_tokens', None),
+            "conversation_context_tokens": getattr(c, 'conversation_context_tokens', None),
+            "tool_definitions_tokens": getattr(c, 'tool_definitions_tokens', None),
+            
+            # Cost
+            "prompt_cost": getattr(c, 'prompt_cost', None),
+            "completion_cost": getattr(c, 'completion_cost', None),
+            "total_cost": c.total_cost,
+            
+            # Status
+            "status": "success" if c.success else "error",
+            "success": c.success,
+            "error": getattr(c, 'error', None),
+            "error_type": getattr(c, 'error_type', None),
+            "retry_count": getattr(c, 'retry_count', 0),
+            
+            # Cache (for Cache story)
+            "cached": cache_hit,
+            "cache_hit": cache_hit,
+            "cache_key": getattr(c, 'cache_key', None),
+            "cached_prompt_tokens": getattr(c, 'cached_prompt_tokens', None),
+            
+            # Quality (for Quality story)
+            "judge_score": judge_score,
+            "hallucination_flag": hallucination_flag,
+            "confidence_score": getattr(c, 'confidence_score', None),
+            
+            # Routing (for Routing story)
+            "complexity_score": getattr(c, 'complexity_score', None),
+            "chosen_model": getattr(c, 'chosen_model', None),
+            
+            # Derived metrics for filtering
+            "token_ratio": round(c.prompt_tokens / c.completion_tokens, 1) if c.completion_tokens and c.completion_tokens > 0 else None,
+        })
+    
+    return result
 
 
 # =============================================================================
@@ -172,6 +303,8 @@ def _get_quality_reasoning(call) -> Optional[str]:
 
 def _get_cache_hit(call) -> bool:
     """Get cache hit status."""
+    if hasattr(call, 'cache_hit') and call.cache_hit is not None:
+        return call.cache_hit
     if call.cache_metadata and hasattr(call.cache_metadata, 'cache_hit'):
         return call.cache_metadata.cache_hit
     return False
@@ -179,6 +312,8 @@ def _get_cache_hit(call) -> bool:
 
 def _get_cache_key(call) -> Optional[str]:
     """Get cache key."""
+    if hasattr(call, 'cache_key') and call.cache_key:
+        return call.cache_key
     if call.cache_metadata and hasattr(call.cache_metadata, 'cache_key'):
         return call.cache_metadata.cache_key
     return None
@@ -366,7 +501,7 @@ def _generate_diagnosis(call, comparison: Dict) -> Dict[str, Any]:
             })
     
     # ----- QUALITY ISSUES -----
-    judge_score = _get_judge_score(call)
+    judge_score = getattr(call, 'judge_score', None) or _get_judge_score(call)
     if judge_score is not None:
         if judge_score < THRESHOLDS["quality_score_very_low"]:
             issues.append({
@@ -390,7 +525,8 @@ def _generate_diagnosis(call, comparison: Dict) -> Dict[str, Any]:
             })
     
     # ----- HALLUCINATION -----
-    if _get_hallucination_flag(call):
+    hallucination = call.hallucination_flag if hasattr(call, 'hallucination_flag') and call.hallucination_flag is not None else _get_hallucination_flag(call)
+    if hallucination:
         issues.append({
             "type": "hallucination",
             "severity": "critical",
@@ -411,7 +547,8 @@ def _generate_diagnosis(call, comparison: Dict) -> Dict[str, Any]:
         })
     
     # ----- CACHE MISS -----
-    if not _get_cache_hit(call) and call.prompt_tokens and call.prompt_tokens > 2000:
+    cache_hit = call.cache_hit if hasattr(call, 'cache_hit') and call.cache_hit is not None else _get_cache_hit(call)
+    if not cache_hit and call.prompt_tokens and call.prompt_tokens > 2000:
         issues.append({
             "type": "cache_miss",
             "severity": "info",

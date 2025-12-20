@@ -1,15 +1,11 @@
 /**
- * Layer 1: Optimization Impact - Baseline Mode
- * 
- * MVP: Shows current metrics vs targets and pending optimizations.
- * Future: Will show before/after comparisons when tracking is implemented.
+ * Layer 1: Optimization Impact - Overview (2E Design)
  */
 
 import { useNavigate } from 'react-router-dom';
 import { useStory } from '../../../hooks/useStories';
 import { STORY_THEMES } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
-import KPICard from '../../../components/common/KPICard';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 
 export default function OptimizationImpact() {
@@ -34,7 +30,6 @@ export default function OptimizationImpact() {
 
   const { 
     health_score = 0, 
-    mode = 'baseline',
     summary = {},
     kpis = {},
     baselines = [],
@@ -53,7 +48,6 @@ export default function OptimizationImpact() {
     cache_hit_rate_formatted = '—',
   } = kpis;
 
-  // Status colors
   const getStatusColor = (status) => {
     switch (status) {
       case 'met': return 'text-green-400';
@@ -81,7 +75,6 @@ export default function OptimizationImpact() {
     }
   };
 
-  // Navigate to story for optimization
   const handleOptimizationClick = (opt) => {
     const storyRoutes = {
       1: '/stories/latency',
@@ -102,83 +95,98 @@ export default function OptimizationImpact() {
     <div className="min-h-screen bg-gray-950 text-gray-100">
       <StoryNavTabs activeStory="optimization" />
 
-      <div className="max-w-7xl mx-auto p-8">
+      <div className="max-w-7xl mx-auto p-6">
         
         {/* Page Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <h1 className={`text-4xl font-bold ${theme.text} flex items-center gap-3`}>
-              <span className="text-5xl">{theme.emoji}</span>
+            <h1 className={`text-3xl font-bold ${theme.text} flex items-center gap-3`}>
+              <span className="text-4xl">{theme.emoji}</span>
               {theme.name}
             </h1>
-            <div className={`px-4 py-2 rounded-full border-2 ${theme.border} ${theme.badgeBg}`}>
+            <div className="px-4 py-2 rounded-full border border-gray-700 bg-gray-900">
               <span className={`text-sm font-semibold ${theme.text}`}>
                 {targets_met}/{total_targets} Targets Met
               </span>
             </div>
           </div>
-          <p className="text-gray-400">
-            Dashboard &gt; Optimization Impact
+          <p className="text-gray-500 text-sm">
+            Dashboard › Optimization Impact
           </p>
         </div>
 
         {/* Status Banner */}
-        <div className={`mb-8 rounded-lg border-2 ${theme.border} bg-gradient-to-br ${theme.gradient} p-6`}>
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-2xl">⏳</span>
-            <h2 className={`text-xl font-bold ${theme.text}`}>Baseline Collection Mode</h2>
+        <div className="mb-8 rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
+          <div className={`h-1 ${theme.bg}`} />
+          <div className="p-5">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">⏳</span>
+              <h2 className={`text-lg font-bold ${theme.text}`}>Baseline Collection Mode</h2>
+            </div>
+            <p className="text-gray-400 text-sm">
+              Collecting baseline metrics. Implement optimizations from Stories 1-7, then return here to measure impact.
+            </p>
           </div>
-          <p className="text-gray-300">
-            Collecting baseline metrics. Implement optimizations from Stories 1-7, then return here to measure impact.
-          </p>
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <KPICard
-            theme={theme}
-            title="⏱️ Avg Latency"
-            value={avg_latency_formatted}
-            subtext="Current baseline"
-          />
-          <KPICard
-            theme={theme}
-            title="💵 Total Cost"
-            value={total_cost_formatted}
-            subtext="Last 7 days"
-          />
-          <KPICard
-            theme={theme}
-            title="⭐ Avg Quality"
-            value={avg_quality_formatted}
-            subtext="Judge score"
-          />
-          <KPICard
-            theme={theme}
-            title="💾 Cache Hit Rate"
-            value={cache_hit_rate_formatted}
-            subtext="Current rate"
-          />
+        <div className="grid grid-cols-4 gap-4 mb-8">
+          <div 
+            onClick={() => navigate('/stories/optimization/calls?filter=slow')}
+            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+          >
+            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Avg Latency</div>
+            <div className={`text-2xl font-bold ${theme.text}`}>{avg_latency_formatted}</div>
+            <div className="text-xs text-gray-500 mt-1">Current baseline</div>
+          </div>
+          
+          <div 
+            onClick={() => navigate('/stories/optimization/calls?filter=expensive')}
+            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+          >
+            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Cost</div>
+            <div className={`text-2xl font-bold ${theme.text}`}>{total_cost_formatted}</div>
+            <div className="text-xs text-gray-500 mt-1">Last 7 days</div>
+          </div>
+          
+          <div 
+            onClick={() => navigate('/stories/optimization/calls?filter=low_quality')}
+            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+          >
+            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Avg Quality</div>
+            <div className={`text-2xl font-bold ${theme.text}`}>{avg_quality_formatted}</div>
+            <div className="text-xs text-gray-500 mt-1">Judge score</div>
+          </div>
+          
+          <div 
+            onClick={() => navigate('/stories/optimization/calls?filter=all')}
+            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+          >
+            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Cache Hit Rate</div>
+            <div className={`text-2xl font-bold ${theme.text}`}>{cache_hit_rate_formatted}</div>
+            <div className="text-xs text-gray-500 mt-1">Current rate</div>
+          </div>
         </div>
 
         {/* Baselines Table */}
-        <div className={`mb-8 rounded-lg border-2 ${theme.border} bg-gray-900 overflow-hidden`}>
-          <div className={`${theme.bgLight} p-4 border-b-2 ${theme.border}`}>
-            <h3 className={`text-lg font-semibold ${theme.text}`}>
+        <div className="mb-8 rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
+          <div className={`h-1 ${theme.bg}`} />
+          <div className="p-4 border-b border-gray-700">
+            <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wide">
               📊 Baseline Metrics vs Targets
             </h3>
           </div>
           
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-800">
-                <tr className={`border-b-2 ${theme.border}`}>
-                  <th className={`text-left py-3 px-4 ${theme.textLight}`}>Metric</th>
-                  <th className={`text-right py-3 px-4 ${theme.textLight}`}>Current</th>
-                  <th className={`text-right py-3 px-4 ${theme.textLight}`}>Target</th>
-                  <th className={`text-right py-3 px-4 ${theme.textLight}`}>Gap</th>
-                  <th className={`text-center py-3 px-4 ${theme.textLight}`}>Status</th>
-                  <th className={`text-center py-3 px-4 ${theme.textLight}`}>Priority</th>
+              <thead className="bg-gray-800/50">
+                <tr className="border-b border-gray-700">
+                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Metric</th>
+                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Current</th>
+                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Target</th>
+                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Gap</th>
+                  <th className="text-center py-3 px-4 text-gray-400 font-medium">Status</th>
+                  <th className="text-center py-3 px-4 text-gray-400 font-medium">Priority</th>
                 </tr>
               </thead>
               <tbody>
@@ -187,7 +195,7 @@ export default function OptimizationImpact() {
                     <tr key={idx} className="border-b border-gray-800">
                       <td className="py-3 px-4 text-gray-300 font-medium">{baseline.metric}</td>
                       <td className="py-3 px-4 text-right text-gray-300">{baseline.current_formatted}</td>
-                      <td className="py-3 px-4 text-right text-gray-400">{baseline.target_formatted}</td>
+                      <td className="py-3 px-4 text-right text-gray-500">{baseline.target_formatted}</td>
                       <td className={`py-3 px-4 text-right ${getStatusColor(baseline.status)}`}>
                         {baseline.gap}
                       </td>
@@ -214,23 +222,25 @@ export default function OptimizationImpact() {
         </div>
 
         {/* Pending Optimizations */}
-        <div className={`rounded-lg border-2 ${theme.border} bg-gray-900 overflow-hidden`}>
-          <div className={`${theme.bgLight} p-4 border-b-2 ${theme.border}`}>
-            <h3 className={`text-lg font-semibold ${theme.text}`}>
-              🎯 Pending Optimizations (from Stories 1-7)
+        <div className="rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
+          <div className={`h-1 ${theme.bg}`} />
+          <div className="p-4 border-b border-gray-700">
+            <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wide">
+              🎯 Pending Optimizations
+              <span className="text-gray-500 normal-case ml-2 font-normal">from Stories 1-7</span>
             </h3>
           </div>
           
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-800">
-                <tr className={`border-b-2 ${theme.border}`}>
-                  <th className={`text-left py-3 px-4 ${theme.textLight}`}>Story</th>
-                  <th className={`text-left py-3 px-4 ${theme.textLight}`}>Target</th>
-                  <th className={`text-left py-3 px-4 ${theme.textLight}`}>Issue</th>
-                  <th className={`text-left py-3 px-4 ${theme.textLight}`}>Recommendation</th>
-                  <th className={`text-left py-3 px-4 ${theme.textLight}`}>Expected Impact</th>
-                  <th className={`text-center py-3 px-4 ${theme.textLight}`}>Status</th>
+              <thead className="bg-gray-800/50">
+                <tr className="border-b border-gray-700">
+                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Story</th>
+                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Target</th>
+                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Issue</th>
+                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Recommendation</th>
+                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Expected Impact</th>
+                  <th className="text-center py-3 px-4 text-gray-400 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -239,13 +249,13 @@ export default function OptimizationImpact() {
                     <tr 
                       key={idx} 
                       onClick={() => handleOptimizationClick(opt)}
-                      className={`border-b border-gray-800 cursor-pointer transition-all hover:bg-gradient-to-r hover:${theme.gradient} hover:border-l-4 hover:${theme.border}`}
+                      className="border-b border-gray-800 cursor-pointer hover:bg-gray-800/50 transition-colors"
                     >
                       <td className="py-3 px-4">
                         <span className={theme.text}>Story {opt.story}</span>
                         <span className="text-gray-500 ml-2 text-xs">{opt.story_name}</span>
                       </td>
-                      <td className="py-3 px-4 font-mono text-gray-300">{opt.target}</td>
+                      <td className="py-3 px-4 font-mono text-purple-400">{opt.target}</td>
                       <td className="py-3 px-4 text-gray-400">{opt.issue}</td>
                       <td className="py-3 px-4 text-gray-300">{opt.recommendation}</td>
                       <td className="py-3 px-4 text-green-400">{opt.expected_impact}</td>
@@ -259,7 +269,7 @@ export default function OptimizationImpact() {
                 ) : (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-gray-500">
-                      No pending optimizations identified. Your system is well-optimized! 🎉
+                      No pending optimizations. Your system is well-optimized! 🎉
                     </td>
                   </tr>
                 )}
@@ -269,7 +279,7 @@ export default function OptimizationImpact() {
         </div>
 
         {/* Coming Soon Note */}
-        <div className={`mt-6 p-4 rounded-lg border ${theme.border} bg-gray-900`}>
+        <div className="mt-6 p-4 rounded-lg border border-gray-700 bg-gray-900">
           <p className="text-sm text-gray-400">
             💡 <span className="text-blue-400">Coming Soon:</span> Track optimizations and see before/after comparisons. 
             Implement changes from Stories 1-7, then mark them complete here to measure impact.

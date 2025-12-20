@@ -9,6 +9,7 @@ Complete: All 8 stories implemented.
 """
 
 from .llm_call_service import get_detail as get_llm_call_detail
+from .llm_call_service import get_calls as get_llm_calls
 
 # Story 1 - Latency Monster
 from .latency_service import get_summary as get_latency_summary
@@ -59,6 +60,7 @@ from .optimization_service import (
 __all__ = [
     # Layer 3 - Call detail (shared by all stories)
     "get_llm_call_detail",
+    "get_llm_calls",
     
     # Story 1 - Latency Monster
     "get_latency_summary",

@@ -25,6 +25,7 @@ import LatencyOperationDetail from './pages/stories/latency/OperationDetail';
 // Pages - Cache Story (Layers 1 & 2)
 import Cache from './pages/stories/cache';
 import CacheOperationDetail from './pages/stories/cache/OperationDetail';
+import CacheAllCalls from './pages/stories/cache/AllCalls';
 import CacheOpportunityDetail from './pages/stories/cache/OpportunityDetail';
 
 // Pages - Routing Story (Layers 1 & 2)
@@ -103,12 +104,14 @@ function App() {
             {/* LATENCY STORY - Layers 1 & 2                  */}
             {/* ============================================= */}
             <Route path="/stories/latency" element={<Latency />} />
+            <Route path="/stories/latency/calls" element={<LatencyOperationDetail />} />
             <Route path="/stories/latency/operations/:agent/:operation" element={<LatencyOperationDetail />} />
             
             {/* ============================================= */}
             {/* CACHE STORY - Layers 1 & 2                    */}
             {/* ============================================= */}
             <Route path="/stories/cache" element={<Cache />} />
+            <Route path="/stories/cache/calls" element={<CacheAllCalls />} />
             <Route path="/stories/cache/operations/:agent/:operation" element={<CacheOperationDetail />} />
             <Route path="/stories/cache/operations/:agent/:operation/groups/:group_id" element={<CacheOpportunityDetail />} />
             
@@ -116,36 +119,42 @@ function App() {
             {/* ROUTING STORY - Layers 1 & 2                  */}
             {/* ============================================= */}
             <Route path="/stories/routing" element={<Routing />} />
+            <Route path="/stories/routing/calls" element={<RoutingOperationDetail />} />
             <Route path="/stories/routing/operations/:agent/:operation" element={<RoutingOperationDetail />} />
             
             {/* ============================================= */}
             {/* QUALITY STORY - Layers 1 & 2                  */}
             {/* ============================================= */}
             <Route path="/stories/quality" element={<Quality />} />
+            <Route path="/stories/quality/calls" element={<QualityOperationDetail />} />
             <Route path="/stories/quality/operations/:agent/:operation" element={<QualityOperationDetail />} />
             
             {/* ============================================= */}
             {/* TOKEN EFFICIENCY STORY - Layers 1 & 2         */}
             {/* ============================================= */}
             <Route path="/stories/token_imbalance" element={<Token />} />
+            <Route path="/stories/token_imbalance/calls" element={<TokenOperationDetail />} />
             <Route path="/stories/token_imbalance/operations/:agent/:operation" element={<TokenOperationDetail />} />
             
             {/* ============================================= */}
             {/* PROMPT COMPOSITION STORY - Layers 1 & 2       */}
             {/* ============================================= */}
             <Route path="/stories/system_prompt" element={<Prompt />} />
+            <Route path="/stories/system_prompt/calls" element={<PromptOperationDetail />} />
             <Route path="/stories/system_prompt/operations/:agent/:operation" element={<PromptOperationDetail />} />
             
             {/* ============================================= */}
             {/* COST ANALYSIS STORY - Layers 1 & 2            */}
             {/* ============================================= */}
             <Route path="/stories/cost" element={<Cost />} />
+            <Route path="/stories/cost/calls" element={<CostOperationDetail />} />
             <Route path="/stories/cost/operations/:agent/:operation" element={<CostOperationDetail />} />
             
             {/* ============================================= */}
             {/* OPTIMIZATION IMPACT STORY - Layers 1 & 2      */}
             {/* ============================================= */}
             <Route path="/stories/optimization" element={<Optimization />} />
+            <Route path="/stories/optimization/calls" element={<OptimizationComparisonDetail />} />
             <Route path="/stories/optimization/comparisons/:comparisonId" element={<OptimizationComparisonDetail />} />
             
             {/* Catch-all redirect */}

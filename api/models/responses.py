@@ -90,8 +90,11 @@ class CostSummary(BaseModel):
     total_cost: float
     total_cost_formatted: str
     avg_cost_per_call: float
+    avg_cost_formatted: str  # NEW: "$0.042"
     potential_savings: float
+    potential_savings_formatted: str  # NEW: "$12.50"
     top_3_concentration: float  # 0-1, what % top 3 ops represent
+    top_3_concentration_formatted: str  # NEW: "72.5%"
 
 
 class SystemPromptSummary(BaseModel):
