@@ -14,9 +14,9 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { STORY_THEMES } from '../../config/theme';
-import { ALL_COLUMNS, getColumn, getColumnsByCategory } from '../../config/columnDefinitions';
-import { getLayer2Config } from '../../config/storyDefinitions';
+import { STORY_THEMES } from '../../../config/theme';
+import { ALL_COLUMNS, getColumn, getColumnsByCategory } from '../../../config/columnDefinitions';
+import { getLayer2Config } from '../../../config/storyDefinitions';
 
 // Sub-components
 import QuickFilters from './QuickFilters';

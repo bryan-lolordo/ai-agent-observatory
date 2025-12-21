@@ -1,62 +1,76 @@
 /**
- * Layer 2: Cache Operation Detail
+ * Layer 2: Cache Calls (All Cache Patterns)
  * 
- * Shows cache opportunities for a specific operation with type filters.
- * This is the original cache-specific design (not Layer2Table).
+ * Shows all cacheable patterns with full Layer2Table functionality.
+ * Uses URL params for initial filters (from Layer 1 drill-down).
  */
 
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { STORY_THEMES } from '../../../config/theme';
+import { getLayer2Config } from '../../../config/storyDefinitions';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
-import KPICard from '../../../components/common/KPICard';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
-import { formatNumber, formatCurrency, truncateText } from '../../../utils/formatters';
+import Layer2Table from '../../../components/stories/Layer2Table';
+import { formatNumber, formatCurrency } from '../../../utils/formatters';
 
+const STORY_ID = 'cache';
 const theme = STORY_THEMES.cache;
-
-// Cache type filter definitions
-const CACHE_TYPE_FILTERS = [
-  { id: 'all', name: 'All Types', emoji: '📊' },
-  { id: 'exact', name: 'Exact Match', emoji: '🎯' },
-  { id: 'stable', name: 'Stable/Prefix', emoji: '📌' },
-  { id: 'high_value', name: 'High-Value', emoji: '💎' },
-];
+const config = getLayer2Config(STORY_ID);
 
 export default function CacheOperationDetail() {
-  const { agent, operation } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
+  // Get initial filters from URL params
+  const initialOperation = searchParams.get('operation');
+  const initialAgent = searchParams.get('agent');
+  
+  // Build initial filters object
+  const initialFilters = useMemo(() => {
+    const filters = {};
+    if (initialOperation) filters.operation = [initialOperation];
+    if (initialAgent) filters.agent_name = [initialAgent];
+    return filters;
+  }, [initialOperation, initialAgent]);
+  
   // State
-  const [data, setData] = useState(null);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedType, setSelectedType] = useState(searchParams.get('type') || 'all');
+  const [stats, setStats] = useState({
+    total_patterns: 0,
+    total_wasted: 0,
+    total_savable: 0,
+  });
 
-  // Fetch data
+  // Fetch all cache patterns
   useEffect(() => {
     fetchData();
-  }, [agent, operation]);
+  }, []);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/stories/cache/operations/${encodeURIComponent(agent)}/${encodeURIComponent(operation)}`);
+      const response = await fetch('/api/stories/cache/patterns');
       
       if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error(`Operation not found: ${agent}.${operation}`);
-        }
         throw new Error(`HTTP ${response.status}`);
       }
       
       const result = await response.json();
-      setData(result);
+      
+      // API returns { patterns: [...], stats: {...} }
+      setData(result.patterns || []);
+      setStats(result.stats || {
+        total_patterns: result.patterns?.length || 0,
+        total_wasted: 0,
+        total_savable: 0,
+      });
     } catch (err) {
-      console.error('Error fetching cache operation detail:', err);
+      console.error('Error fetching cache patterns:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -68,14 +82,10 @@ export default function CacheOperationDetail() {
     navigate('/stories/cache');
   };
 
-  const handleOpportunityClick = (opportunity) => {
-    navigate(`/stories/cache/operations/${encodeURIComponent(agent)}/${encodeURIComponent(operation)}/groups/${opportunity.group_id}`);
+  const handleRowClick = (pattern) => {
+    // Navigate to Layer 3 - pattern detail using existing route format
+    navigate(`/stories/cache/operations/${encodeURIComponent(pattern.agent_name)}/${encodeURIComponent(pattern.operation)}/groups/${pattern.group_id}`);
   };
-
-  // Filter opportunities by type
-  const filteredOpportunities = data?.opportunities?.filter(opp => 
-    selectedType === 'all' || opp.cache_type === selectedType
-  ) || [];
 
   // Loading state
   if (loading) return <StoryPageSkeleton />;
@@ -106,24 +116,20 @@ export default function CacheOperationDetail() {
     );
   }
 
-  const {
-    total_calls = 0,
-    unique_prompts = 0,
-    cacheable_count = 0,
-    wasted_cost = 0,
-    wasted_cost_formatted = '$0.00',
-    opportunities = [],
-    type_counts = {},
-  } = data || {};
+  // Calculate summary stats
+  const totalWasted = data.reduce((sum, p) => sum + (p.wasted_cost || 0), 0);
+  const totalRepeats = data.reduce((sum, p) => sum + (p.repeat_count || 0), 0);
+  const exactMatchCount = data.filter(p => p.cache_type === 'exact').length;
+  const highValueCount = data.filter(p => p.cache_type === 'high_value').length;
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
       {/* Story Navigation */}
-      <StoryNavTabs activeStory="cache" />
+      <StoryNavTabs activeStory={STORY_ID} />
 
       <div className="max-w-7xl mx-auto p-8">
         
-        {/* Back Button + Header */}
+        {/* Back Button */}
         <button
           onClick={handleBack}
           className={`mb-6 flex items-center gap-2 text-sm ${theme.text} hover:underline`}
@@ -132,180 +138,60 @@ export default function CacheOperationDetail() {
         </button>
 
         {/* Page Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
-            <h1 className={`text-4xl font-bold ${theme.text} flex items-center gap-3`}>
-              <span className="text-5xl">💾</span>
-              {operation}
+            <h1 className={`text-3xl font-bold ${theme.text} flex items-center gap-3`}>
+              <span className="text-4xl">💾</span>
+              Cache Opportunities
+              {(initialOperation || initialAgent) && (
+                <span className="text-lg font-normal text-gray-400">
+                  {initialAgent && initialOperation 
+                    ? `• ${initialAgent}.${initialOperation}`
+                    : initialOperation || initialAgent
+                  }
+                </span>
+              )}
             </h1>
-            <div className={`px-4 py-2 rounded-full border-2 ${theme.border} ${theme.badgeBg}`}>
-              <span className={`text-sm font-semibold ${theme.text}`}>
-                {Math.round((cacheable_count / total_calls) * 100) || 0}% Cacheable
-              </span>
-            </div>
           </div>
           <p className="text-gray-400">
-            {agent} Agent • {formatNumber(total_calls)} calls • {formatNumber(unique_prompts)} unique prompts
+            Dashboard &gt; Caching Strategy &gt; All Patterns
           </p>
         </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <KPICard
-            theme={theme}
-            title="📊 Total Calls"
-            value={formatNumber(total_calls)}
-            subtext="In this operation"
-          />
-          <KPICard
-            theme={theme}
-            title="✨ Unique Prompts"
-            value={formatNumber(unique_prompts)}
-            subtext="Would be cached"
-          />
-          <KPICard
-            theme={theme}
-            title="🔄 Cacheable"
-            value={formatNumber(cacheable_count)}
-            subtext="Could eliminate"
-          />
-          <KPICard
-            theme={theme}
-            title="💸 Wasted Cost"
-            value={wasted_cost_formatted}
-            subtext="Recoverable"
-          />
+        {/* Stat Badges Row */}
+        <div className="mb-6 flex flex-wrap gap-4">
+          <StatBadge label="Patterns" value={formatNumber(data.length)} theme={theme} />
+          <StatBadge label="Total Wasted" value={formatCurrency(totalWasted)} color="text-red-400" />
+          <StatBadge label="Total Repeats" value={formatNumber(totalRepeats)} color="text-yellow-400" />
+          <StatBadge label="Exact Match" value={formatNumber(exactMatchCount)} color="text-green-400" />
+          <StatBadge label="High-Value" value={formatNumber(highValueCount)} color="text-purple-400" />
         </div>
 
-        {/* Type Filter Buttons */}
-        <div className={`mb-6 rounded-lg border-2 ${theme.border} bg-gray-900 p-4`}>
-          <div className="flex flex-wrap gap-2">
-            {CACHE_TYPE_FILTERS.map(type => {
-              const count = type.id === 'all' 
-                ? opportunities.length 
-                : type_counts[type.id] || 0;
-              
-              const isSelected = selectedType === type.id;
-              const isDisabled = count === 0 && type.id !== 'all';
-              
-              return (
-                <button
-                  key={type.id}
-                  onClick={() => !isDisabled && setSelectedType(type.id)}
-                  disabled={isDisabled}
-                  className={`
-                    px-4 py-2 rounded-lg text-sm font-medium transition-all
-                    flex items-center gap-2
-                    ${isSelected 
-                      ? `${theme.bg} text-white` 
-                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                    }
-                    ${isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
-                  `}
-                >
-                  <span>{type.emoji}</span>
-                  <span>{type.name}</span>
-                  <span className={`
-                    px-2 py-0.5 rounded-full text-xs
-                    ${isSelected ? 'bg-white/20' : 'bg-gray-700'}
-                  `}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Opportunities Table */}
-        <div className={`mb-8 rounded-lg border-2 ${theme.border} bg-gray-900 overflow-hidden`}>
-          <div className={`${theme.bgLight} p-4 border-b-2 ${theme.border}`}>
-            <h3 className={`text-lg font-semibold ${theme.text}`}>
-              📋 Cache Opportunities (click row for details + fix)
-              {selectedType !== 'all' && (
-                <span className="ml-2 text-sm font-normal text-gray-400">
-                  (filtered by {CACHE_TYPE_FILTERS.find(t => t.id === selectedType)?.name})
-                </span>
-              )}
-            </h3>
-          </div>
-          
-          <div className="overflow-x-auto overflow-y-auto max-h-96 story-scrollbar-thin cache">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-800 sticky top-0">
-                <tr className={`border-b-2 ${theme.border}`}>
-                  <th className={`text-center py-3 px-4 ${theme.textLight}`}>Type</th>
-                  <th className={`text-left py-3 px-4 ${theme.textLight}`}>Prompt Preview</th>
-                  <th className={`text-right py-3 px-4 ${theme.textLight}`}>Repeats</th>
-                  <th className={`text-right py-3 px-4 ${theme.textLight}`}>Wasted</th>
-                  <th className={`text-right py-3 px-4 ${theme.textLight}`}>Savable</th>
-                  <th className={`text-center py-3 px-4 ${theme.textLight}`}>Effort</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOpportunities.length > 0 ? (
-                  filteredOpportunities.map((opp, idx) => (
-                    <tr
-                      key={opp.group_id || idx}
-                      onClick={() => handleOpportunityClick(opp)}
-                      className={`border-b border-gray-800 cursor-pointer transition-all hover:bg-gradient-to-r hover:${theme.gradient} hover:border-l-4 hover:${theme.border}`}
-                    >
-                      <td className="py-3 px-4 text-center">
-                        <span className="text-xl" title={opp.cache_type_name}>
-                          {opp.cache_type_emoji}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 max-w-md">
-                        <div className={`text-sm ${theme.text} font-mono truncate`}>
-                          "{truncateText(opp.prompt_preview, 60)}"
-                        </div>
-                      </td>
-                      <td className={`py-3 px-4 text-right font-bold ${theme.text}`}>
-                        {opp.repeat_count}x
-                      </td>
-                      <td className={`py-3 px-4 text-right font-semibold ${theme.text}`}>
-                        {opp.wasted_cost_formatted}
-                      </td>
-                      <td className="py-3 px-4 text-right text-gray-400">
-                        {opp.savable_time_formatted}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span title={`${opp.effort} effort`}>
-                          {opp.effort_badge}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-gray-500">
-                      {selectedType !== 'all' 
-                        ? `No ${CACHE_TYPE_FILTERS.find(t => t.id === selectedType)?.name} opportunities found`
-                        : 'No cache opportunities found for this operation'
-                      }
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Quick Win Insight */}
-        {type_counts.exact > 0 && (
-          <div className={`rounded-lg border-2 border-green-600 bg-gradient-to-br from-green-900/30 to-gray-900 p-6`}>
-            <h3 className="text-lg font-semibold text-green-400 mb-2 flex items-center gap-2">
-              <span>💡</span>
-              Quick Win Available
-            </h3>
-            <p className="text-gray-300">
-              {type_counts.exact} exact match{type_counts.exact > 1 ? 'es' : ''} can be cached with a simple key-value store.
-              This is the easiest optimization to implement.
-            </p>
-          </div>
-        )}
+        {/* Layer2Table */}
+        <Layer2Table
+          storyId={STORY_ID}
+          data={data}
+          initialFilters={initialFilters}
+          onRowClick={handleRowClick}
+          loading={loading}
+        />
 
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STAT BADGE
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StatBadge({ label, value, theme, color }) {
+  const textColor = color || (theme ? theme.text : 'text-gray-300');
+  
+  return (
+    <div className="px-4 py-2 bg-gray-900 rounded-lg border border-gray-700">
+      <span className="text-xs text-gray-500">{label}: </span>
+      <span className={`font-semibold ${textColor}`}>{value}</span>
     </div>
   );
 }

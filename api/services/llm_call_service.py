@@ -4,6 +4,11 @@ Location: api/services/llm_call_service.py
 
 Business logic for call listings and single call detail with diagnosis.
 Shared by all stories for drill-down functionality.
+
+Enhanced for Layer 3 pages:
+- Quality: judge_evaluation object, criteria_scores, operation quality stats
+- Token: ratio calculations, token breakdown, operation token averages
+- Cost: pricing info, alternative models, operation cost stats
 """
 
 from typing import Optional, Dict, Any, List
@@ -28,7 +33,46 @@ THRESHOLDS = {
     "quality_score_very_low": 3.0,
     "cost_high": 0.05,
     "cost_very_high": 0.10,
+    "token_ratio_high": 20.0,  # prompt/completion ratio
+    "token_ratio_severe": 50.0,
 }
+
+PROMPT_THRESHOLDS = {
+    "variability_low": 0.05,      # <5% variation = static
+    "variability_high": 0.20,     # >20% variation = dynamic
+    "history_pct_high": 40.0,     # History > 40% is concerning
+    "system_pct_high": 70.0,      # System > 70% is very high
+    "history_tokens_large": 500,  # >500 history tokens = large
+}
+
+
+# =============================================================================
+# MODEL PRICING (per 1K tokens)
+# =============================================================================
+
+MODEL_PRICING = {
+    # OpenAI
+    "gpt-4o": {"input": 0.0025, "output": 0.01, "quality": "100%"},
+    "gpt-4o-mini": {"input": 0.00015, "output": 0.0006, "quality": "~90%"},
+    "gpt-4-turbo": {"input": 0.01, "output": 0.03, "quality": "~98%"},
+    "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015, "quality": "~85%"},
+    
+    # Anthropic
+    "claude-3-opus": {"input": 0.015, "output": 0.075, "quality": "100%"},
+    "claude-3-sonnet": {"input": 0.003, "output": 0.015, "quality": "~95%"},
+    "claude-3-haiku": {"input": 0.00025, "output": 0.00125, "quality": "~92%"},
+    "claude-3.5-sonnet": {"input": 0.003, "output": 0.015, "quality": "~98%"},
+    
+    # Defaults
+    "default": {"input": 0.001, "output": 0.002, "quality": "~90%"},
+}
+
+# Alternative model suggestions for cost optimization
+ALTERNATIVE_MODELS = [
+    {"name": "gpt-4o-mini", "input_1k": 0.00015, "output_1k": 0.0006, "quality": "~90%"},
+    {"name": "claude-3-haiku", "input_1k": 0.00025, "output_1k": 0.00125, "quality": "~92%"},
+    {"name": "gpt-3.5-turbo", "input_1k": 0.0005, "output_1k": 0.0015, "quality": "~85%"},
+]
 
 
 # =============================================================================
@@ -61,6 +105,31 @@ def get_detail(call_id: str) -> Optional[Dict[str, Any]]:
     # Generate diagnosis
     diagnosis = _generate_diagnosis(call, comparison)
     
+    # Get model pricing
+    pricing = _get_model_pricing(call.model_name)
+    
+    # Get prompt analysis (for Prompt Layer 3)
+    prompt_analysis = _get_prompt_analysis(call, None)  # operation_calls fetched in comparison already
+    
+    # Extract chat history for raw display
+    chat_history_content = None
+    if hasattr(call, 'prompt_breakdown') and call.prompt_breakdown:
+        pb = call.prompt_breakdown if isinstance(call.prompt_breakdown, dict) else (
+            call.prompt_breakdown.model_dump() if hasattr(call.prompt_breakdown, 'model_dump') else {})
+        chat_history_content = pb.get('chat_history')
+    
+    # Calculate token ratio
+    token_ratio = None
+    if call.completion_tokens and call.completion_tokens > 0:
+        token_ratio = round(call.prompt_tokens / call.completion_tokens, 1)
+    
+    # Get alternative models with estimated costs
+    alternative_models = _get_alternative_models(
+        call.prompt_tokens or 0,
+        call.completion_tokens or 0,
+        call.model_name
+    )
+    
     # Build response
     return {
         # Identity
@@ -86,6 +155,10 @@ def get_detail(call_id: str) -> Optional[Dict[str, Any]]:
         "completion_cost": getattr(call, 'completion_cost', None),
         "total_cost": call.total_cost,
         
+        # Token Ratio (for Token Imbalance story)
+        "ratio": token_ratio,
+        "token_ratio": token_ratio,
+        
         # Token Breakdown
         "system_prompt_tokens": getattr(call, 'system_prompt_tokens', None),
         "user_message_tokens": getattr(call, 'user_message_tokens', None),
@@ -99,15 +172,20 @@ def get_detail(call_id: str) -> Optional[Dict[str, Any]]:
         "user_message": getattr(call, 'user_message', None) or _extract_user_message(call),
         "response_text": getattr(call, 'response_text', None),
         
-        # Quality
+        # Quality - Basic
         "success": call.success,
         "error": getattr(call, 'error', None),
         "error_type": getattr(call, 'error_type', None),
         "error_code": getattr(call, 'error_code', None),
         "judge_score": getattr(call, 'judge_score', None) or _get_judge_score(call),
+        "judge_confidence": _get_judge_confidence(call),
         "hallucination_flag": getattr(call, 'hallucination_flag', None) if getattr(call, 'hallucination_flag', None) is not None else _get_hallucination_flag(call),
+        "hallucination_detected": getattr(call, 'hallucination_flag', None) if getattr(call, 'hallucination_flag', None) is not None else _get_hallucination_flag(call),
         "quality_reasoning": _get_quality_reasoning(call),
         "confidence_score": getattr(call, 'confidence_score', None),
+        
+        # Quality - Full Evaluation Object (for Quality Layer 3)
+        "judge_evaluation": _get_full_quality_evaluation(call),
         
         # Cache
         "cache_hit": getattr(call, 'cache_hit', None) if getattr(call, 'cache_hit', None) is not None else _get_cache_hit(call),
@@ -129,7 +207,45 @@ def get_detail(call_id: str) -> Optional[Dict[str, Any]]:
         "complexity_score": getattr(call, 'complexity_score', None),
         "chosen_model": getattr(call, 'chosen_model', None),
         
-        # Comparison with operation averages
+        # Pricing (for Cost Layer 3)
+        "input_price_per_1k": pricing["input"],
+        "output_price_per_1k": pricing["output"],
+        
+        # Alternative Models (for Cost Layer 3)
+        "alternative_models": alternative_models,
+        
+        # Operation Stats (for all Layer 3 pages)
+        "operation_avg_cost": comparison.get("operation_avg_cost"),
+        "operation_total_cost": comparison.get("operation_total_cost"),
+        "operation_call_count": comparison.get("operation_call_count"),
+        "operation_avg_latency_ms": comparison.get("operation_avg_latency_ms"),
+        "operation_avg_tokens": comparison.get("operation_avg_tokens"),
+        
+        # Token Stats (for Token Layer 3)
+        "operation_avg_ratio": comparison.get("operation_avg_ratio"),
+        "operation_avg_prompt": comparison.get("operation_avg_prompt"),
+        "operation_avg_completion": comparison.get("operation_avg_completion"),
+        
+        # Quality Stats (for Quality Layer 3)
+        "operation_avg_score": comparison.get("operation_avg_score"),
+        "operation_min_score": comparison.get("operation_min_score"),
+        "operation_max_score": comparison.get("operation_max_score"),
+        
+        # Prompt Composition (for Prompt Layer 3)
+        "system_pct": prompt_analysis["system_pct"],
+        "user_pct": prompt_analysis["user_pct"],
+        "history_pct": prompt_analysis["history_pct"],
+        "cache_status": prompt_analysis["cache_status"],
+        "cache_emoji": prompt_analysis["cache_emoji"],
+        "cache_label": prompt_analysis["cache_label"],
+        "cache_issue_reason": prompt_analysis["cache_issue_reason"],
+        "cache_analysis": prompt_analysis["cache_analysis"],
+        "chat_history": chat_history_content,
+        "operation_avg_system_tokens": comparison.get("operation_avg_system_tokens"),
+        "operation_avg_user_tokens": comparison.get("operation_avg_user_tokens"),
+        "operation_avg_history_tokens": comparison.get("operation_avg_history_tokens"),
+        
+        # Full Comparison object
         "comparison": comparison,
         
         # Diagnosis and recommendations
@@ -199,6 +315,11 @@ def get_calls(
         elif hasattr(c, 'quality_evaluation') and c.quality_evaluation:
             hallucination_flag = getattr(c.quality_evaluation, 'hallucination_flag', False)
         
+        # Calculate token ratio
+        token_ratio = None
+        if c.completion_tokens and c.completion_tokens > 0:
+            token_ratio = round(c.prompt_tokens / c.completion_tokens, 1)
+        
         result.append({
             # Identity
             "call_id": c.id,
@@ -220,6 +341,8 @@ def get_calls(
             "prompt_tokens": c.prompt_tokens,
             "completion_tokens": c.completion_tokens,
             "total_tokens": c.total_tokens,
+            "ratio": token_ratio,
+            "token_ratio": token_ratio,
             
             # Tokens - Breakdown (for Prompt Composition story)
             "system_prompt_tokens": getattr(c, 'system_prompt_tokens', None),
@@ -254,9 +377,6 @@ def get_calls(
             # Routing (for Routing story)
             "complexity_score": getattr(c, 'complexity_score', None),
             "chosen_model": getattr(c, 'chosen_model', None),
-            
-            # Derived metrics for filtering
-            "token_ratio": round(c.prompt_tokens / c.completion_tokens, 1) if c.completion_tokens and c.completion_tokens > 0 else None,
         })
     
     return result
@@ -268,36 +388,49 @@ def get_calls(
 
 def _extract_system_prompt(call) -> Optional[str]:
     """Extract system prompt from prompt_breakdown or prompt field."""
-    if call.prompt_breakdown and hasattr(call.prompt_breakdown, 'system_prompt'):
-        return call.prompt_breakdown.system_prompt
+    if hasattr(call, 'prompt_breakdown') and call.prompt_breakdown:
+        if hasattr(call.prompt_breakdown, 'system_prompt'):
+            return call.prompt_breakdown.system_prompt
     return None
 
 
 def _extract_user_message(call) -> Optional[str]:
     """Extract user message from prompt_breakdown or prompt field."""
-    if call.prompt_breakdown and hasattr(call.prompt_breakdown, 'user_message'):
-        return call.prompt_breakdown.user_message
+    if hasattr(call, 'prompt_breakdown') and call.prompt_breakdown:
+        if hasattr(call.prompt_breakdown, 'user_message'):
+            return call.prompt_breakdown.user_message
     return None
 
 
 def _get_judge_score(call) -> Optional[float]:
     """Get quality judge score."""
-    if call.quality_evaluation and hasattr(call.quality_evaluation, 'judge_score'):
-        return call.quality_evaluation.judge_score
+    if hasattr(call, 'quality_evaluation') and call.quality_evaluation:
+        if hasattr(call.quality_evaluation, 'judge_score'):
+            return call.quality_evaluation.judge_score
+    return None
+
+
+def _get_judge_confidence(call) -> Optional[float]:
+    """Get quality judge confidence."""
+    if hasattr(call, 'quality_evaluation') and call.quality_evaluation:
+        if hasattr(call.quality_evaluation, 'confidence'):
+            return call.quality_evaluation.confidence
     return None
 
 
 def _get_hallucination_flag(call) -> bool:
     """Get hallucination flag."""
-    if call.quality_evaluation and hasattr(call.quality_evaluation, 'hallucination_flag'):
-        return call.quality_evaluation.hallucination_flag
+    if hasattr(call, 'quality_evaluation') and call.quality_evaluation:
+        if hasattr(call.quality_evaluation, 'hallucination_flag'):
+            return call.quality_evaluation.hallucination_flag
     return False
 
 
 def _get_quality_reasoning(call) -> Optional[str]:
     """Get quality evaluation reasoning."""
-    if call.quality_evaluation and hasattr(call.quality_evaluation, 'reasoning'):
-        return call.quality_evaluation.reasoning
+    if hasattr(call, 'quality_evaluation') and call.quality_evaluation:
+        if hasattr(call.quality_evaluation, 'reasoning'):
+            return call.quality_evaluation.reasoning
     return None
 
 
@@ -305,8 +438,9 @@ def _get_cache_hit(call) -> bool:
     """Get cache hit status."""
     if hasattr(call, 'cache_hit') and call.cache_hit is not None:
         return call.cache_hit
-    if call.cache_metadata and hasattr(call.cache_metadata, 'cache_hit'):
-        return call.cache_metadata.cache_hit
+    if hasattr(call, 'cache_metadata') and call.cache_metadata:
+        if hasattr(call.cache_metadata, 'cache_hit'):
+            return call.cache_metadata.cache_hit
     return False
 
 
@@ -314,20 +448,245 @@ def _get_cache_key(call) -> Optional[str]:
     """Get cache key."""
     if hasattr(call, 'cache_key') and call.cache_key:
         return call.cache_key
-    if call.cache_metadata and hasattr(call.cache_metadata, 'cache_key'):
-        return call.cache_metadata.cache_key
+    if hasattr(call, 'cache_metadata') and call.cache_metadata:
+        if hasattr(call.cache_metadata, 'cache_key'):
+            return call.cache_metadata.cache_key
     return None
 
 
+def _get_full_quality_evaluation(call) -> Optional[Dict]:
+    """
+    Get full quality evaluation object for Layer 3 Quality page.
+    
+    Returns structured object with:
+    - overall_score
+    - confidence
+    - criteria_scores (relevance, accuracy, completeness, coherence, helpfulness)
+    - reasoning
+    - issues_found
+    - strengths
+    """
+    if not hasattr(call, 'quality_evaluation') or not call.quality_evaluation:
+        return None
+    
+    qe = call.quality_evaluation
+    
+    # If it's already a dict, return it
+    if isinstance(qe, dict):
+        return qe
+    
+    # If it's a Pydantic model, convert to dict
+    if hasattr(qe, 'model_dump'):
+        return qe.model_dump()
+    elif hasattr(qe, 'dict'):
+        return qe.dict()
+    
+    # Build from individual attributes
+    return {
+        "overall_score": getattr(qe, 'judge_score', None) or getattr(qe, 'overall_score', None),
+        "confidence": getattr(qe, 'confidence', None),
+        "criteria_scores": getattr(qe, 'criteria_scores', None),
+        "reasoning": getattr(qe, 'reasoning', None),
+        "issues_found": getattr(qe, 'issues_found', []),
+        "strengths": getattr(qe, 'strengths', []),
+        "hallucination_flag": getattr(qe, 'hallucination_flag', False),
+    }
+
+def _get_prompt_analysis(call, operation_calls: list = None) -> dict:
+    """Analyze prompt composition for Prompt Layer 3."""
+    system_tokens = getattr(call, 'system_prompt_tokens', 0) or 0
+    user_tokens = getattr(call, 'user_message_tokens', 0) or 0
+    history_tokens = getattr(call, 'chat_history_tokens', 0) or 0
+    
+    prompt_breakdown = getattr(call, 'prompt_breakdown', None)
+    if prompt_breakdown:
+        pb = prompt_breakdown if isinstance(prompt_breakdown, dict) else (
+            prompt_breakdown.model_dump() if hasattr(prompt_breakdown, 'model_dump') else {})
+        if not system_tokens:
+            system_tokens = pb.get('system_prompt_tokens', 0) or 0
+        if not user_tokens:
+            user_tokens = pb.get('user_message_tokens', 0) or 0
+        if not history_tokens:
+            history_tokens = pb.get('chat_history_tokens', 0) or 0
+    
+    prompt_tokens = call.prompt_tokens or (system_tokens + user_tokens + history_tokens)
+    
+    if prompt_tokens > 0:
+        system_pct = (system_tokens / prompt_tokens) * 100
+        user_pct = (user_tokens / prompt_tokens) * 100
+        history_pct = (history_tokens / prompt_tokens) * 100
+    else:
+        system_pct = user_pct = history_pct = 0
+    
+    # Calculate system variability
+    system_variability = 0.0
+    if operation_calls and len(operation_calls) >= 2:
+        sys_list = []
+        for c in operation_calls:
+            st = getattr(c, 'system_prompt_tokens', 0) or 0
+            if not st:
+                pb = getattr(c, 'prompt_breakdown', None)
+                if pb:
+                    pbd = pb if isinstance(pb, dict) else (
+                        pb.model_dump() if hasattr(pb, 'model_dump') else {})
+                    st = pbd.get('system_prompt_tokens', 0) or 0
+            sys_list.append(st)
+        if sys_list and sum(sys_list) > 0:
+            mean = sum(sys_list) / len(sys_list)
+            if mean > 0:
+                variance = sum((x - mean) ** 2 for x in sys_list) / len(sys_list)
+                system_variability = (variance ** 0.5) / mean
+    
+    has_history = history_tokens > 0
+    
+    if system_tokens == 0:
+        cache_status, cache_emoji, cache_label = "none", "➖", "No System Prompt"
+    elif system_variability > PROMPT_THRESHOLDS["variability_high"]:
+        cache_status, cache_emoji, cache_label = "not_ready", "❌", "Not Cache Ready"
+    elif has_history:
+        if system_variability <= PROMPT_THRESHOLDS["variability_low"]:
+            cache_status, cache_emoji, cache_label = "partial", "⚠️", "Partial (has history)"
+        else:
+            cache_status, cache_emoji, cache_label = "not_ready", "❌", "Not Cache Ready"
+    elif system_variability <= PROMPT_THRESHOLDS["variability_low"]:
+        cache_status, cache_emoji, cache_label = "ready", "✅", "Cache Ready"
+    else:
+        cache_status, cache_emoji, cache_label = "partial", "⚠️", "Partial"
+    
+    cache_issue_reason = None
+    if cache_status == "not_ready":
+        if system_variability > PROMPT_THRESHOLDS["variability_high"]:
+            cache_issue_reason = "System prompt contains dynamic content that changes between calls"
+        elif has_history:
+            cache_issue_reason = "Chat history in prompt prevents consistent caching"
+    elif cache_status == "partial" and has_history:
+        cache_issue_reason = "System prompt is static but chat history varies"
+    
+    potential_cache_savings = 0.0
+    if cache_status in ["partial", "not_ready"] and system_tokens > 0 and prompt_tokens > 0:
+        potential_cache_savings = system_tokens / prompt_tokens
+    
+    history_messages = 0
+    if prompt_breakdown:
+        pb = prompt_breakdown if isinstance(prompt_breakdown, dict) else (
+            prompt_breakdown.model_dump() if hasattr(prompt_breakdown, 'model_dump') else {})
+        ch = pb.get('chat_history', [])
+        if isinstance(ch, list):
+            history_messages = len(ch)
+        elif 'chat_history_count' in pb:
+            history_messages = pb.get('chat_history_count', 0) or 0
+    
+    cache_analysis = {
+        "system_prompt_static": system_variability <= PROMPT_THRESHOLDS["variability_low"],
+        "system_prompt_variability": round(system_variability * 100, 2),
+        "history_present": has_history,
+        "history_tokens": history_tokens,
+        "history_messages": history_messages,
+        "cache_recommendation": _get_cache_recommendation(cache_status, has_history, history_tokens, system_variability),
+        "potential_cache_savings": round(potential_cache_savings, 2),
+    }
+    
+    return {
+        "system_prompt_tokens": system_tokens,
+        "user_message_tokens": user_tokens,
+        "chat_history_tokens": history_tokens,
+        "system_pct": round(system_pct, 1),
+        "user_pct": round(user_pct, 1),
+        "history_pct": round(history_pct, 1),
+        "cache_status": cache_status,
+        "cache_emoji": cache_emoji,
+        "cache_label": cache_label,
+        "cache_issue_reason": cache_issue_reason,
+        "cache_analysis": cache_analysis,
+    }
+
+def _get_cache_recommendation(cache_status: str, has_history: bool, history_tokens: int, variability: float) -> str:
+    """Generate cache recommendation."""
+    if cache_status == "ready":
+        return "System prompt is static and cacheable. Implement prompt caching for cost savings."
+    if cache_status == "partial":
+        if has_history and history_tokens > PROMPT_THRESHOLDS["history_tokens_large"]:
+            return "Summarize or truncate chat history. System prompt can be cached."
+        elif has_history:
+            return "System prompt is cacheable. Consider separating history into a sliding window."
+        return "System prompt has some variability. Review dynamic sections."
+    if cache_status == "not_ready":
+        if variability > PROMPT_THRESHOLDS["variability_high"]:
+            return "Move dynamic content from system prompt to user message for better caching."
+        elif has_history:
+            return "Large chat history blocks caching. Implement history summarization."
+        return "Review prompt structure for optimization opportunities."
+    return "No specific recommendation available."
+
+
+def _get_model_pricing(model_name: str) -> Dict[str, float]:
+    """Get pricing for a model (per 1K tokens)."""
+    if not model_name:
+        return MODEL_PRICING["default"]
+    
+    model_lower = model_name.lower()
+    
+    # Try exact match first
+    if model_name in MODEL_PRICING:
+        return MODEL_PRICING[model_name]
+    
+    # Try partial matches
+    for key in MODEL_PRICING:
+        if key in model_lower:
+            return MODEL_PRICING[key]
+    
+    return MODEL_PRICING["default"]
+
+
+def _get_alternative_models(
+    prompt_tokens: int,
+    completion_tokens: int,
+    current_model: str
+) -> List[Dict[str, Any]]:
+    """
+    Get alternative models with estimated costs for comparison.
+    
+    Used by Cost Layer 3 to show cheaper alternatives.
+    """
+    alternatives = []
+    
+    for model in ALTERNATIVE_MODELS:
+        # Skip if this is the current model
+        if current_model and model["name"].lower() in current_model.lower():
+            continue
+        
+        # Calculate estimated cost
+        input_cost = (prompt_tokens / 1000) * model["input_1k"]
+        output_cost = (completion_tokens / 1000) * model["output_1k"]
+        estimated_cost = input_cost + output_cost
+        
+        alternatives.append({
+            "name": model["name"],
+            "input_1k": model["input_1k"],
+            "output_1k": model["output_1k"],
+            "estimated_cost": round(estimated_cost, 6),
+            "quality": model["quality"],
+        })
+    
+    # Sort by estimated cost
+    alternatives.sort(key=lambda x: x["estimated_cost"])
+    
+    return alternatives
+
+
 # =============================================================================
-# COMPARISON METRICS
+# COMPARISON METRICS (Enhanced for all Layer 3 pages)
 # =============================================================================
 
 def _get_comparison_metrics(call) -> Dict[str, Any]:
     """
     Get comparison metrics for this call vs operation averages.
     
-    Helps developer understand if this call is an outlier or typical.
+    Enhanced to include:
+    - Latency stats
+    - Cost stats (for Cost Layer 3)
+    - Token stats (for Token Layer 3)
+    - Quality stats (for Quality Layer 3)
     """
     if not call.agent_name or not call.operation:
         return {
@@ -359,30 +718,101 @@ def _get_comparison_metrics(call) -> Dict[str, Any]:
             "reason": "Not enough calls for comparison"
         }
     
-    # Calculate averages
+    # === LATENCY STATS ===
     latencies = [c.latency_ms for c in operation_calls if c.latency_ms]
-    costs = [c.total_cost for c in operation_calls if c.total_cost]
-    tokens = [c.total_tokens for c in operation_calls if c.total_tokens]
-    
     avg_latency = sum(latencies) / len(latencies) if latencies else 0
-    avg_cost = sum(costs) / len(costs) if costs else 0
-    avg_tokens = sum(tokens) / len(tokens) if tokens else 0
     
-    # Calculate ratios
-    latency_ratio = call.latency_ms / avg_latency if avg_latency > 0 else 1.0
-    cost_ratio = call.total_cost / avg_cost if avg_cost > 0 else 1.0
+    # === COST STATS ===
+    costs = [c.total_cost for c in operation_calls if c.total_cost]
+    avg_cost = sum(costs) / len(costs) if costs else 0
+    total_cost = sum(costs) if costs else 0
+    
+    # === TOKEN STATS ===
+    prompt_tokens_list = [c.prompt_tokens for c in operation_calls if c.prompt_tokens]
+    completion_tokens_list = [c.completion_tokens for c in operation_calls if c.completion_tokens]
+    total_tokens_list = [c.total_tokens for c in operation_calls if c.total_tokens]
+    
+    avg_prompt = sum(prompt_tokens_list) / len(prompt_tokens_list) if prompt_tokens_list else 0
+    avg_completion = sum(completion_tokens_list) / len(completion_tokens_list) if completion_tokens_list else 0
+    avg_tokens = sum(total_tokens_list) / len(total_tokens_list) if total_tokens_list else 0
+    
+    # Calculate token ratios
+    ratios = []
+    for c in operation_calls:
+        if c.prompt_tokens and c.completion_tokens and c.completion_tokens > 0:
+            ratios.append(c.prompt_tokens / c.completion_tokens)
+    avg_ratio = sum(ratios) / len(ratios) if ratios else None
+    
+    # === QUALITY STATS ===
+    quality_scores = []
+    for c in operation_calls:
+        score = None
+        if hasattr(c, 'judge_score') and c.judge_score is not None:
+            score = c.judge_score
+        elif hasattr(c, 'quality_evaluation') and c.quality_evaluation:
+            score = getattr(c.quality_evaluation, 'judge_score', None)
+        if score is not None:
+            quality_scores.append(score)
+    
+    avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else None
+    min_quality = min(quality_scores) if quality_scores else None
+    max_quality = max(quality_scores) if quality_scores else None
+    
+    # === CALCULATE RATIOS ===
+    latency_ratio = call.latency_ms / avg_latency if avg_latency > 0 and call.latency_ms else 1.0
+    cost_ratio = call.total_cost / avg_cost if avg_cost > 0 and call.total_cost else 1.0
     
     return {
         "available": True,
         "operation_call_count": len(operation_calls),
+        
+        # Latency
         "operation_avg_latency_ms": round(avg_latency, 1),
-        "operation_avg_cost": round(avg_cost, 6),
-        "operation_avg_tokens": round(avg_tokens, 0),
         "latency_ratio": round(latency_ratio, 2),
-        "cost_ratio": round(cost_ratio, 2),
         "is_latency_outlier": latency_ratio > 2.0,
+        
+        # Cost
+        "operation_avg_cost": round(avg_cost, 6),
+        "operation_total_cost": round(total_cost, 4),
+        "cost_ratio": round(cost_ratio, 2),
         "is_cost_outlier": cost_ratio > 2.0,
+        
+        # Tokens
+        "operation_avg_tokens": round(avg_tokens, 0),
+        "operation_avg_prompt": round(avg_prompt, 0),
+        "operation_avg_completion": round(avg_completion, 0),
+        "operation_avg_ratio": round(avg_ratio, 1) if avg_ratio else None,
+        
+        # Quality
+        "operation_avg_score": round(avg_quality, 1) if avg_quality else None,
+        "operation_min_score": round(min_quality, 1) if min_quality else None,
+        "operation_max_score": round(max_quality, 1) if max_quality else None,
+        
+        # Prompt Composition (for Prompt Layer 3)
+        "operation_avg_system_tokens": round(_get_avg_prompt_tokens(operation_calls, 'system'), 0),
+        "operation_avg_user_tokens": round(_get_avg_prompt_tokens(operation_calls, 'user'), 0),
+        "operation_avg_history_tokens": round(_get_avg_prompt_tokens(operation_calls, 'history'), 0),
     }
+
+def _get_avg_prompt_tokens(calls: list, token_type: str) -> float:
+    """Helper to get average prompt token counts."""
+    field_map = {
+        'system': 'system_prompt_tokens',
+        'user': 'user_message_tokens', 
+        'history': 'chat_history_tokens',
+    }
+    field = field_map.get(token_type)
+    values = []
+    for c in calls:
+        val = getattr(c, field, 0) or 0
+        if not val:
+            pb = getattr(c, 'prompt_breakdown', None)
+            if pb:
+                pbd = pb if isinstance(pb, dict) else (
+                    pb.model_dump() if hasattr(pb, 'model_dump') else {})
+                val = pbd.get(field, 0) or 0
+        values.append(val)
+    return sum(values) / len(values) if values else 0
 
 
 # =============================================================================
@@ -415,6 +845,36 @@ def _generate_diagnosis(call, comparison: Dict) -> Dict[str, Any]:
                 "detail": "Response time exceeds 5 seconds"
             })
     
+    # ----- TOKEN RATIO ISSUES (for Token Imbalance story) -----
+    if call.prompt_tokens and call.completion_tokens and call.completion_tokens > 0:
+        ratio = call.prompt_tokens / call.completion_tokens
+        if ratio > THRESHOLDS["token_ratio_severe"]:
+            issues.append({
+                "type": "severe_token_imbalance",
+                "severity": "critical",
+                "message": f"Severe token imbalance ({ratio:.0f}:1 ratio)",
+                "detail": "Prompt is extremely large relative to output"
+            })
+            recommendations.append({
+                "action": "Simplify system prompt",
+                "impact": "high",
+                "code_hint": "Remove verbose examples, use structured format",
+                "estimated_improvement": "40-60% token reduction"
+            })
+        elif ratio > THRESHOLDS["token_ratio_high"]:
+            issues.append({
+                "type": "high_token_imbalance",
+                "severity": "warning",
+                "message": f"High token imbalance ({ratio:.0f}:1 ratio)",
+                "detail": "Prompt is disproportionately large"
+            })
+            recommendations.append({
+                "action": "Request longer output or reduce input",
+                "impact": "medium",
+                "code_hint": "Add 'Provide detailed response' instruction",
+                "estimated_improvement": "Better token efficiency"
+            })
+    
     # ----- COMPLETION TOKEN ISSUES -----
     if call.completion_tokens:
         if call.completion_tokens > THRESHOLDS["completion_tokens_very_high"]:
@@ -445,7 +905,8 @@ def _generate_diagnosis(call, comparison: Dict) -> Dict[str, Any]:
             })
     
     # ----- MAX_TOKENS NOT SET -----
-    if call.max_tokens is None and call.completion_tokens and call.completion_tokens > 500:
+    max_tokens = getattr(call, 'max_tokens', None)
+    if max_tokens is None and call.completion_tokens and call.completion_tokens > 500:
         issues.append({
             "type": "no_max_tokens",
             "severity": "warning",
@@ -484,8 +945,9 @@ def _generate_diagnosis(call, comparison: Dict) -> Dict[str, Any]:
             })
     
     # ----- SYSTEM PROMPT RATIO -----
-    if call.system_prompt_tokens and call.prompt_tokens:
-        ratio = call.system_prompt_tokens / call.prompt_tokens
+    system_prompt_tokens = getattr(call, 'system_prompt_tokens', None)
+    if system_prompt_tokens and call.prompt_tokens:
+        ratio = system_prompt_tokens / call.prompt_tokens
         if ratio > THRESHOLDS["system_prompt_ratio_high"]:
             issues.append({
                 "type": "bloated_system_prompt",
@@ -525,7 +987,9 @@ def _generate_diagnosis(call, comparison: Dict) -> Dict[str, Any]:
             })
     
     # ----- HALLUCINATION -----
-    hallucination = call.hallucination_flag if hasattr(call, 'hallucination_flag') and call.hallucination_flag is not None else _get_hallucination_flag(call)
+    hallucination = getattr(call, 'hallucination_flag', None)
+    if hallucination is None:
+        hallucination = _get_hallucination_flag(call)
     if hallucination:
         issues.append({
             "type": "hallucination",
@@ -546,8 +1010,33 @@ def _generate_diagnosis(call, comparison: Dict) -> Dict[str, Any]:
             "estimated_improvement": "More deterministic, factual responses"
         })
     
+    # ----- COST ISSUES -----
+    if call.total_cost:
+        if call.total_cost > THRESHOLDS["cost_very_high"]:
+            issues.append({
+                "type": "very_high_cost",
+                "severity": "critical",
+                "message": f"Very high cost (${call.total_cost:.3f})",
+                "detail": "This call is expensive, consider optimization"
+            })
+            recommendations.append({
+                "action": "Switch to cheaper model",
+                "impact": "high",
+                "code_hint": "model='gpt-4o-mini' for simpler tasks",
+                "estimated_improvement": "90%+ cost reduction possible"
+            })
+        elif call.total_cost > THRESHOLDS["cost_high"]:
+            issues.append({
+                "type": "high_cost",
+                "severity": "warning",
+                "message": f"High cost (${call.total_cost:.3f})",
+                "detail": "Consider cost optimization strategies"
+            })
+    
     # ----- CACHE MISS -----
-    cache_hit = call.cache_hit if hasattr(call, 'cache_hit') and call.cache_hit is not None else _get_cache_hit(call)
+    cache_hit = getattr(call, 'cache_hit', None)
+    if cache_hit is None:
+        cache_hit = _get_cache_hit(call)
     if not cache_hit and call.prompt_tokens and call.prompt_tokens > 2000:
         issues.append({
             "type": "cache_miss",
@@ -564,21 +1053,23 @@ def _generate_diagnosis(call, comparison: Dict) -> Dict[str, Any]:
             })
     
     # ----- ERROR -----
-    if not call.success and call.error:
+    if not call.success:
+        error = getattr(call, 'error', None)
+        error_type = getattr(call, 'error_type', None)
         issues.append({
             "type": "error",
             "severity": "critical",
-            "message": f"Call failed: {call.error_type or 'Unknown error'}",
-            "detail": call.error[:200] if call.error else "No error details"
+            "message": f"Call failed: {error_type or 'Unknown error'}",
+            "detail": (error[:200] if error else "No error details") if error else "No error details"
         })
-        if call.error_type == "RATE_LIMIT":
+        if error_type == "RATE_LIMIT":
             recommendations.append({
                 "action": "Implement rate limiting",
                 "impact": "high",
                 "code_hint": "Add exponential backoff retry logic",
                 "estimated_improvement": "Prevents rate limit errors"
             })
-        elif call.error_type == "TIMEOUT":
+        elif error_type == "TIMEOUT":
             recommendations.append({
                 "action": "Reduce prompt size or add timeout handling",
                 "impact": "high",
@@ -595,22 +1086,31 @@ def _generate_diagnosis(call, comparison: Dict) -> Dict[str, Any]:
             "detail": f"Operation average: {comparison['operation_avg_latency_ms'] / 1000:.1f}s"
         })
     
+    if comparison.get("available") and comparison.get("is_cost_outlier"):
+        issues.append({
+            "type": "cost_outlier",
+            "severity": "info",
+            "message": f"This call is {comparison['cost_ratio']:.1f}x more expensive than average",
+            "detail": f"Operation average: ${comparison['operation_avg_cost']:.4f}"
+        })
+    
     # ----- EXPENSIVE MODEL FOR SIMPLE TASK -----
-    if call.model_name and "gpt-4" in call.model_name.lower():
+    if call.model_name and ("gpt-4" in call.model_name.lower() or "claude-3-opus" in call.model_name.lower()):
         if call.completion_tokens and call.completion_tokens < 200:
             # Short response from expensive model
             issues.append({
                 "type": "expensive_model",
                 "severity": "info",
-                "message": "Using GPT-4 for short response",
+                "message": f"Using {call.model_name} for short response",
                 "detail": "Consider cheaper model for simple tasks"
             })
-            recommendations.append({
-                "action": "Route to cheaper model",
-                "impact": "high",
-                "code_hint": "model='gpt-4o-mini' for simple tasks",
-                "estimated_improvement": "90% cost reduction"
-            })
+            if not any("cheaper model" in r["action"].lower() for r in recommendations):
+                recommendations.append({
+                    "action": "Route to cheaper model",
+                    "impact": "high",
+                    "code_hint": "model='gpt-4o-mini' for simple tasks",
+                    "estimated_improvement": "90% cost reduction"
+                })
     
     # Determine overall status
     critical_count = sum(1 for i in issues if i["severity"] == "critical")

@@ -76,6 +76,16 @@ export const COLUMN_DEFINITIONS = {
   cache_key: { key: 'cache_key', label: 'Cache Key', type: 'text' },
   cached_prompt_tokens: { key: 'cached_prompt_tokens', label: 'Cached Tokens', type: 'number' },
   
+  // Cache Patterns
+  cache_type: { key: 'cache_type', label: 'Cache Type', type: 'category' },
+  cache_type_emoji: { key: 'cache_type_emoji', label: 'Type', type: 'emoji' },
+  prompt_preview: { key: 'prompt_preview', label: 'Prompt Pattern', type: 'text' },
+  repeat_count: { key: 'repeat_count', label: 'Repeats', type: 'count' },
+  wasted_cost: { key: 'wasted_cost', label: 'Wasted', type: 'currency' },
+  savable_time: { key: 'savable_time', label: 'Savable', type: 'duration' },
+  savable_time_formatted: { key: 'savable_time_formatted', label: 'Savable', type: 'text' },
+  effort: { key: 'effort', label: 'Effort', type: 'category' },
+  
   // Quality
   judge_score: { key: 'judge_score', label: 'Quality Score', type: 'score', max: 10 },
   hallucination_flag: { key: 'hallucination_flag', label: 'Hallucination', type: 'boolean' },
@@ -116,7 +126,7 @@ export const STORY_LAYER2_CONFIG = {
       createQuickFilter('slow', 'Slow >5s', '🐌', { field: 'latency_ms', op: '>', value: 5000 }),
       createQuickFilter('critical', 'Critical >10s', '⚡', { field: 'latency_ms', op: '>', value: 10000 }),
       createQuickFilter('max', 'Max Latency', '🔴', { type: 'max', field: 'latency_ms' }),
-      createQuickFilter('recent', 'Recent 24h', '⏱️', { field: 'timestamp', op: '>', value: 'now-24h' }),
+      createQuickFilter('recent', 'Recent 24h', '🌐', { field: 'timestamp', op: '>', value: 'now-24h' }),
       createQuickFilter('errors', 'Errors', '❌', { field: 'status', op: '=', value: 'error' }),
     ],
     
@@ -273,43 +283,37 @@ export const STORY_LAYER2_CONFIG = {
   },
   
   // ─────────────────────────────────────────────────────────────────────────────
-  // CACHING
+  // CACHING - Cache Patterns/Opportunities (not individual calls)
   // ─────────────────────────────────────────────────────────────────────────────
   [STORY_IDS.CACHE]: {
     id: STORY_IDS.CACHE,
     name: 'Caching Strategy',
     emoji: '💾',
     hasInsights: true,
+    dataType: 'patterns', // Indicates this uses grouped pattern data, not individual calls
     
     quickFilters: [
-      createQuickFilter('all', 'All Calls', '🎯', null),
-      createQuickFilter('miss', 'Cache Miss', '❌', { field: 'cached', op: '=', value: false }),
-      createQuickFilter('hit', 'Cache Hit', '✅', { field: 'cached', op: '=', value: true }),
-      createQuickFilter('cacheable', 'Cacheable', '💡', { type: 'compound', filters: [
-        { field: 'cached', op: '=', value: false },
-        { field: 'prompt_tokens', op: '>', value: 500 },
-      ]}),
-      createQuickFilter('slow_miss', 'Slow + Miss', '🐌', { type: 'compound', filters: [
-        { field: 'latency_ms', op: '>', value: 3000 },
-        { field: 'cached', op: '=', value: false },
-      ]}),
-      createQuickFilter('errors', 'Errors', '❌', { field: 'status', op: '=', value: 'error' }),
+      createQuickFilter('all', 'All Types', '📊', null, 'Show all cacheable patterns'),
+      createQuickFilter('exact', 'Exact Match', '🎯', { field: 'cache_type', op: '=', value: 'exact' }, 'Identical prompts'),
+      createQuickFilter('stable', 'Stable/Prefix', '📌', { field: 'cache_type', op: '=', value: 'stable' }, 'Large system prompt'),
+      createQuickFilter('high_value', 'High-Value', '💎', { field: 'cache_type', op: '=', value: 'high_value' }, 'Expensive/slow calls'),
+      createQuickFilter('semantic', 'Semantic', '🔮', { field: 'cache_type', op: '=', value: 'semantic' }, 'Similar meaning'),
     ],
     
-    defaultColumns: ['call_id', 'agent_name', 'operation', 'cached', 'prompt_tokens', 'latency_ms', 'total_cost'],
+    defaultColumns: ['cache_type_emoji', 'agent_name', 'operation', 'prompt_preview', 'repeat_count', 'wasted_cost', 'savable_time_formatted', 'effort'],
     
     availableColumns: [
-      'call_id', 'timestamp', 'agent_name', 'operation', 'model_name',
-      'cached', 'cache_hit', 'cache_key', 'cached_prompt_tokens',
-      'prompt_tokens', 'completion_tokens', 'total_tokens',
-      'total_cost', 'latency_ms', 'status',
+      'cache_type_emoji', 'cache_type', 'agent_name', 'operation',
+      'prompt_preview', 'repeat_count', 'wasted_cost', 
+      'savable_time', 'savable_time_formatted', 'effort',
+      'total_cost', 'latency_ms',
     ],
     
-    defaultSort: { key: 'total_cost', direction: 'desc' },
+    defaultSort: { key: 'wasted_cost', direction: 'desc' },
     
     filterBarColumns: ['operation', 'agent_name'],
     
-    primaryMetric: 'cached',
+    primaryMetric: 'wasted_cost',
   },
   
   // ─────────────────────────────────────────────────────────────────────────────
@@ -414,14 +418,7 @@ export const getDefaultColumns = (storyId) => {
  */
 export const getAvailableColumns = (storyId) => {
   const config = STORY_LAYER2_CONFIG[storyId];
-  return config?.availableColumns || Object.keys(COLUMN_DEFINITIONS);
-};
-
-/**
- * Get column definition by key
- */
-export const getColumnDefinition = (key) => {
-  return COLUMN_DEFINITIONS[key] || { key, label: key, type: 'text' };
+  return config?.availableColumns || [];
 };
 
 /**
@@ -433,11 +430,26 @@ export const getDefaultSort = (storyId) => {
 };
 
 /**
+ * Get column definition by key
+ */
+export const getColumnDefinition = (key) => {
+  return COLUMN_DEFINITIONS[key] || { key, label: key, type: 'text' };
+};
+
+/**
  * Check if story has specialized insights
  */
 export const hasInsights = (storyId) => {
   const config = STORY_LAYER2_CONFIG[storyId];
   return config?.hasInsights || false;
+};
+
+/**
+ * Check if story uses pattern data vs individual calls
+ */
+export const usesPatternData = (storyId) => {
+  const config = STORY_LAYER2_CONFIG[storyId];
+  return config?.dataType === 'patterns';
 };
 
 export default STORY_LAYER2_CONFIG;

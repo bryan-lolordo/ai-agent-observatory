@@ -10,7 +10,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { STORY_THEMES } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
-import Layer2Table from '../../../components/Layer2Table';
+import Layer2Table from '../../../components/stories/Layer2Table';
 import { formatNumber, formatCurrency } from '../../../utils/formatters';
 
 const STORY_ID = 'cost';
@@ -94,7 +94,7 @@ export default function CostOperationDetail() {
   };
   
   const handleRowClick = (row) => {
-    navigate(`/stories/calls/${row.call_id}?from=cost`);
+    navigate(`/stories/cost/calls/${row.call_id}`);
   };
   
   // Loading state

@@ -52,13 +52,14 @@ export default function Cache() {
     { name: 'Unique', value: Math.max(0, total_calls - duplicate_prompts), color: '#374151' },
   ].filter(d => d.value > 0);
 
+  // Navigation handlers
   const handleOperationClick = (row) => {
-    navigate(`/stories/cache/operations/${encodeURIComponent(row.agent_name)}/${encodeURIComponent(row.operation_name)}`);
+    navigate(`/stories/cache/calls?operation=${encodeURIComponent(row.operation_name)}&agent=${encodeURIComponent(row.agent_name)}`);
   };
 
   const handleTopOffenderClick = () => {
     if (top_offender) {
-      navigate(`/stories/cache/operations/${encodeURIComponent(top_offender.agent)}/${encodeURIComponent(top_offender.operation)}`);
+      navigate(`/stories/cache/calls?operation=${encodeURIComponent(top_offender.operation)}&agent=${encodeURIComponent(top_offender.agent)}`);
     }
   };
 
@@ -88,17 +89,16 @@ export default function Cache() {
 
         {/* KPI Cards */}
         <div className="grid grid-cols-4 gap-4 mb-8">
-          <div 
-            onClick={() => navigate('/stories/cache/calls?filter=all')}
-            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
-          >
+          {/* Potential Savings - No click (summary stat) */}
+          <div className="rounded-lg border border-gray-700 bg-gray-900 p-4">
             <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Potential Savings</div>
             <div className={`text-2xl font-bold ${theme.text}`}>{formatCurrency(potential_savings)}</div>
             <div className="text-xs text-gray-500 mt-1">Per day from duplicates</div>
           </div>
           
+          {/* Cacheable Calls - Clickable → Layer 2 All Types */}
           <div 
-            onClick={() => navigate('/stories/cache/calls?filter=cache_miss')}
+            onClick={() => navigate('/stories/cache/calls')}
             className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
           >
             <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Cacheable Calls</div>
@@ -106,18 +106,17 @@ export default function Cache() {
             <div className="text-xs text-gray-500 mt-1">{total_calls ? Math.round((duplicate_prompts / total_calls) * 100) : 0}% cacheable</div>
           </div>
           
-          <div 
-            onClick={() => navigate('/stories/cache/calls?filter=cache_hit')}
-            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
-          >
+          {/* Cache Hit Rate - No click (summary stat) */}
+          <div className="rounded-lg border border-gray-700 bg-gray-900 p-4">
             <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Cache Hit Rate</div>
             <div className={`text-2xl font-bold ${theme.text}`}>{hit_rate_formatted}</div>
             <div className="text-xs text-gray-500 mt-1">Current efficiency</div>
           </div>
           
+          {/* Top Offender - Clickable → OperationDetail */}
           <div 
-            onClick={() => top_offender && handleTopOffenderClick()}
-            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+            onClick={handleTopOffenderClick}
+            className={`rounded-lg border border-gray-700 bg-gray-900 p-4 ${top_offender ? 'cursor-pointer hover:bg-gray-800/50 transition-colors' : ''}`}
           >
             <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Top Offender</div>
             <div className={`text-2xl font-bold ${theme.text} truncate`}>{top_offender?.operation || '—'}</div>
@@ -125,7 +124,7 @@ export default function Cache() {
           </div>
         </div>
 
-        {/* Top Offender */}
+        {/* Top Offender Card */}
         {top_offender && (
           <div 
             onClick={handleTopOffenderClick}
@@ -182,21 +181,26 @@ export default function Cache() {
                 {detail_table.length > 0 ? (
                   detail_table.map((row, idx) => (
                     <tr
-                      key={idx}
+                      key={`${row.agent_name}-${row.operation_name}-${idx}`}
                       onClick={() => handleOperationClick(row)}
                       className="border-b border-gray-800 cursor-pointer hover:bg-gray-800/50 transition-colors"
                     >
-                      <td className="py-3 px-4 text-lg">{row.status}</td>
-                      <td className="py-3 px-4 font-semibold text-purple-400">
-                        {row.agent_name || '—'}
+                      <td className="py-3 px-4">
+                        <span className={`inline-block w-3 h-3 rounded-full ${
+                          (row.redundancy_pct || 0) > 0.5 ? 'bg-red-500' : 
+                          (row.redundancy_pct || 0) > 0.2 ? 'bg-yellow-500' : 'bg-green-500'
+                        }`} />
+                      </td>
+                      <td className="py-3 px-4 text-purple-400 font-medium">
+                        {row.agent_name}
                       </td>
                       <td className={`py-3 px-4 font-mono ${theme.text}`}>
-                        {truncateText(row.operation_name || row.operation, 25)}
+                        {truncateText(row.operation_name, 30)}
                       </td>
                       <td className="py-3 px-4 text-right text-gray-300">
                         {formatNumber(row.total_calls)}
                       </td>
-                      <td className={`py-3 px-4 text-right font-bold ${theme.text}`}>
+                      <td className="py-3 px-4 text-right text-gray-300">
                         {formatNumber(row.cacheable_count)}
                       </td>
                       <td className="py-3 px-4 text-right">
@@ -276,7 +280,23 @@ export default function Cache() {
                       }}
                       formatter={(value) => [`$${value.toFixed(4)}`, 'Wasted']}
                     />
-                    <Bar dataKey="wasted_cost" fill={theme.color} radius={[0, 4, 4, 0]} />
+                    <Bar 
+                      dataKey="wasted_cost" 
+                      fill={theme.color} 
+                      radius={[0, 4, 4, 0]}
+                      cursor="pointer"
+                      onClick={(data) => {
+                        if (data && data.name) {
+                          // Find the operation in detail_table to get agent
+                          const op = detail_table.find(d => d.operation_name === data.name);
+                          if (op) {
+                            navigate(`/stories/cache/calls?operation=${encodeURIComponent(op.operation_name)}&agent=${encodeURIComponent(op.agent_name)}`);
+                          } else {
+                            navigate(`/stories/cache/calls?operation=${encodeURIComponent(data.name)}`);
+                          }
+                        }
+                      }}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -308,6 +328,12 @@ export default function Cache() {
                       dataKey="value"
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                       labelLine={false}
+                      cursor="pointer"
+                      onClick={(data) => {
+                        if (data && data.name === 'Cacheable') {
+                          navigate('/stories/cache/calls');
+                        }
+                      }}
                     >
                       {pieData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />

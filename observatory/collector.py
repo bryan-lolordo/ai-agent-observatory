@@ -398,6 +398,8 @@ class MetricsCollector:
             prompt=prompt,
             prompt_normalized=prompt_normalized,
             response_text=response_text,
+            system_prompt=system_prompt,      
+            user_message=user_message,       
             routing_decision=routing_decision,
             cache_metadata=cache_metadata,
             quality_evaluation=quality_evaluation,

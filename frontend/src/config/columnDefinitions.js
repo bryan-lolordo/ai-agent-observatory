@@ -55,6 +55,10 @@ export const formatters = {
     if (value == null) return '—';
     return value.toLocaleString();
   },
+  count: (value) => {
+    if (value == null) return '—';
+    return `${value}x`;
+  },
   
   // Ratio (prompt:completion)
   ratio: (value) => {
@@ -96,6 +100,14 @@ export const formatters = {
     if (value === 'success' || value === 'completed') return '✓ Success';
     if (value === 'error' || value === 'failed') return '✗ Error';
     return value;
+  },
+  
+  // Cache effort
+  effort: (value) => {
+    if (!value) return '—';
+    if (value === 'low') return '🟢';
+    if (value === 'medium') return '🟡';
+    return '🔴';
   },
 };
 
@@ -167,6 +179,24 @@ export const colorizers = {
     if (value == null || value === 0) return 'text-gray-500';
     if (value > 2) return 'text-red-400';
     return 'text-yellow-400';
+  },
+  
+  // Wasted cost (for cache)
+  wastedCost: (value) => {
+    if (value == null) return 'text-gray-400';
+    if (value > 0.05) return 'text-red-400 font-bold';
+    if (value > 0.01) return 'text-orange-400 font-semibold';
+    if (value > 0.001) return 'text-yellow-400';
+    return 'text-pink-400';
+  },
+  
+  // Repeat count (for cache)
+  repeatCount: (value) => {
+    if (value == null) return 'text-gray-400';
+    if (value > 10) return 'text-red-400 font-bold';
+    if (value > 5) return 'text-orange-400 font-semibold';
+    if (value > 2) return 'text-yellow-400';
+    return 'text-pink-400';
   },
 };
 
@@ -543,7 +573,7 @@ export const ALL_COLUMNS = {
   },
   
   // ─────────────────────────────────────────────────────────────────────────────
-  // CACHE
+  // CACHE (Individual Calls)
   // ─────────────────────────────────────────────────────────────────────────────
   cached: {
     key: 'cached',
@@ -588,6 +618,97 @@ export const ALL_COLUMNS = {
     align: 'right',
     formatter: formatters.tokens,
     className: 'text-green-400',
+  },
+  
+  // ─────────────────────────────────────────────────────────────────────────────
+  // CACHE PATTERNS (For Layer 2 Cache Opportunities)
+  // ─────────────────────────────────────────────────────────────────────────────
+  cache_type: {
+    key: 'cache_type',
+    label: 'Cache Type',
+    category: 'Cache Patterns',
+    sortable: true,
+    filterable: true,
+    width: 'min-w-[100px]',
+    align: 'left',
+    formatter: formatters.text,
+    className: 'text-pink-400',
+  },
+  cache_type_emoji: {
+    key: 'cache_type_emoji',
+    label: 'Type',
+    category: 'Cache Patterns',
+    sortable: false,
+    filterable: false,
+    width: 'w-16',
+    align: 'center',
+    formatter: (v) => v || '📦',
+    className: 'text-xl',
+  },
+  prompt_preview: {
+    key: 'prompt_preview',
+    label: 'Prompt Pattern',
+    category: 'Cache Patterns',
+    sortable: true,
+    filterable: false,
+    width: 'min-w-[250px]',
+    align: 'left',
+    formatter: (v) => v ? `"${formatters.truncate(v, 50)}"` : '—',
+    className: 'font-mono text-xs text-pink-400',
+  },
+  repeat_count: {
+    key: 'repeat_count',
+    label: 'Repeats',
+    category: 'Cache Patterns',
+    sortable: true,
+    filterable: false,
+    width: 'min-w-[80px]',
+    align: 'right',
+    formatter: formatters.count,
+    colorizer: colorizers.repeatCount,
+  },
+  wasted_cost: {
+    key: 'wasted_cost',
+    label: 'Wasted',
+    category: 'Cache Patterns',
+    sortable: true,
+    filterable: false,
+    width: 'min-w-[90px]',
+    align: 'right',
+    formatter: formatters.currency,
+    colorizer: colorizers.wastedCost,
+  },
+  savable_time: {
+    key: 'savable_time',
+    label: 'Savable',
+    category: 'Cache Patterns',
+    sortable: true,
+    filterable: false,
+    width: 'min-w-[90px]',
+    align: 'right',
+    formatter: (v) => v ? `~${v}` : '—',
+    className: 'text-gray-400',
+  },
+  savable_time_formatted: {
+    key: 'savable_time_formatted',
+    label: 'Savable',
+    category: 'Cache Patterns',
+    sortable: true,
+    filterable: false,
+    width: 'min-w-[90px]',
+    align: 'right',
+    formatter: formatters.text,
+    className: 'text-gray-400',
+  },
+  effort: {
+    key: 'effort',
+    label: 'Effort',
+    category: 'Cache Patterns',
+    sortable: true,
+    filterable: true,
+    width: 'min-w-[70px]',
+    align: 'center',
+    formatter: formatters.effort,
   },
   
   // ─────────────────────────────────────────────────────────────────────────────
@@ -661,6 +782,10 @@ export const COLUMN_CATEGORIES = [
   {
     name: 'Cache',
     columns: ['cached', 'cache_hit', 'cache_key', 'cached_prompt_tokens'],
+  },
+  {
+    name: 'Cache Patterns',
+    columns: ['cache_type', 'cache_type_emoji', 'prompt_preview', 'repeat_count', 'wasted_cost', 'savable_time', 'savable_time_formatted', 'effort'],
   },
   {
     name: 'Context',

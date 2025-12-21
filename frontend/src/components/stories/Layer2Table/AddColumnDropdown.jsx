@@ -6,7 +6,7 @@
  */
 
 import { useRef, useEffect } from 'react';
-import { getColumnsByCategory } from '../../config/columnDefinitions';
+import { getColumnsByCategory } from '../../../config/columnDefinitions';
 
 export default function AddColumnDropdown({
   visibleColumns,

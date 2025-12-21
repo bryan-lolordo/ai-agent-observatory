@@ -15,38 +15,45 @@ import Footer from './components/layout/Footer';
 // Pages - Dashboard
 import Dashboard from './pages/Dashboard';
 
+// Pages - Optimization Queue (cross-story fix dashboard)
+import OptimizationQueue from './pages/OptimizationQueue';
+
 // Pages - Shared Call Detail (Layer 3 for all stories)
 import CallDetail from './pages/stories/CallDetail';
 
-// Pages - Latency Story (Layers 1 & 2)
+// Pages - Latency Story (Layers 1, 2, 3)
 import Latency from './pages/stories/latency';
 import LatencyOperationDetail from './pages/stories/latency/OperationDetail';
+import LatencyCallDetail from './pages/stories/latency/CallDetail';
 
-// Pages - Cache Story (Layers 1 & 2)
+// Pages - Cache Story (Layers 1, 2, 3)
 import Cache from './pages/stories/cache';
 import CacheOperationDetail from './pages/stories/cache/OperationDetail';
-import CacheAllCalls from './pages/stories/cache/AllCalls';
-import CacheOpportunityDetail from './pages/stories/cache/OpportunityDetail';
+import CachePatternDetail from './pages/stories/cache/PatternDetail';
 
 // Pages - Routing Story (Layers 1 & 2)
 import Routing from './pages/stories/routing';
 import RoutingOperationDetail from './pages/stories/routing/OperationDetail';
 
-// Pages - Quality Story (Layers 1 & 2)
+// Pages - Quality Story (Layers 1, 2, 3)
 import Quality from './pages/stories/quality';
 import QualityOperationDetail from './pages/stories/quality/OperationDetail';
+import QualityCallDetail from './pages/stories/quality/CallDetail';
 
-// Pages - Token Story (Layers 1 & 2)
+// Pages - Token Story (Layers 1, 2, 3)
 import Token from './pages/stories/token';
 import TokenOperationDetail from './pages/stories/token/OperationDetail';
+import TokenCallDetail from './pages/stories/token/CallDetail';
 
-// Pages - Prompt Story (Layers 1 & 2)
+// Pages - Prompt Story (Layers 1, 2, 3)
 import Prompt from './pages/stories/prompt';
 import PromptOperationDetail from './pages/stories/prompt/OperationDetail';
+import PromptCallDetail from './pages/stories/prompt/CallDetail';
 
-// Pages - Cost Story (Layers 1 & 2)
+// Pages - Cost Story (Layers 1, 2, 3)
 import Cost from './pages/stories/cost';
 import CostOperationDetail from './pages/stories/cost/OperationDetail';
+import CostCallDetail from './pages/stories/cost/CallDetail';
 
 // Pages - Optimization Story (Layers 1 & 2)
 import Optimization from './pages/stories/optimization';
@@ -55,7 +62,7 @@ import OptimizationComparisonDetail from './pages/stories/optimization/Compariso
 function App() {
   // Global filter state
   const [selectedProject, setSelectedProject] = useState(null);
-  const [timeRange, setTimeRange] = useState(7); // Default: 7 days
+  const [timeRange, setTimeRange] = useState(30); // Default: 30 days
   const [projects, setProjects] = useState([]);
 
   // Fetch available projects on mount
@@ -93,6 +100,9 @@ function App() {
           <Routes>
             {/* Dashboard */}
             <Route path="/" element={<Dashboard />} />
+
+            {/* Optimization Queue - Cross-story fix dashboard */}
+            <Route path="/optimization" element={<OptimizationQueue />} />
             
             {/* ============================================= */}
             {/* SHARED: Call Detail (Layer 3 for all stories) */}
@@ -101,19 +111,22 @@ function App() {
             <Route path="/stories/calls/:callId" element={<CallDetail />} />
             
             {/* ============================================= */}
-            {/* LATENCY STORY - Layers 1 & 2                  */}
+            {/* LATENCY STORY - Layers 1, 2, 3                */}
             {/* ============================================= */}
             <Route path="/stories/latency" element={<Latency />} />
             <Route path="/stories/latency/calls" element={<LatencyOperationDetail />} />
+            <Route path="/stories/latency/calls/:callId" element={<LatencyCallDetail />} />
             <Route path="/stories/latency/operations/:agent/:operation" element={<LatencyOperationDetail />} />
             
             {/* ============================================= */}
-            {/* CACHE STORY - Layers 1 & 2                    */}
+            {/* CACHE STORY - Layers 1, 2, 3                  */}
+            {/* Layer 2: All cache patterns with filtering    */}
+            {/* Layer 3: Pattern detail + fix                 */}
             {/* ============================================= */}
             <Route path="/stories/cache" element={<Cache />} />
-            <Route path="/stories/cache/calls" element={<CacheAllCalls />} />
+            <Route path="/stories/cache/calls" element={<CacheOperationDetail />} />
             <Route path="/stories/cache/operations/:agent/:operation" element={<CacheOperationDetail />} />
-            <Route path="/stories/cache/operations/:agent/:operation/groups/:group_id" element={<CacheOpportunityDetail />} />
+            <Route path="/stories/cache/operations/:agent/:operation/groups/:groupId" element={<CachePatternDetail />} />
             
             {/* ============================================= */}
             {/* ROUTING STORY - Layers 1 & 2                  */}
@@ -123,31 +136,35 @@ function App() {
             <Route path="/stories/routing/operations/:agent/:operation" element={<RoutingOperationDetail />} />
             
             {/* ============================================= */}
-            {/* QUALITY STORY - Layers 1 & 2                  */}
+            {/* QUALITY STORY - Layers 1, 2, 3                */}
             {/* ============================================= */}
             <Route path="/stories/quality" element={<Quality />} />
             <Route path="/stories/quality/calls" element={<QualityOperationDetail />} />
+            <Route path="/stories/quality/calls/:callId" element={<QualityCallDetail />} />
             <Route path="/stories/quality/operations/:agent/:operation" element={<QualityOperationDetail />} />
             
             {/* ============================================= */}
-            {/* TOKEN EFFICIENCY STORY - Layers 1 & 2         */}
+            {/* TOKEN EFFICIENCY STORY - Layers 1, 2, 3       */}
             {/* ============================================= */}
             <Route path="/stories/token_imbalance" element={<Token />} />
             <Route path="/stories/token_imbalance/calls" element={<TokenOperationDetail />} />
+            <Route path="/stories/token_imbalance/calls/:callId" element={<TokenCallDetail />} />
             <Route path="/stories/token_imbalance/operations/:agent/:operation" element={<TokenOperationDetail />} />
             
             {/* ============================================= */}
-            {/* PROMPT COMPOSITION STORY - Layers 1 & 2       */}
+            {/* PROMPT COMPOSITION STORY - Layers 1, 2, 3     */}
             {/* ============================================= */}
             <Route path="/stories/system_prompt" element={<Prompt />} />
             <Route path="/stories/system_prompt/calls" element={<PromptOperationDetail />} />
+            <Route path="/stories/system_prompt/calls/:callId" element={<PromptCallDetail />} />
             <Route path="/stories/system_prompt/operations/:agent/:operation" element={<PromptOperationDetail />} />
             
             {/* ============================================= */}
-            {/* COST ANALYSIS STORY - Layers 1 & 2            */}
+            {/* COST ANALYSIS STORY - Layers 1, 2, 3          */}
             {/* ============================================= */}
             <Route path="/stories/cost" element={<Cost />} />
             <Route path="/stories/cost/calls" element={<CostOperationDetail />} />
+            <Route path="/stories/cost/calls/:callId" element={<CostCallDetail />} />
             <Route path="/stories/cost/operations/:agent/:operation" element={<CostOperationDetail />} />
             
             {/* ============================================= */}

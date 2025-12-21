@@ -5,6 +5,7 @@ Location: api/routers/stories/cache.py
 Endpoints for cache opportunity detection with 4 cache types.
 
 Layer 1: GET /api/stories/cache - Summary with operations table
+Layer 2: GET /api/stories/cache/patterns - All patterns for Layer2Table
 Layer 2: GET /api/stories/cache/operations/{agent}/{operation} - Operation detail
 Layer 3: GET /api/stories/cache/operations/{agent}/{operation}/groups/{group_id} - Opportunity detail
 """
@@ -12,7 +13,12 @@ Layer 3: GET /api/stories/cache/operations/{agent}/{operation}/groups/{group_id}
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
 
-from api.services.cache_service import get_summary, get_operation_detail, get_opportunity_detail
+from api.services.cache_service import (
+    get_summary,
+    get_operation_detail,
+    get_opportunity_detail,
+    get_all_opportunities,
+)
 from api.models import CacheStoryResponse
 from ._helpers import get_filtered_calls
 
@@ -40,6 +46,33 @@ def get_cache_story(
     """
     calls = get_filtered_calls(project, days, limit)
     return get_summary(calls, project, days)
+
+
+# =============================================================================
+# LAYER 2: ALL PATTERNS (for Layer2Table)
+# =============================================================================
+
+@router.get("/patterns")
+def get_cache_patterns(
+    project: Optional[str] = None,
+    days: int = Query(default=7, ge=1, le=90),
+    limit: int = Query(default=2000, le=5000),
+    cache_type: Optional[str] = Query(default=None, description="Filter by cache type: exact, stable, high_value, semantic"),
+):
+    """
+    Layer 2: All cache patterns/opportunities for Layer2Table.
+    
+    Returns all patterns across all operations with:
+    - Type emoji, agent, operation
+    - Prompt preview
+    - Repeat count, wasted cost, savable time
+    - Effort level
+    
+    Supports filtering by cache_type query param.
+    Used by /stories/cache/calls page.
+    """
+    calls = get_filtered_calls(project, days, limit)
+    return get_all_opportunities(calls, cache_type_filter=cache_type)
 
 
 # =============================================================================

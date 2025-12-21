@@ -6,7 +6,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { getColumn } from '../../config/columnDefinitions';
+import { getColumn } from '../../../config/columnDefinitions';
 
 export default function FilterBar({
   columns = [],

@@ -10,7 +10,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { STORY_THEMES } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
-import Layer2Table from '../../../components/Layer2Table';
+import Layer2Table from '../../../components/stories/Layer2Table';
 import { formatNumber } from '../../../utils/formatters';
 
 const STORY_ID = 'token_imbalance';
@@ -95,7 +95,7 @@ export default function TokenOperationDetail() {
   };
   
   const handleRowClick = (row) => {
-    navigate(`/stories/calls/${row.call_id}?from=token_imbalance`);
+    navigate(`/stories/token_imbalance/calls/${row.call_id}`);
   };
   
   // Loading state

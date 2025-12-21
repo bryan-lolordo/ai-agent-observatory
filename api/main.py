@@ -5,12 +5,18 @@ Location: api/main.py
 Main FastAPI application with all story endpoints.
 """
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
 from api.routers import stories_router, metadata_router
 from api.routers.calls import router as calls_router
+from api.routers.optimization_queue import router as optimization_queue_router
+from api.routers.analysis import router as analysis_router
 
 
 # =============================================================================
@@ -48,6 +54,8 @@ app.add_middleware(
 app.include_router(stories_router)
 app.include_router(metadata_router)
 app.include_router(calls_router, prefix="/api")
+app.include_router(optimization_queue_router)  # Optimization Queue
+app.include_router(analysis_router, prefix="/api")  # LLM-powered analysis
 
 
 # =============================================================================

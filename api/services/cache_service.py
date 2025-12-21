@@ -380,6 +380,123 @@ def _empty_response() -> CacheStoryResponse:
 
 
 # =============================================================================
+# LAYER 2: ALL OPPORTUNITIES (for Layer2Table)
+# =============================================================================
+
+def get_all_opportunities(
+    calls: List[Dict],
+    cache_type_filter: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Get ALL cache opportunities across all operations.
+    
+    Used by Layer 2 table to show all patterns with agent/operation columns.
+    Supports filtering by cache_type via URL params.
+    
+    Returns:
+        Dict with 'patterns' list and 'stats' summary
+    """
+    if not calls:
+        return {'patterns': [], 'stats': {'total_patterns': 0, 'total_wasted': 0}}
+    
+    # Group calls by operation first
+    by_operation = defaultdict(list)
+    for call in calls:
+        op = f"{call.get('agent_name', 'Unknown')}.{call.get('operation', 'unknown')}"
+        by_operation[op].append(call)
+    
+    # Collect all opportunities across all operations
+    all_opportunities = []
+    
+    for op, op_calls in by_operation.items():
+        # Parse agent/operation
+        parts = op.split('.', 1)
+        agent = parts[0] if len(parts) > 0 else 'Unknown'
+        operation = parts[1] if len(parts) > 1 else op
+        
+        # Group by prompt hash within this operation
+        prompt_groups = defaultdict(list)
+        for call in op_calls:
+            prompt = call.get('prompt') or ''
+            prompt_hash = _hash_prompt(prompt)
+            prompt_groups[prompt_hash].append(call)
+        
+        # Build opportunities for this operation
+        for prompt_hash, group in prompt_groups.items():
+            # Calculate metrics
+            avg_cost = sum(c.get('total_cost', 0) for c in group) / len(group) if group else 0
+            avg_latency = sum(c.get('latency_ms', 0) for c in group) / len(group) if group else 0
+            total_cost = sum(c.get('total_cost', 0) for c in group)
+            
+            # Classify cache type
+            if len(group) >= THRESHOLDS["min_repeats"]:
+                cache_type = "exact"
+                wasted = (len(group) - 1) * avg_cost
+            else:
+                cache_type = _classify_cache_type(group[0], group_size=1)
+                wasted = total_cost * 0.3 if cache_type != "none" else 0
+            
+            # Skip if no opportunity
+            if cache_type == "none":
+                continue
+            
+            # Apply cache_type filter if specified
+            if cache_type_filter and cache_type != cache_type_filter:
+                continue
+            
+            # Get prompt preview
+            first_call = group[0]
+            prompt_text = first_call.get('prompt') or ''
+            prompt_preview = prompt_text[:100] + '...' if len(prompt_text) > 100 else prompt_text
+            
+            # Effort level
+            effort = _get_effort_level(cache_type)
+            
+            # Build opportunity record with agent/operation for Layer 2 table
+            opportunity = {
+                'pattern_id': prompt_hash,
+                'group_id': prompt_hash,
+                'agent_name': agent,
+                'operation': operation,
+                'cache_type': cache_type,
+                'cache_type_emoji': _get_type_emoji(cache_type),
+                'cache_type_name': _get_type_name(cache_type),
+                'effort': effort,
+                'prompt_preview': prompt_preview,
+                'repeat_count': len(group),
+                'wasted_cost': wasted,
+                'wasted_cost_formatted': format_cost(wasted),
+                'avg_latency_ms': avg_latency,
+                'avg_cost': avg_cost,
+                'savable_time_ms': avg_latency * (len(group) - 1) if len(group) > 1 else avg_latency,
+                'savable_time_formatted': f"~{(avg_latency * (len(group) - 1)) / 1000:.1f}s" if len(group) > 1 else f"~{avg_latency / 1000:.1f}s",
+            }
+            
+            all_opportunities.append(opportunity)
+    
+    # Sort by wasted cost descending
+    all_opportunities.sort(key=lambda x: -x['wasted_cost'])
+    
+    # Calculate stats
+    stats = {
+        'total_patterns': len(all_opportunities),
+        'total_wasted': sum(o['wasted_cost'] for o in all_opportunities),
+        'total_repeats': sum(o['repeat_count'] for o in all_opportunities),
+        'by_type': {
+            'exact': len([o for o in all_opportunities if o['cache_type'] == 'exact']),
+            'stable': len([o for o in all_opportunities if o['cache_type'] == 'stable']),
+            'high_value': len([o for o in all_opportunities if o['cache_type'] == 'high_value']),
+            'semantic': len([o for o in all_opportunities if o['cache_type'] == 'semantic']),
+        }
+    }
+    
+    return {
+        'patterns': all_opportunities,
+        'stats': stats,
+    }
+
+
+# =============================================================================
 # LAYER 2: OPERATION DETAIL
 # =============================================================================
 

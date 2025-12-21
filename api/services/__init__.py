@@ -19,6 +19,7 @@ from .cache_service import (
     get_summary as get_cache_summary,
     get_operation_detail as get_cache_operation_detail,
     get_opportunity_detail as get_cache_opportunity_detail,
+    get_all_opportunities as get_cache_all_opportunities,
 )
 
 # Story 3 - Model Routing
@@ -56,6 +57,15 @@ from .optimization_service import (
     get_summary as get_optimization_summary,
 )
 
+# Optimization Queue (cross-story analysis)
+from .optimization_queue_service import get_optimization_opportunities
+
+# LLM-Powered Fix Analysis
+from .fix_analysis_service import (
+    analyze_call_for_fixes,
+    clear_analysis_cache,
+    get_cached_analysis,
+)
 
 __all__ = [
     # Layer 3 - Call detail (shared by all stories)
@@ -69,6 +79,7 @@ __all__ = [
     "get_cache_summary",
     "get_cache_operation_detail",
     "get_cache_opportunity_detail",
+    "get_cache_all_opportunities",
     
     # Story 3 - Model Routing
     "get_routing_summary",
@@ -92,4 +103,12 @@ __all__ = [
     
     # Story 8 - Optimization Impact
     "get_optimization_summary",
+
+    # Optimization Queue
+    "get_optimization_opportunities",
+    
+    # LLM-Powered Fix Analysis
+    "analyze_call_for_fixes",
+    "clear_analysis_cache",
+    "get_cached_analysis",
 ]

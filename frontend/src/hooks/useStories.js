@@ -11,7 +11,7 @@ import { getAllStories, getStory } from '../services/api';
 /**
  * Hook to fetch all stories
  */
-export function useStories({ project = null, days = 7, autoFetch = true } = {}) {
+export function useStories({ project = null, days = 30, autoFetch = true } = {}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -47,7 +47,7 @@ export function useStories({ project = null, days = 7, autoFetch = true } = {}) 
 /**
  * Hook to fetch a single story
  */
-export function useStory(storyId, { project = null, days = 7, autoFetch = true } = {}) {
+export function useStory(storyId, { project = null, days = 30, autoFetch = true } = {}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -90,7 +90,7 @@ export function useStory(storyId, { project = null, days = 7, autoFetch = true }
  */
 export function useStoriesWithPolling(
   storyId = null,
-  { project = null, days = 7, interval = 30, enabled = false } = {}
+  { project = null, days = 30, interval = 30, enabled = false } = {}
 ) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
