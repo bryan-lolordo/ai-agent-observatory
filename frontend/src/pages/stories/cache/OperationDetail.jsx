@@ -5,22 +5,24 @@
  * Uses URL params for initial filters (from Layer 1 drill-down).
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { STORY_THEMES } from '../../../config/theme';
-import { getLayer2Config } from '../../../config/storyDefinitions';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import Layer2Table from '../../../components/stories/Layer2Table';
 import { formatNumber, formatCurrency } from '../../../utils/formatters';
+import { useCachePatterns } from '../../../hooks/useCalls';
 
 const STORY_ID = 'cache';
 const theme = STORY_THEMES.cache;
-const config = getLayer2Config(STORY_ID);
 
 export default function CacheOperationDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  
+  // Fetch data with automatic timeRange handling
+  const { data, loading, error, refetch } = useCachePatterns();
   
   // Get initial filters from URL params
   const initialOperation = searchParams.get('operation');
@@ -33,49 +35,6 @@ export default function CacheOperationDetail() {
     if (initialAgent) filters.agent_name = [initialAgent];
     return filters;
   }, [initialOperation, initialAgent]);
-  
-  // State
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [stats, setStats] = useState({
-    total_patterns: 0,
-    total_wasted: 0,
-    total_savable: 0,
-  });
-
-  // Fetch all cache patterns
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await fetch('/api/stories/cache/patterns');
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      
-      const result = await response.json();
-      
-      // API returns { patterns: [...], stats: {...} }
-      setData(result.patterns || []);
-      setStats(result.stats || {
-        total_patterns: result.patterns?.length || 0,
-        total_wasted: 0,
-        total_savable: 0,
-      });
-    } catch (err) {
-      console.error('Error fetching cache patterns:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Navigation handlers
   const handleBack = () => {
@@ -105,7 +64,7 @@ export default function CacheOperationDetail() {
             <h2 className="text-xl font-bold text-red-400 mb-2">Error Loading Data</h2>
             <p className="text-gray-300">{error}</p>
             <button
-              onClick={fetchData}
+              onClick={refetch}
               className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
             >
               Retry

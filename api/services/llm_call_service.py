@@ -45,6 +45,18 @@ PROMPT_THRESHOLDS = {
     "history_tokens_large": 500,  # >500 history tokens = large
 }
 
+ROUTING_THRESHOLDS = {
+    "complexity_low": 0.4,       # Below = simple task (can downgrade)
+    "complexity_high": 0.7,      # Above = complex task (may need upgrade)
+    "quality_good": 8.0,         # Above = good quality
+    "quality_poor": 7.0,         # Below = needs improvement
+}
+
+CHEAP_MODELS = [
+    "gpt-4o-mini", "gpt-3.5-turbo", "gpt-3.5-turbo-16k",
+    "claude-3-haiku", "claude-3.5-haiku", "claude-instant"
+]
+
 
 # =============================================================================
 # MODEL PRICING (per 1K tokens)
@@ -73,6 +85,89 @@ ALTERNATIVE_MODELS = [
     {"name": "claude-3-haiku", "input_1k": 0.00025, "output_1k": 0.00125, "quality": "~92%"},
     {"name": "gpt-3.5-turbo", "input_1k": 0.0005, "output_1k": 0.0015, "quality": "~85%"},
 ]
+
+
+# =============================================================================
+# ROUTING ANALYSIS HELPER (for Routing Layer 3)
+# =============================================================================
+
+def _get_routing_analysis(call) -> Dict[str, Any]:
+    """Get routing opportunity analysis for a single call (for Routing Layer 3)."""
+    # Get complexity score
+    complexity = getattr(call, 'complexity_score', None)
+    if complexity is None:
+        # Estimate from tokens if not available
+        prompt_tokens = call.prompt_tokens or 0
+        completion_tokens = call.completion_tokens or 0
+        if prompt_tokens > 0:
+            token_complexity = min(prompt_tokens / 2000, 1.0)
+            output_ratio = completion_tokens / max(prompt_tokens, 1)
+            reasoning_complexity = min(output_ratio / 0.5, 1.0)
+            complexity = round(token_complexity * 0.6 + reasoning_complexity * 0.4, 2)
+    
+    # Get quality score
+    quality = getattr(call, 'judge_score', None) or _get_judge_score(call)
+    
+    # Get model info
+    model = call.model_name or ""
+    model_lower = model.lower()
+    is_cheap = any(cheap.lower() in model_lower for cheap in CHEAP_MODELS)
+    
+    # Classify opportunity
+    opportunity = "keep"
+    if complexity is not None:
+        if complexity >= ROUTING_THRESHOLDS["complexity_high"] and is_cheap:
+            if quality is None or quality < ROUTING_THRESHOLDS["quality_good"]:
+                opportunity = "upgrade"
+        elif complexity < ROUTING_THRESHOLDS["complexity_low"]:
+            if quality is not None and quality >= ROUTING_THRESHOLDS["quality_good"]:
+                opportunity = "downgrade"
+    
+    # Get display values
+    if opportunity == "downgrade":
+        opp_emoji, opp_label, status_emoji = "↓", "Downgrade", "🔵"
+        suggested_model = "gpt-3.5-turbo"
+    elif opportunity == "upgrade":
+        opp_emoji, opp_label, status_emoji = "↑", "Upgrade", "🔴"
+        suggested_model = "gpt-4o"
+    else:
+        opp_emoji, opp_label, status_emoji = "✓", "Keep", "🟢"
+        suggested_model = None
+    
+    # Complexity label
+    if complexity is None:
+        complexity_label = "Unknown"
+    elif complexity < ROUTING_THRESHOLDS["complexity_low"]:
+        complexity_label = "Low"
+    elif complexity < ROUTING_THRESHOLDS["complexity_high"]:
+        complexity_label = "Medium"
+    else:
+        complexity_label = "High"
+    
+    # Calculate potential savings
+    cost = call.total_cost or 0
+    if opportunity == "downgrade":
+        savings = round(cost * 0.70, 4)
+        savings_pct = 70
+    elif opportunity == "upgrade":
+        savings = round(-cost * 2.0, 4)
+        savings_pct = -200
+    else:
+        savings = 0
+        savings_pct = 0
+    
+    return {
+        "complexity_score": complexity,
+        "complexity_label": complexity_label,
+        "opportunity": opportunity,
+        "opportunity_emoji": opp_emoji,
+        "opportunity_label": opp_label,
+        "status_emoji": status_emoji,
+        "suggested_model": suggested_model,
+        "potential_savings": savings,
+        "potential_savings_pct": savings_pct,
+        "is_cheap_model": is_cheap,
+    }
 
 
 # =============================================================================
@@ -107,16 +202,6 @@ def get_detail(call_id: str) -> Optional[Dict[str, Any]]:
     
     # Get model pricing
     pricing = _get_model_pricing(call.model_name)
-    
-    # Get prompt analysis (for Prompt Layer 3)
-    prompt_analysis = _get_prompt_analysis(call, None)  # operation_calls fetched in comparison already
-    
-    # Extract chat history for raw display
-    chat_history_content = None
-    if hasattr(call, 'prompt_breakdown') and call.prompt_breakdown:
-        pb = call.prompt_breakdown if isinstance(call.prompt_breakdown, dict) else (
-            call.prompt_breakdown.model_dump() if hasattr(call.prompt_breakdown, 'model_dump') else {})
-        chat_history_content = pb.get('chat_history')
     
     # Calculate token ratio
     token_ratio = None
@@ -231,25 +316,14 @@ def get_detail(call_id: str) -> Optional[Dict[str, Any]]:
         "operation_min_score": comparison.get("operation_min_score"),
         "operation_max_score": comparison.get("operation_max_score"),
         
-        # Prompt Composition (for Prompt Layer 3)
-        "system_pct": prompt_analysis["system_pct"],
-        "user_pct": prompt_analysis["user_pct"],
-        "history_pct": prompt_analysis["history_pct"],
-        "cache_status": prompt_analysis["cache_status"],
-        "cache_emoji": prompt_analysis["cache_emoji"],
-        "cache_label": prompt_analysis["cache_label"],
-        "cache_issue_reason": prompt_analysis["cache_issue_reason"],
-        "cache_analysis": prompt_analysis["cache_analysis"],
-        "chat_history": chat_history_content,
-        "operation_avg_system_tokens": comparison.get("operation_avg_system_tokens"),
-        "operation_avg_user_tokens": comparison.get("operation_avg_user_tokens"),
-        "operation_avg_history_tokens": comparison.get("operation_avg_history_tokens"),
-        
         # Full Comparison object
         "comparison": comparison,
         
         # Diagnosis and recommendations
         "diagnosis": diagnosis,
+        
+        # Routing Analysis (for Routing Layer 3)
+        "routing_analysis": _get_routing_analysis(call),
     }
 
 
@@ -492,132 +566,6 @@ def _get_full_quality_evaluation(call) -> Optional[Dict]:
         "hallucination_flag": getattr(qe, 'hallucination_flag', False),
     }
 
-def _get_prompt_analysis(call, operation_calls: list = None) -> dict:
-    """Analyze prompt composition for Prompt Layer 3."""
-    system_tokens = getattr(call, 'system_prompt_tokens', 0) or 0
-    user_tokens = getattr(call, 'user_message_tokens', 0) or 0
-    history_tokens = getattr(call, 'chat_history_tokens', 0) or 0
-    
-    prompt_breakdown = getattr(call, 'prompt_breakdown', None)
-    if prompt_breakdown:
-        pb = prompt_breakdown if isinstance(prompt_breakdown, dict) else (
-            prompt_breakdown.model_dump() if hasattr(prompt_breakdown, 'model_dump') else {})
-        if not system_tokens:
-            system_tokens = pb.get('system_prompt_tokens', 0) or 0
-        if not user_tokens:
-            user_tokens = pb.get('user_message_tokens', 0) or 0
-        if not history_tokens:
-            history_tokens = pb.get('chat_history_tokens', 0) or 0
-    
-    prompt_tokens = call.prompt_tokens or (system_tokens + user_tokens + history_tokens)
-    
-    if prompt_tokens > 0:
-        system_pct = (system_tokens / prompt_tokens) * 100
-        user_pct = (user_tokens / prompt_tokens) * 100
-        history_pct = (history_tokens / prompt_tokens) * 100
-    else:
-        system_pct = user_pct = history_pct = 0
-    
-    # Calculate system variability
-    system_variability = 0.0
-    if operation_calls and len(operation_calls) >= 2:
-        sys_list = []
-        for c in operation_calls:
-            st = getattr(c, 'system_prompt_tokens', 0) or 0
-            if not st:
-                pb = getattr(c, 'prompt_breakdown', None)
-                if pb:
-                    pbd = pb if isinstance(pb, dict) else (
-                        pb.model_dump() if hasattr(pb, 'model_dump') else {})
-                    st = pbd.get('system_prompt_tokens', 0) or 0
-            sys_list.append(st)
-        if sys_list and sum(sys_list) > 0:
-            mean = sum(sys_list) / len(sys_list)
-            if mean > 0:
-                variance = sum((x - mean) ** 2 for x in sys_list) / len(sys_list)
-                system_variability = (variance ** 0.5) / mean
-    
-    has_history = history_tokens > 0
-    
-    if system_tokens == 0:
-        cache_status, cache_emoji, cache_label = "none", "➖", "No System Prompt"
-    elif system_variability > PROMPT_THRESHOLDS["variability_high"]:
-        cache_status, cache_emoji, cache_label = "not_ready", "❌", "Not Cache Ready"
-    elif has_history:
-        if system_variability <= PROMPT_THRESHOLDS["variability_low"]:
-            cache_status, cache_emoji, cache_label = "partial", "⚠️", "Partial (has history)"
-        else:
-            cache_status, cache_emoji, cache_label = "not_ready", "❌", "Not Cache Ready"
-    elif system_variability <= PROMPT_THRESHOLDS["variability_low"]:
-        cache_status, cache_emoji, cache_label = "ready", "✅", "Cache Ready"
-    else:
-        cache_status, cache_emoji, cache_label = "partial", "⚠️", "Partial"
-    
-    cache_issue_reason = None
-    if cache_status == "not_ready":
-        if system_variability > PROMPT_THRESHOLDS["variability_high"]:
-            cache_issue_reason = "System prompt contains dynamic content that changes between calls"
-        elif has_history:
-            cache_issue_reason = "Chat history in prompt prevents consistent caching"
-    elif cache_status == "partial" and has_history:
-        cache_issue_reason = "System prompt is static but chat history varies"
-    
-    potential_cache_savings = 0.0
-    if cache_status in ["partial", "not_ready"] and system_tokens > 0 and prompt_tokens > 0:
-        potential_cache_savings = system_tokens / prompt_tokens
-    
-    history_messages = 0
-    if prompt_breakdown:
-        pb = prompt_breakdown if isinstance(prompt_breakdown, dict) else (
-            prompt_breakdown.model_dump() if hasattr(prompt_breakdown, 'model_dump') else {})
-        ch = pb.get('chat_history', [])
-        if isinstance(ch, list):
-            history_messages = len(ch)
-        elif 'chat_history_count' in pb:
-            history_messages = pb.get('chat_history_count', 0) or 0
-    
-    cache_analysis = {
-        "system_prompt_static": system_variability <= PROMPT_THRESHOLDS["variability_low"],
-        "system_prompt_variability": round(system_variability * 100, 2),
-        "history_present": has_history,
-        "history_tokens": history_tokens,
-        "history_messages": history_messages,
-        "cache_recommendation": _get_cache_recommendation(cache_status, has_history, history_tokens, system_variability),
-        "potential_cache_savings": round(potential_cache_savings, 2),
-    }
-    
-    return {
-        "system_prompt_tokens": system_tokens,
-        "user_message_tokens": user_tokens,
-        "chat_history_tokens": history_tokens,
-        "system_pct": round(system_pct, 1),
-        "user_pct": round(user_pct, 1),
-        "history_pct": round(history_pct, 1),
-        "cache_status": cache_status,
-        "cache_emoji": cache_emoji,
-        "cache_label": cache_label,
-        "cache_issue_reason": cache_issue_reason,
-        "cache_analysis": cache_analysis,
-    }
-
-def _get_cache_recommendation(cache_status: str, has_history: bool, history_tokens: int, variability: float) -> str:
-    """Generate cache recommendation."""
-    if cache_status == "ready":
-        return "System prompt is static and cacheable. Implement prompt caching for cost savings."
-    if cache_status == "partial":
-        if has_history and history_tokens > PROMPT_THRESHOLDS["history_tokens_large"]:
-            return "Summarize or truncate chat history. System prompt can be cached."
-        elif has_history:
-            return "System prompt is cacheable. Consider separating history into a sliding window."
-        return "System prompt has some variability. Review dynamic sections."
-    if cache_status == "not_ready":
-        if variability > PROMPT_THRESHOLDS["variability_high"]:
-            return "Move dynamic content from system prompt to user message for better caching."
-        elif has_history:
-            return "Large chat history blocks caching. Implement history summarization."
-        return "Review prompt structure for optimization opportunities."
-    return "No specific recommendation available."
-
 
 def _get_model_pricing(model_name: str) -> Dict[str, float]:
     """Get pricing for a model (per 1K tokens)."""
@@ -787,32 +735,7 @@ def _get_comparison_metrics(call) -> Dict[str, Any]:
         "operation_avg_score": round(avg_quality, 1) if avg_quality else None,
         "operation_min_score": round(min_quality, 1) if min_quality else None,
         "operation_max_score": round(max_quality, 1) if max_quality else None,
-        
-        # Prompt Composition (for Prompt Layer 3)
-        "operation_avg_system_tokens": round(_get_avg_prompt_tokens(operation_calls, 'system'), 0),
-        "operation_avg_user_tokens": round(_get_avg_prompt_tokens(operation_calls, 'user'), 0),
-        "operation_avg_history_tokens": round(_get_avg_prompt_tokens(operation_calls, 'history'), 0),
     }
-
-def _get_avg_prompt_tokens(calls: list, token_type: str) -> float:
-    """Helper to get average prompt token counts."""
-    field_map = {
-        'system': 'system_prompt_tokens',
-        'user': 'user_message_tokens', 
-        'history': 'chat_history_tokens',
-    }
-    field = field_map.get(token_type)
-    values = []
-    for c in calls:
-        val = getattr(c, field, 0) or 0
-        if not val:
-            pb = getattr(c, 'prompt_breakdown', None)
-            if pb:
-                pbd = pb if isinstance(pb, dict) else (
-                    pb.model_dump() if hasattr(pb, 'model_dump') else {})
-                val = pbd.get(field, 0) or 0
-        values.append(val)
-    return sum(values) / len(values) if values else 0
 
 
 # =============================================================================

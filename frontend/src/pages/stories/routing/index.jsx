@@ -54,8 +54,8 @@ export default function Routing() {
   };
 
   const handleOperationClick = (row) => {
-    navigate(`/stories/routing/operations/${encodeURIComponent(row.agent_name)}/${encodeURIComponent(row.operation_name)}`);
-  };
+    navigate(`/stories/routing/calls?agent=${encodeURIComponent(row.agent_name)}&operation=${encodeURIComponent(row.operation_name)}`);
+};
 
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {

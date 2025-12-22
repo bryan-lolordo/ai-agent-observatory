@@ -5,13 +5,14 @@
  * Shows all calls for a specific operation (or all calls if no operation selected).
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { STORY_THEMES } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import Layer2Table from '../../../components/stories/Layer2Table';
 import { formatNumber } from '../../../utils/formatters';
+import { useCalls } from '../../../hooks/useCalls';
 
 const STORY_ID = 'latency';
 const theme = STORY_THEMES.latency;
@@ -21,11 +22,8 @@ export default function LatencyOperationDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  // State
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [stats, setStats] = useState(null);
+  // Fetch data with automatic timeRange handling
+  const { data, loading, error, refetch } = useCalls();
   
   // Get initial filter from URL if coming from Layer 1
   const initialQuickFilter = searchParams.get('filter') || 'all';
@@ -33,58 +31,31 @@ export default function LatencyOperationDetail() {
   // Build initial column filters if operation is specified
   const initialFilters = useMemo(() => {
     const filters = {};
-    
-    // Filter by operation (just the operation name, not combined)
     if (operation) {
-      filters.operation = [operation];
+        filters.operation = [operation];
     }
-    
-    // Filter by agent
     if (agent) {
-      filters.agent_name = [agent];
+        filters.agent_name = [agent];
     }
-    
     return filters;
-  }, [agent, operation]);
-  
-  // Fetch all calls
-  useEffect(() => {
-    fetchData();
-  }, []);
-  
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Fetch all calls for this story (Layer 2 = all calls)
-      const response = await fetch('/api/calls?days=7');
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      
-      const result = await response.json();
-      setData(result.calls || []);
-      
-      // Calculate stats
-      if (result.calls?.length > 0) {
-        const latencies = result.calls.map(c => c.latency_ms).filter(Boolean);
-        setStats({
-          total: result.calls.length,
-          avg: latencies.length ? (latencies.reduce((a, b) => a + b, 0) / latencies.length / 1000).toFixed(2) : 0,
-          max: latencies.length ? (Math.max(...latencies) / 1000).toFixed(2) : 0,
-          min: latencies.length ? (Math.min(...latencies) / 1000).toFixed(2) : 0,
-          errors: result.calls.filter(c => c.status === 'error').length,
-        });
-      }
-    } catch (err) {
-      console.error('Error fetching calls:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    }, [agent, operation]);
+
+    // Calculate stats from data 
+    const stats = useMemo(() => {
+    if (!data || data.length === 0) return null;
+    
+    const totalPrompt = data.reduce((sum, c) => sum + (c.prompt_tokens || 0), 0);
+    const totalCompletion = data.reduce((sum, c) => sum + (c.completion_tokens || 0), 0);
+    const avgRatio = totalCompletion > 0 ? (totalPrompt / totalCompletion).toFixed(1) : '—';
+    
+    return {
+        total: data.length,
+        avgRatio,
+        totalPrompt,
+        totalCompletion,
+        errors: data.filter(c => c.status === 'error').length,
+    };
+    }, [data]);
   
   // Navigation handlers
   const handleBack = () => {
@@ -114,7 +85,7 @@ export default function LatencyOperationDetail() {
             <h2 className="text-xl font-bold text-red-400 mb-2">Error Loading Data</h2>
             <p className="text-gray-300">{error}</p>
             <button
-              onClick={fetchData}
+              onClick={refetch}
               className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
             >
               Retry

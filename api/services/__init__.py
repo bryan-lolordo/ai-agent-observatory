@@ -26,6 +26,7 @@ from .cache_service import (
 from .routing_service import (
     get_summary as get_routing_summary,
     get_operation_detail as get_routing_operation_detail,
+    get_routing_patterns,
 )
 
 # Story 4 - Quality Monitoring
@@ -84,6 +85,7 @@ __all__ = [
     # Story 3 - Model Routing
     "get_routing_summary",
     "get_routing_operation_detail",
+    "get_routing_patterns",
     
     # Story 4 - Quality Monitoring
     "get_quality_summary",

@@ -5,13 +5,14 @@
  * Shows all calls for viewing optimization opportunities.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { STORY_THEMES } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import Layer2Table from '../../../components/stories/Layer2Table';
 import { formatNumber, formatCurrency } from '../../../utils/formatters';
+import { useCalls } from '../../../hooks/useCalls';
 
 const STORY_ID = 'optimization';
 const theme = STORY_THEMES.optimization;
@@ -21,11 +22,8 @@ export default function OptimizationComparisonDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  // State
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [stats, setStats] = useState(null);
+  // Fetch data with automatic timeRange handling
+  const { data, loading, error, refetch } = useCalls();
   
   // Get initial filter from URL if coming from Layer 1
   const initialQuickFilter = searchParams.get('filter') || 'all';
@@ -33,47 +31,22 @@ export default function OptimizationComparisonDetail() {
   // No initial filters for optimization - shows all calls
   const initialFilters = useMemo(() => ({}), []);
   
-  // Fetch all calls
-  useEffect(() => {
-    fetchData();
-  }, []);
-  
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await fetch('/api/calls?days=7');
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      
-      const result = await response.json();
-      setData(result.calls || []);
-      
-      // Calculate stats
-      if (result.calls?.length > 0) {
-        const calls = result.calls;
-        const totalCost = calls.reduce((sum, c) => sum + (c.total_cost || 0), 0);
-        const totalLatency = calls.reduce((sum, c) => sum + (c.latency_ms || 0), 0);
-        const avgLatency = calls.length ? totalLatency / calls.length : 0;
-        const errors = calls.filter(c => c.status === 'error').length;
-        
-        setStats({
-          total: calls.length,
-          totalCost,
-          avgLatency: (avgLatency / 1000).toFixed(2),
-          errors,
-        });
-      }
-    } catch (err) {
-      console.error('Error fetching calls:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Calculate stats from data
+  const stats = useMemo(() => {
+    if (!data || data.length === 0) return null;
+    
+    const totalCost = data.reduce((sum, c) => sum + (c.total_cost || 0), 0);
+    const totalLatency = data.reduce((sum, c) => sum + (c.latency_ms || 0), 0);
+    const avgLatency = data.length ? totalLatency / data.length : 0;
+    const errors = data.filter(c => c.status === 'error').length;
+    
+    return {
+      total: data.length,
+      totalCost,
+      avgLatency: (avgLatency / 1000).toFixed(2),
+      errors,
+    };
+  }, [data]);
   
   // Navigation handlers
   const handleBack = () => {
@@ -102,7 +75,7 @@ export default function OptimizationComparisonDetail() {
             <h2 className="text-xl font-bold text-red-400 mb-2">Error Loading Data</h2>
             <p className="text-gray-300">{error}</p>
             <button
-              onClick={fetchData}
+              onClick={refetch}
               className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
             >
               Retry

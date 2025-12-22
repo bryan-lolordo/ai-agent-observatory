@@ -110,6 +110,13 @@ from observatory.prompts import (
     estimate_tokens,
 )
 
+from observatory.semantic_cache import (
+    SemanticCache,
+    SemanticCacheResult,
+    SemanticCacheOperationConfig,
+    create_semantic_cache_metadata,
+)
+
 # =============================================================================
 # CONVENIENCE FUNCTION: track_llm_call (UPDATED)
 # =============================================================================
@@ -354,6 +361,9 @@ __all__ = [
     "RoutingRule",
     "PromptManager",
     "PromptTemplate",
+    "SemanticCache",
+    "SemanticCacheResult",
+    "SemanticCacheOperationConfig",
     
     # Models (existing)
     "Session",
@@ -387,6 +397,7 @@ __all__ = [
     "create_routing_decision",
     "create_prompt_metadata",
     "create_prompt_breakdown",
+    "create_semantic_cache_metadata",
     "estimate_tokens",
     "calculate_cost",
     "generate_prompt_hash",

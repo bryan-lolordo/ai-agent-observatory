@@ -1,9 +1,9 @@
 """
-Routing Service - Story 3 Business Logic
+Routing Service - Story 3 Business Logic (UPDATED)
 Location: api/services/routing_service.py
 
 Layer 1: get_summary() - Routing opportunities summary
-Layer 2: get_operation_detail() - Operation calls with quality distribution
+Layer 2: get_routing_patterns() - Pattern-based view (operation+model combinations)
 Layer 3: Shared CallDetail (uses llm_call_service.py)
 """
 
@@ -32,6 +32,13 @@ CHEAP_MODELS = [
 MODEL_SUGGESTIONS = {
     "upgrade": "gpt-4o",
     "downgrade": "gpt-3.5-turbo",
+}
+
+# Cost estimates per 1K tokens (for savings calculations)
+MODEL_COSTS = {
+    "gpt-4o": {"input": 0.005, "output": 0.015},
+    "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+    "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
 }
 
 
@@ -147,9 +154,9 @@ def _get_quality_status(quality: Optional[float]) -> str:
 def _get_opportunity_display(opportunity: str) -> Tuple[str, str, str]:
     """Returns (emoji, label, status_emoji) for opportunity type."""
     if opportunity == "downgrade":
-        return ("↓", "Cheaper", "🔵")
+        return ("↓", "Downgrade", "🔵")
     if opportunity == "upgrade":
-        return ("↑", "Better", "🔴")
+        return ("↑", "Upgrade", "🔴")
     return ("✓", "Keep", "🟢")
 
 
@@ -160,6 +167,37 @@ def _suggest_model(opportunity: str, current_model: str) -> Optional[str]:
     if opportunity == "upgrade":
         return MODEL_SUGGESTIONS["upgrade"]
     return None
+
+
+def _calculate_savings(opportunity: str, total_cost: float, call_count: int) -> float:
+    """Estimate savings from routing optimization."""
+    if opportunity == "downgrade":
+        # ~70% savings when downgrading from GPT-4 to GPT-3.5
+        return round(total_cost * 0.70, 2)
+    elif opportunity == "upgrade":
+        # Upgrading costs more (negative savings)
+        return round(-total_cost * 2.0, 2)
+    return 0.0
+
+
+def _calculate_safe_percentage(
+    complexity_scores: List[float],
+    opportunity: str
+) -> int:
+    """Calculate what % of calls are safe to reroute."""
+    if not complexity_scores:
+        return 100
+    
+    if opportunity == "downgrade":
+        # Safe if complexity is below threshold
+        safe_count = sum(1 for c in complexity_scores if c < THRESHOLDS["complexity_low"])
+    elif opportunity == "upgrade":
+        # Safe if complexity is above threshold
+        safe_count = sum(1 for c in complexity_scores if c >= THRESHOLDS["complexity_high"])
+    else:
+        return 100
+    
+    return round((safe_count / len(complexity_scores)) * 100)
 
 
 def _format_timestamp(ts: Any) -> str:
@@ -177,25 +215,6 @@ def _format_timestamp(ts: Any) -> str:
         return ts.strftime("%b %d, %I:%M %p")
     
     return str(ts)
-
-
-def _build_quality_histogram(scores: List[float]) -> List[Dict]:
-    """Build quality score histogram with 0.5 buckets."""
-    if not scores:
-        return []
-    
-    # Create buckets from 0 to 10 with 0.5 increments
-    buckets = defaultdict(int)
-    for score in scores:
-        bucket = round(score * 2) / 2  # Round to nearest 0.5
-        buckets[bucket] += 1
-    
-    # Return sorted buckets with data
-    return [
-        {"score": score, "count": count}
-        for score, count in sorted(buckets.items())
-        if count > 0
-    ]
 
 
 # =============================================================================
@@ -381,7 +400,149 @@ def get_summary(calls: List[Dict], project: str = None, days: int = 7) -> Dict:
 
 
 # =============================================================================
-# LAYER 2: OPERATION DETAIL
+# LAYER 2: ROUTING PATTERNS (NEW)
+# =============================================================================
+
+def get_routing_patterns(calls: List[Dict], project: str = None, days: int = 7) -> Dict:
+    """
+    Layer 2: Routing patterns (operation + model combinations).
+    
+    Groups calls by (agent, operation, model) and calculates routing metrics.
+    Returns data similar to cache patterns for consistent Layer 2 experience.
+    """
+    # Filter to only LLM calls
+    llm_calls = [c for c in calls if (c.get("prompt_tokens") or 0) > 0]
+    
+    if not llm_calls:
+        return {
+            "patterns": [],
+            "stats": {
+                "total_patterns": 0,
+                "total_savable": 0.0,
+                "downgrade_count": 0,
+                "upgrade_count": 0,
+                "keep_count": 0,
+            }
+        }
+    
+    # Group by (agent, operation, model)
+    by_pattern = defaultdict(list)
+    for call in llm_calls:
+        agent = call.get("agent_name") or "Unknown"
+        op = call.get("operation") or "unknown"
+        model = call.get("model_name") or "unknown"
+        by_pattern[(agent, op, model)].append(call)
+    
+    patterns = []
+    total_savable = 0.0
+    downgrade_count = 0
+    upgrade_count = 0
+    keep_count = 0
+    
+    for (agent, op, model), pattern_calls in by_pattern.items():
+        # Calculate complexity stats
+        complexity_scores = [_estimate_complexity(c) for c in pattern_calls]
+        complexity_scores = [c for c in complexity_scores if c is not None]
+        
+        if complexity_scores:
+            complexity_min = min(complexity_scores)
+            complexity_max = max(complexity_scores)
+            complexity_avg = sum(complexity_scores) / len(complexity_scores)
+        else:
+            complexity_min = complexity_max = complexity_avg = None
+        
+        # Calculate quality stats
+        quality_scores = [_get_quality_score(c) for c in pattern_calls]
+        quality_scores = [q for q in quality_scores if q is not None]
+        avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else None
+        
+        # Calculate cost
+        total_cost = sum(c.get("total_cost") or 0 for c in pattern_calls)
+        avg_latency = sum(c.get("latency_ms") or 0 for c in pattern_calls) / len(pattern_calls)
+        
+        # Determine opportunity
+        is_cheap = _is_cheap_model(model)
+        opportunity = _classify_opportunity(complexity_avg, avg_quality, is_cheap)
+        opp_emoji, opp_label, status_emoji = _get_opportunity_display(opportunity)
+        comp_label, comp_emoji = _get_complexity_display(complexity_avg)
+        
+        # Calculate savings and safe %
+        savable = _calculate_savings(opportunity, total_cost, len(pattern_calls))
+        safe_pct = _calculate_safe_percentage(complexity_scores, opportunity)
+        
+        # Track counts
+        if opportunity == "downgrade":
+            downgrade_count += 1
+            total_savable += savable
+        elif opportunity == "upgrade":
+            upgrade_count += 1
+        else:
+            keep_count += 1
+        
+        # Get suggested model
+        suggested_model = _suggest_model(opportunity, model)
+        
+        
+        # Create pattern ID
+        pattern_id = f"{agent}-{op}-{model}".replace(" ", "_").lower()
+        
+        patterns.append({
+            "id": pattern_id,
+            "agent_name": agent,
+            "operation": op,
+            "model": model,
+            
+            # Type/Opportunity
+            "type": opportunity,
+            "type_emoji": opp_emoji,
+            "type_label": opp_label,
+            "status_emoji": status_emoji,
+            
+            # Complexity
+            "complexity_min": round(complexity_min, 2) if complexity_min else None,
+            "complexity_max": round(complexity_max, 2) if complexity_max else None,
+            "complexity_avg": round(complexity_avg, 2) if complexity_avg else None,
+            "complexity_label": comp_label,
+            "complexity_emoji": comp_emoji,
+            
+            # Quality
+            "avg_quality": round(avg_quality, 1) if avg_quality else None,
+            "avg_quality_formatted": f"{avg_quality:.1f}/10" if avg_quality else "—",
+            "quality_status": _get_quality_status(avg_quality),
+            
+            # Metrics
+            "call_count": len(pattern_calls),
+            "total_cost": round(total_cost, 4),
+            "savable": savable,
+            "savable_formatted": f"${savable:.2f}" if savable >= 0 else f"-${abs(savable):.2f}",
+            "safe_pct": safe_pct,
+            "avg_latency": round(avg_latency / 1000, 1),  # Convert to seconds
+            
+            # Suggestion
+            "suggested_model": suggested_model,
+            
+            # Sample call for Layer 3 navigation
+            "sample_call_id": pattern_calls[0].get("id") or pattern_calls[0].get("call_id") if pattern_calls else None,
+        })
+    
+    # Sort by savable (absolute value, descending)
+    patterns.sort(key=lambda x: abs(x["savable"]), reverse=True)
+    
+    return {
+        "patterns": patterns,
+        "stats": {
+            "total_patterns": len(patterns),
+            "total_savable": round(total_savable, 2),
+            "total_savable_formatted": f"${total_savable:.2f}",
+            "downgrade_count": downgrade_count,
+            "upgrade_count": upgrade_count,
+            "keep_count": keep_count,
+        }
+    }
+
+
+# =============================================================================
+# LAYER 2: OPERATION DETAIL (LEGACY - kept for backwards compatibility)
 # =============================================================================
 
 def get_operation_detail(
@@ -390,10 +551,10 @@ def get_operation_detail(
     operation: str
 ) -> Optional[Dict]:
     """
-    Layer 2: Operation detail with calls and quality distribution.
+    Layer 2 (Legacy): Operation detail with calls and quality distribution.
     
     Returns detailed view of a single operation including:
-    - Summary stats (complexity, quality, cost)
+    - Summary stats (complexity, quality, cost, model)
     - Routing recommendation badge
     - All calls with metrics
     - Quality score histogram
@@ -508,3 +669,22 @@ def get_operation_detail(
         # Histogram
         "quality_distribution": quality_distribution,
     }
+
+
+def _build_quality_histogram(scores: List[float]) -> List[Dict]:
+    """Build quality score histogram with 0.5 buckets."""
+    if not scores:
+        return []
+    
+    # Create buckets from 0 to 10 with 0.5 increments
+    buckets = defaultdict(int)
+    for score in scores:
+        bucket = round(score * 2) / 2  # Round to nearest 0.5
+        buckets[bucket] += 1
+    
+    # Return sorted buckets with data
+    return [
+        {"score": score, "count": count}
+        for score, count in sorted(buckets.items())
+        if count > 0
+    ]

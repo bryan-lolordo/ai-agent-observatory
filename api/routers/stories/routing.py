@@ -1,16 +1,16 @@
 """
-Story 3: Model Routing Router
+Story 3: Model Routing Router (UPDATED)
 Location: api/routers/stories/routing.py
 
 Layer 1: GET /api/stories/routing - Summary with opportunities
-Layer 2: GET /api/stories/routing/operations/{agent}/{operation} - Operation detail
-Layer 3: Uses shared GET /api/stories/calls/{call_id}
+Layer 2: GET /api/stories/routing/patterns - Pattern-based view
+Layer 3: Uses shared GET /api/calls/{call_id}
 """
 
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
 
-from api.services import get_routing_summary, get_routing_operation_detail
+from api.services import get_routing_summary, get_routing_patterns, get_routing_operation_detail
 from ._helpers import get_filtered_calls
 
 
@@ -36,16 +36,33 @@ def get_routing_story(
     return get_routing_summary(calls, project, days)
 
 
+@router.get("/patterns")
+def get_routing_patterns_endpoint(
+    project: Optional[str] = None,
+    days: int = Query(default=30, ge=1, le=90),
+    limit: int = Query(default=2000, le=5000),
+):
+    """
+    Layer 2: Routing Patterns (operation + model combinations)
+    
+    Returns:
+    - patterns: List of {agent, operation, model, type, complexity, quality, savable, safe_pct}
+    - stats: {total_patterns, total_savable, downgrade_count, upgrade_count, keep_count}
+    """
+    calls = get_filtered_calls(project, days, limit)
+    return get_routing_patterns(calls, project, days)
+
+
 @router.get("/operations/{agent}/{operation}")
 def get_routing_operation_detail_endpoint(
     agent: str,
     operation: str,
     project: Optional[str] = None,
-    days: int = Query(default=7, ge=1, le=90),
+    days: int = Query(default=30, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
 ):
     """
-    Layer 2: Operation Detail for Routing Analysis
+    Layer 2 (Legacy): Operation Detail for Routing Analysis
     
     Returns:
     - Operation summary (complexity, quality, cost, model)
