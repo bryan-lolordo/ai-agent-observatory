@@ -63,6 +63,7 @@ class LLMCallResponse(BaseModel):
     id: str
     session_id: str
     timestamp: datetime
+    call_type: str = "llm"
     provider: str
     model_name: str
     agent_name: str
@@ -135,6 +136,7 @@ class LLMCallSummary(BaseModel):
     """Lightweight LLM call summary (for lists)."""
     id: str
     timestamp: datetime
+    call_type: str = "llm"
     operation: str
     model_name: str
     total_cost: float

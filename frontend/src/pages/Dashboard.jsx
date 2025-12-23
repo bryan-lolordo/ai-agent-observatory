@@ -1,23 +1,22 @@
 /**
  * Dashboard - Main Observatory Overview
  * 
- * Displays all 8 stories as rainbow-themed cards with health scores.
- * Each card navigates to its respective story page.
+ * Displays all 8 stories as opportunity-focused cards.
+ * Each card shows: health, description, hero metric, and opportunity.
+ * 
+ * Location: src/pages/Dashboard.jsx
  */
 
-import { useNavigate } from 'react-router-dom';
 import { useStories } from '../hooks/useStories';
 import { getAllStories } from '../constants/storyDefinitions';
 import StoryCard from '../components/stories/StoryCard';
 import { DashboardSkeleton } from '../components/common/Loading';
 
 export default function Dashboard() {
-  const navigate = useNavigate();
-  
   // Fetch all stories data
-  const { data, loading, error } = useStories({ days: 7 });
+  const { data, loading, error, timeRange } = useStories();
   
-  // Get story metadata
+  // Get story metadata (has description, emoji, color, route)
   const stories = getAllStories();
 
   // Loading state
@@ -47,7 +46,7 @@ export default function Dashboard() {
     );
   }
 
-  // Extract story data from API response
+  // Extract data from API response
   const storyData = data?.stories || {};
 
   return (
@@ -56,64 +55,32 @@ export default function Dashboard() {
         
         {/* Page Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-100 mb-2">
+          <h1 className="text-3xl font-bold text-gray-100 mb-2">
             🔭 AI Agent Observatory
           </h1>
-          <p className="text-lg text-gray-400">
+          <p className="text-gray-400">
             Monitor and optimize your LLM application performance
           </p>
         </div>
 
-        {/* Global KPIs */}
-        {data?.summary && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-              <p className="text-sm text-gray-400 mb-2">Total Calls</p>
-              <div className="text-3xl font-bold text-blue-400">
-                {data.summary.total_calls?.toLocaleString() || 0}
-              </div>
-            </div>
-            
-            <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-              <p className="text-sm text-gray-400 mb-2">Avg Latency</p>
-              <div className="text-3xl font-bold text-orange-400">
-                {data.summary.avg_latency || '—'}
-              </div>
-            </div>
-            
-            <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-              <p className="text-sm text-gray-400 mb-2">Total Cost</p>
-              <div className="text-3xl font-bold text-green-400">
-                {data.summary.total_cost || '$0.00'}
-              </div>
-            </div>
-            
-            <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-              <p className="text-sm text-gray-400 mb-2">Avg Quality</p>
-              <div className="text-3xl font-bold text-purple-400">
-                {data.summary.avg_quality || '—'}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Rainbow Story Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {/* Story Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {stories.map((story) => {
-            // Get data for this story from API response
-            const storyInfo = storyData[story.id] || {};
+            const apiData = storyData[story.id] || {};
             
             return (
               <StoryCard
                 key={story.id}
                 story={story}
-                healthScore={storyInfo.health_score || 0}
-                status={storyInfo.status || 'ok'}
-                issueCount={storyInfo.issue_count || 0}
-                primaryMetric={storyInfo.primary_metric || '—'}
+                data={apiData}
               />
             );
           })}
+        </div>
+
+        {/* Footer Info */}
+        <div className="mt-8 text-center text-sm text-gray-500">
+          Showing data from the last {timeRange} days • {data?.total_calls || 0} total calls analyzed
         </div>
 
       </div>

@@ -472,7 +472,24 @@ function RecommendationCard({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ImpactMetric({ label, before, after, change }) {
-  const isPositive = change < 0; // Negative change = good (reduction)
+  const isImprovement = change > 0;
+  
+  // Label-specific wording
+  const getChangeText = () => {
+    if (change == null) return null;
+    const value = Math.abs(change);
+    
+    switch (label.toLowerCase()) {
+      case 'tokens':
+        return `${value}% reduction`;
+      case 'latency':
+        return `${value}% faster`;
+      case 'cost':
+        return `${value}% savings`;
+      default:
+        return `${value}% improvement`;
+    }
+  };
   
   return (
     <div className="bg-slate-800 rounded-lg p-3">
@@ -485,8 +502,8 @@ function ImpactMetric({ label, before, after, change }) {
         </div>
       ) : null}
       {change != null && (
-        <div className={`text-lg font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
-          {change > 0 ? '+' : ''}{change}%
+        <div className={`text-lg font-bold ${isImprovement ? 'text-green-400' : 'text-red-400'}`}>
+          {getChangeText()}
         </div>
       )}
     </div>

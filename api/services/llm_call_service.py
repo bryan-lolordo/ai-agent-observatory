@@ -15,6 +15,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 
 from observatory.storage import ObservatoryStorage
+from observatory.models import CallType
 
 
 # =============================================================================
@@ -224,6 +225,9 @@ def get_detail(call_id: str) -> Optional[Dict[str, Any]]:
         "operation": call.operation,
         "session_id": getattr(call, 'session_id', None),
         
+        # Call type
+        "call_type": getattr(call, 'call_type', 'llm').value if hasattr(getattr(call, 'call_type', None), 'value') else getattr(call, 'call_type', 'llm'),
+
         # Model Config
         "model_name": call.model_name,
         "provider": call.provider.value if getattr(call, 'provider', None) else None,
@@ -335,6 +339,7 @@ def get_calls(
     days: int = 7,
     operation: Optional[str] = None,
     agent: Optional[str] = None,
+    call_type: Optional[str] = None,
     limit: int = 500
 ) -> List[Dict[str, Any]]:
     """
@@ -354,6 +359,9 @@ def get_calls(
     """
     end_time = datetime.utcnow()
     start_time = end_time - timedelta(days=days)
+
+    # Convert call_type string to enum if provided
+    call_type_enum = CallType(call_type) if call_type else None
     
     try:
         calls = ObservatoryStorage.get_llm_calls(
@@ -361,6 +369,7 @@ def get_calls(
             operation=operation,
             start_time=start_time,
             end_time=end_time,
+            call_type=call_type_enum,
             limit=limit,
         )
     except Exception as e:
@@ -402,6 +411,9 @@ def get_calls(
             "operation": c.operation,
             "session_id": getattr(c, 'session_id', None),
             
+            # Call type
+            "call_type": getattr(c, 'call_type', 'llm').value if hasattr(getattr(c, 'call_type', None), 'value') else getattr(c, 'call_type', 'llm'),
+
             # Model
             "model_name": c.model_name,
             "provider": c.provider.value if hasattr(c, 'provider') and c.provider else None,

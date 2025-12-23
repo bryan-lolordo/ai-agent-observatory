@@ -15,15 +15,13 @@ import TimeRangeContext from './context/TimeRangeContext';
 // Layout
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
+import ScrollToTop from './components/common/ScrollToTop';
 
 // Pages - Dashboard
 import Dashboard from './pages/Dashboard';
 
 // Pages - Optimization Queue (cross-story fix dashboard)
 import OptimizationQueue from './pages/OptimizationQueue';
-
-// Pages - Shared Call Detail (Layer 3 for all stories)
-import CallDetail from './pages/stories/CallDetail';
 
 // Pages - Latency Story (Layers 1, 2, 3)
 import Latency from './pages/stories/latency';
@@ -90,6 +88,7 @@ function App() {
   return (
     <TimeRangeContext.Provider value={{ timeRange, setTimeRange }}>
       <BrowserRouter>
+        <ScrollToTop />
         <div className="min-h-screen bg-gray-950 flex flex-col">
           
           {/* Header - Sticky navigation with filters */}
@@ -109,12 +108,6 @@ function App() {
 
               {/* Optimization Queue - Cross-story fix dashboard */}
               <Route path="/optimization" element={<OptimizationQueue />} />
-              
-              {/* ============================================= */}
-              {/* SHARED: Call Detail (Layer 3 for all stories) */}
-              {/* Theme determined by ?from= query param         */}
-              {/* ============================================= */}
-              <Route path="/stories/calls/:callId" element={<CallDetail />} />
               
               {/* ============================================= */}
               {/* LATENCY STORY - Layers 1, 2, 3                */}

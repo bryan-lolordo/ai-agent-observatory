@@ -243,15 +243,29 @@ export const ALL_COLUMNS = {
     classNameBase: 'font-mono text-xs',
   },
   session_id: {
-    key: 'session_id',
-    label: 'Session',
+  key: 'session_id',
+  label: 'Session',
+  category: 'Identity',
+  sortable: true,
+  filterable: true,
+  width: 'min-w-[100px]',
+  align: 'left',
+  formatter: formatters.callId,
+  className: 'text-gray-500 font-mono text-xs',
+  },
+  call_type: {
+    key: 'call_type',
+    label: 'Type',
     category: 'Identity',
     sortable: true,
     filterable: true,
-    width: 'min-w-[100px]',
+    width: 'min-w-[90px]',
     align: 'left',
-    formatter: formatters.callId,
-    className: 'text-gray-500 font-mono text-xs',
+    formatter: (v) => {
+      const icons = { llm: '🤖', api: '🔌', database: '🗄️', tool: '🔧' };
+      return `${icons[v] || '📦'} ${v || '—'}`;
+    },
+    className: 'text-gray-300 capitalize',
   },
   
   // ─────────────────────────────────────────────────────────────────────────────
@@ -745,7 +759,7 @@ export const ALL_COLUMNS = {
 export const COLUMN_CATEGORIES = [
   {
     name: 'Identity',
-    columns: ['call_id', 'agent_name', 'operation', 'session_id'],
+    columns: ['call_id', 'agent_name', 'operation', 'session_id', 'call_type'],
   },
   {
     name: 'Performance',

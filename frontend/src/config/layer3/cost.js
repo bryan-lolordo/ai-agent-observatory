@@ -15,7 +15,7 @@ export const COST_STORY = {
   id: 'cost',
   label: 'Cost Analysis',
   icon: '💰',
-  color: '#10b981', // Emerald green
+  color: '#f59e0b', // Amber hex code
   entityType: 'call',
 };
 

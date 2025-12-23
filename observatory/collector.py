@@ -25,6 +25,7 @@ from observatory.models import (
     SessionReport,
     ModelProvider,
     AgentRole,
+    CallType,
     RoutingDecision,
     CacheMetadata,
     QualityEvaluation,
@@ -175,6 +176,9 @@ class MetricsCollector:
         prompt_tokens: int,
         completion_tokens: int,
         latency_ms: float,
+
+        # Call classification
+        call_type: CallType = CallType.LLM,
         
         # Context fields (optional)
         agent_name: Optional[str] = None,
@@ -299,6 +303,7 @@ class MetricsCollector:
             return LLMCall(
                 id="disabled",
                 session_id="disabled",
+                call_type=call_type,
                 provider=provider,
                 model_name=model_name,
                 prompt_tokens=prompt_tokens,
@@ -380,6 +385,7 @@ class MetricsCollector:
             id=str(uuid.uuid4()),
             session_id=target_session.id,
             timestamp=datetime.utcnow(),
+            call_type=call_type,
             provider=provider,
             model_name=model_name,
             prompt_tokens=prompt_tokens,

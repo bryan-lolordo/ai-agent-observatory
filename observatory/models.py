@@ -26,9 +26,15 @@ class AgentRole(str, Enum):
     ORCHESTRATOR = "orchestrator"
     CUSTOM = "custom"
 
+class CallType(str, Enum):
+    LLM = "llm"
+    API = "api"
+    DATABASE = "database"
+    TOOL = "tool"
+
 
 # =============================================================================
-# MODEL CONFIGURATION (NEW)
+# MODEL CONFIGURATION 
 # =============================================================================
 
 class ModelConfig(BaseModel):
@@ -344,6 +350,9 @@ class LLMCall(BaseModel):
     session_id: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     
+    # Call classification
+    call_type: CallType = CallType.LLM
+
     # Model info
     provider: ModelProvider
     model_name: str

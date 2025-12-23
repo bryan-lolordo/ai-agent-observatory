@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, D
 from sqlalchemy.orm import declarative_base, sessionmaker, Session as DBSession
 
 from observatory.models import (
-    Session, LLMCall, ModelProvider, AgentRole,
+    Session, LLMCall, ModelProvider, AgentRole, CallType,
     RoutingDecision, CacheMetadata, QualityEvaluation,
     PromptBreakdown, PromptMetadata,
     ModelConfig, StreamingMetrics, ExperimentMetadata, ErrorDetails,
@@ -62,6 +62,8 @@ class LLMCallDB(Base):
     id = Column(String, primary_key=True)
     session_id = Column(String, index=True)
     timestamp = Column(DateTime, index=True)
+    
+    call_type = Column(String, index=True, default="llm")
     
     provider = Column(String, index=True)
     model_name = Column(String, index=True)
@@ -329,6 +331,7 @@ class Storage:
             id=llm_call.id,
             session_id=llm_call.session_id,
             timestamp=llm_call.timestamp,
+            call_type=llm_call.call_type.value,
             provider=llm_call.provider.value,
             model_name=llm_call.model_name,
             prompt=llm_call.prompt,
@@ -482,6 +485,7 @@ class Storage:
             id=llm_call_db.id,
             session_id=llm_call_db.session_id,
             timestamp=llm_call_db.timestamp,
+            call_type=CallType(llm_call_db.call_type) if llm_call_db.call_type else CallType.LLM,
             provider=ModelProvider(llm_call_db.provider),
             model_name=llm_call_db.model_name,
             prompt=llm_call_db.prompt,
@@ -627,6 +631,7 @@ class Storage:
         conversation_id: Optional[str] = None,
         user_id: Optional[str] = None,
         experiment_id: Optional[str] = None,
+        call_type: Optional[CallType] = None,
         limit: int = 1000,
     ) -> List[LLMCall]:
         """Get LLM calls with optional filters."""
@@ -666,7 +671,10 @@ class Storage:
                 query = query.filter(LLMCallDB.user_id == user_id)
             if experiment_id:
                 query = query.filter(LLMCallDB.experiment_id == experiment_id)
-            
+
+            if call_type:
+                query = query.filter(LLMCallDB.call_type == call_type.value)
+
             query = query.order_by(LLMCallDB.timestamp.desc()).limit(limit)
             
             return [self._from_llm_call_db(c) for c in query.all()]

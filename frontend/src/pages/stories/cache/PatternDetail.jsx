@@ -9,6 +9,7 @@
 
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { useTimeRange } from '../../../context/TimeRangeContext'; 
 
 import Layer3Shell from '../../../components/stories/Layer3';
 
@@ -23,40 +24,41 @@ import {
 export default function CachePatternDetail() {
   const { agent, operation, groupId } = useParams();
   const navigate = useNavigate();
+  const { timeRange } = useTimeRange();  // Add this
   
   const [pattern, setPattern] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        const response = await fetch(
-          `/api/stories/cache/operations/${encodeURIComponent(agent)}/${encodeURIComponent(operation)}/groups/${encodeURIComponent(groupId)}`
-        );
-        
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error(`Pattern not found: ${groupId}`);
-          }
-          throw new Error(`HTTP ${response.status}`);
-        }
-        
-        const data = await response.json();
-        setPattern(data);
-      } catch (err) {
-        console.error('Failed to load pattern data:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
+  async function loadData() {
+    setLoading(true);
+    setError(null);
     
-    loadData();
-  }, [agent, operation, groupId]);
+    try {
+      const response = await fetch(
+        `/api/stories/cache/operations/${encodeURIComponent(agent)}/${encodeURIComponent(operation)}/groups/${encodeURIComponent(groupId)}?days=${timeRange}`
+      );
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(`Pattern not found: ${groupId}`);
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setPattern(data);
+    } catch (err) {
+      console.error('Failed to load pattern data:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+  
+  loadData();
+}, [agent, operation, groupId, timeRange]);
 
   // Loading state
   if (loading) {

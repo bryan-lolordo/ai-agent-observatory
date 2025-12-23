@@ -17,6 +17,7 @@ def list_calls(
     days: int = Query(default=7, ge=1, le=90),
     operation: Optional[str] = None,
     agent: Optional[str] = None,
+    call_type: Optional[str] = Query(default=None, description="Filter by call type: llm, api, database, tool"),
     limit: int = Query(default=500, ge=1, le=1000)
 ):
     """
@@ -26,6 +27,7 @@ def list_calls(
         days=days,
         operation=operation,
         agent=agent,
+        call_type=call_type,
         limit=limit
     )
     return {"calls": calls, "total": len(calls)}

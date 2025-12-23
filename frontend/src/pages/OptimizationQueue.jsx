@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTimeRange } from '../context/TimeRangeContext';
 
 // Story configuration
 const STORIES = [
@@ -28,6 +29,7 @@ const QUICK_FILTERS = [
 
 export default function OptimizationQueue() {
   const navigate = useNavigate();
+  const { timeRange } = useTimeRange();
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeStoryFilter, setActiveStoryFilter] = useState('all');
@@ -39,7 +41,7 @@ export default function OptimizationQueue() {
     async function fetchOpportunities() {
       setLoading(true);
       try {
-        const params = new URLSearchParams({ days: '7', limit: '100' });
+        const params = new URLSearchParams({ days: String(timeRange), limit: '100' });
         const response = await fetch(`/api/optimization/opportunities?${params}`);
         
         if (!response.ok) {
@@ -57,7 +59,7 @@ export default function OptimizationQueue() {
       }
     }
     fetchOpportunities();
-  }, []);
+  }, [timeRange]);
 
   // Filter and sort opportunities
   const processedOpportunities = useMemo(() => {
@@ -118,8 +120,8 @@ export default function OptimizationQueue() {
 
   // Handle row click - navigate to appropriate Layer 3
   const handleRowClick = (opp) => {
-    if (opp.storyId === 'cache' && opp.patternId) {
-      navigate(`/stories/cache/patterns/${opp.patternId}`);
+    if (opp.storyId === 'cache' && opp.groupId) {
+      navigate(`/stories/cache/operations/${encodeURIComponent(opp.agent)}/${encodeURIComponent(opp.operation)}/groups/${opp.groupId}`);
     } else {
       navigate(`/stories/${opp.storyId}/calls/${opp.callId}`);
     }

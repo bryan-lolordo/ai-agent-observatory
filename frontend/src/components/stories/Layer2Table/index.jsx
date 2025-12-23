@@ -363,7 +363,7 @@ export default function Layer2Table({
       {/* ═══════════════════════════════════════════════════════════════════════
           TABLE
           ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="overflow-x-auto min-h-[400px]">
+      <div className={`overflow-x-auto min-h-[400px] story-scrollbar-thin ${storyId}`}>
         <table className="w-full text-sm">
           
           {/* Table Header */}

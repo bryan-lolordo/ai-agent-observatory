@@ -1,5 +1,5 @@
 /**
- * Layer 2: Token Efficiency Operation Detail
+ * Layer 2: Cost Analysis Operation Detail
  * 
  * Uses Layer2Table component for full-featured data exploration.
  * Shows all calls for a specific operation (or all calls if no operation selected).
@@ -11,13 +11,13 @@ import { STORY_THEMES } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import Layer2Table from '../../../components/stories/Layer2Table';
-import { formatNumber } from '../../../utils/formatters';
+import { formatNumber, formatCurrency } from '../../../utils/formatters';
 import { useCalls } from '../../../hooks/useCalls';
 
-const STORY_ID = 'token_imbalance';
-const theme = STORY_THEMES.token_imbalance;
+const STORY_ID = 'cost';
+const theme = STORY_THEMES.cost;
 
-export default function TokenOperationDetail() {
+export default function CostOperationDetail() {
   const { agent, operation } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -32,38 +32,47 @@ export default function TokenOperationDetail() {
   const initialFilters = useMemo(() => {
     const filters = {};
     if (operation) {
-        filters.operation = [operation];
+      filters.operation = [operation];
     }
     if (agent) {
-        filters.agent_name = [agent];
+      filters.agent_name = [agent];
     }
     return filters;
-    }, [agent, operation]);
+  }, [agent, operation]);
 
-    // Calculate stats from data
-    const stats = useMemo(() => {
+  // Calculate stats from data 
+  const stats = useMemo(() => {
     if (!data || data.length === 0) return null;
     
     const totalPrompt = data.reduce((sum, c) => sum + (c.prompt_tokens || 0), 0);
     const totalCompletion = data.reduce((sum, c) => sum + (c.completion_tokens || 0), 0);
     const avgRatio = totalCompletion > 0 ? (totalPrompt / totalCompletion).toFixed(1) : '—';
     
+    // Cost calculations
+    const costs = data.map(c => c.total_cost || 0);
+    const totalCost = costs.reduce((a, b) => a + b, 0);
+    const avgCost = data.length > 0 ? totalCost / data.length : 0;
+    const maxCost = costs.length > 0 ? Math.max(...costs) : 0;
+    
     return {
-        total: data.length,
-        avgRatio,
-        totalPrompt,
-        totalCompletion,
-        errors: data.filter(c => c.status === 'error').length,
+      total: data.length,
+      avgRatio,
+      totalPrompt,
+      totalCompletion,
+      totalCost,
+      avgCost,
+      maxCost,
+      errors: data.filter(c => c.status === 'error').length,
     };
-    }, [data]);
+  }, [data]);
   
   // Navigation handlers
   const handleBack = () => {
-    navigate('/stories/token_imbalance');
+    navigate('/stories/cost');
   };
   
   const handleRowClick = (row) => {
-    navigate(`/stories/token_imbalance/calls/${row.call_id}`);
+    navigate(`/stories/cost/calls/${row.call_id}`);
   };
   
   // Loading state
@@ -78,7 +87,7 @@ export default function TokenOperationDetail() {
             onClick={handleBack}
             className={`mb-6 flex items-center gap-2 text-sm ${theme.text} hover:underline`}
           >
-            ← Back to Token Efficiency Overview
+            ← Back to Cost Analysis Overview
           </button>
           <div className="bg-red-900/20 border border-red-500 rounded-lg p-6">
             <h2 className="text-xl font-bold text-red-400 mb-2">Error Loading Data</h2>
@@ -105,7 +114,7 @@ export default function TokenOperationDetail() {
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
       {/* Story Navigation */}
-      <StoryNavTabs activeStory="token_imbalance" />
+      <StoryNavTabs activeStory="cost" />
 
       <div className="max-w-7xl mx-auto p-8">
         
@@ -114,7 +123,7 @@ export default function TokenOperationDetail() {
           onClick={handleBack}
           className={`mb-6 flex items-center gap-2 text-sm ${theme.text} hover:underline`}
         >
-          ← Back to Token Efficiency Overview
+          ← Back to Cost Analysis Overview
         </button>
         
         {/* Page Header */}
@@ -126,7 +135,7 @@ export default function TokenOperationDetail() {
             </h1>
           </div>
           <p className="text-gray-400">
-            Dashboard &gt; Token Efficiency &gt; {operation ? 'Operation Detail' : 'All Calls'}
+            Dashboard &gt; Cost Analysis &gt; {operation ? 'Operation Detail' : 'All Calls'}
           </p>
         </div>
         
@@ -134,9 +143,9 @@ export default function TokenOperationDetail() {
         {stats && (
           <div className="mb-6 flex flex-wrap gap-4">
             <StatBadge label="Total" value={formatNumber(stats.total)} />
-            <StatBadge label="Avg Ratio" value={`${stats.avgRatio}:1`} theme={theme} />
-            <StatBadge label="Prompt Tokens" value={formatNumber(stats.totalPrompt)} />
-            <StatBadge label="Completion Tokens" value={formatNumber(stats.totalCompletion)} />
+            <StatBadge label="Total Cost" value={formatCurrency(stats.totalCost)} theme={theme} />
+            <StatBadge label="Avg Cost" value={formatCurrency(stats.avgCost)} />
+            <StatBadge label="Max Cost" value={formatCurrency(stats.maxCost)} color="text-red-400" />
             <StatBadge 
               label="Errors" 
               value={`${stats.errors} (${((stats.errors / stats.total) * 100).toFixed(1)}%)`}

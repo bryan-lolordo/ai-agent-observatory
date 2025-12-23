@@ -11,7 +11,7 @@ import { STORY_THEMES } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import Layer2Table from '../../../components/stories/Layer2Table';
-import { formatNumber } from '../../../utils/formatters';
+import { formatNumber, formatCurrency } from '../../../utils/formatters';
 import { useCalls } from '../../../hooks/useCalls';
 
 const STORY_ID = 'cost';
@@ -42,20 +42,29 @@ export default function CostOperationDetail() {
 
     // Calculate stats from data 
     const stats = useMemo(() => {
-    if (!data || data.length === 0) return null;
-    
-    const totalPrompt = data.reduce((sum, c) => sum + (c.prompt_tokens || 0), 0);
-    const totalCompletion = data.reduce((sum, c) => sum + (c.completion_tokens || 0), 0);
-    const avgRatio = totalCompletion > 0 ? (totalPrompt / totalCompletion).toFixed(1) : '—';
-    
-    return {
-        total: data.length,
-        avgRatio,
-        totalPrompt,
-        totalCompletion,
-        errors: data.filter(c => c.status === 'error').length,
-    };
-    }, [data]);
+        if (!data || data.length === 0) return null;
+        
+        const totalPrompt = data.reduce((sum, c) => sum + (c.prompt_tokens || 0), 0);
+        const totalCompletion = data.reduce((sum, c) => sum + (c.completion_tokens || 0), 0);
+        const avgRatio = totalCompletion > 0 ? (totalPrompt / totalCompletion).toFixed(1) : '—';
+        
+        // Add cost calculations
+        const costs = data.map(c => c.total_cost || 0);
+        const totalCost = costs.reduce((a, b) => a + b, 0);
+        const avgCost = data.length > 0 ? totalCost / data.length : 0;
+        const maxCost = Math.max(...costs, 0);
+        
+        return {
+            total: data.length,
+            avgRatio,
+            totalPrompt,
+            totalCompletion,
+            totalCost,      // Add this
+            avgCost,        // Add this
+            maxCost,        // Add this
+            errors: data.filter(c => c.status === 'error').length,
+        };
+        }, [data]);
   
   // Navigation handlers
   const handleBack = () => {

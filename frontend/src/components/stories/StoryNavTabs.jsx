@@ -33,7 +33,7 @@ export default function StoryNavTabs() {
     <div className="bg-gray-900/50 border-b border-gray-800">
       {/* Centered container matching header */}
       <div className="max-w-7xl mx-auto px-6">
-        <div className="flex gap-1 overflow-x-auto py-2 scrollbar-thin scrollbar-thumb-gray-700">
+        <div className="flex gap-1 overflow-x-auto py-2 default-scrollbar">
 
           {/* Dashboard Button */}
           <button

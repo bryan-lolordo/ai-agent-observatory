@@ -35,6 +35,7 @@ export const COLUMN_DEFINITIONS = {
   agent_name: { key: 'agent_name', label: 'Agent', type: 'category' },
   operation: { key: 'operation', label: 'Operation', type: 'category' },
   session_id: { key: 'session_id', label: 'Session ID', type: 'id' },
+  call_type: { key: 'call_type', label: 'Type', type: 'category' },
   
   // Model
   model_name: { key: 'model_name', label: 'Model', type: 'category' },
@@ -142,7 +143,7 @@ export const STORY_LAYER2_CONFIG = {
     
     defaultSort: { key: 'latency_ms', direction: 'desc' },
     
-    filterBarColumns: ['operation', 'agent_name'],
+    filterBarColumns: ['operation', 'agent_name', 'call_type'],
     
     primaryMetric: 'latency_ms',
   },
@@ -176,7 +177,7 @@ export const STORY_LAYER2_CONFIG = {
     
     defaultSort: { key: 'total_cost', direction: 'desc' },
     
-    filterBarColumns: ['operation', 'agent_name'],
+    filterBarColumns: ['operation', 'agent_name', 'call_type'],
     
     primaryMetric: 'total_cost',
   },
@@ -209,7 +210,7 @@ export const STORY_LAYER2_CONFIG = {
     
     defaultSort: { key: 'judge_score', direction: 'asc' }, // Worst first
     
-    filterBarColumns: ['operation', 'agent_name'],
+    filterBarColumns: ['operation', 'agent_name', 'call_type'],
     
     primaryMetric: 'judge_score',
   },
@@ -242,7 +243,7 @@ export const STORY_LAYER2_CONFIG = {
     
     defaultSort: { key: 'total_tokens', direction: 'desc' },
     
-    filterBarColumns: ['operation', 'agent_name'],
+    filterBarColumns: ['operation', 'agent_name', 'call_type'],
     
     primaryMetric: 'total_tokens',
   },
@@ -277,7 +278,7 @@ export const STORY_LAYER2_CONFIG = {
     
     defaultSort: { key: 'system_prompt_tokens', direction: 'desc' },
     
-    filterBarColumns: ['operation', 'agent_name'],
+    filterBarColumns: ['operation', 'agent_name', 'call_type'],
     
     primaryMetric: 'system_prompt_tokens',
   },
@@ -311,7 +312,7 @@ export const STORY_LAYER2_CONFIG = {
     
     defaultSort: { key: 'wasted_cost', direction: 'desc' },
     
-    filterBarColumns: ['operation', 'agent_name'],
+    filterBarColumns: ['operation', 'agent_name', 'call_type'],
     
     primaryMetric: 'wasted_cost',
   },
@@ -347,7 +348,7 @@ export const STORY_LAYER2_CONFIG = {
     
     defaultSort: { key: 'total_cost', direction: 'desc' },
     
-    filterBarColumns: ['operation', 'agent_name', 'model_name'],
+    filterBarColumns: ['operation', 'agent_name', 'model_name', 'call_type'],
     
     primaryMetric: 'total_cost',
   },
@@ -380,7 +381,7 @@ export const STORY_LAYER2_CONFIG = {
     
     defaultSort: { key: 'timestamp', direction: 'desc' },
     
-    filterBarColumns: ['operation', 'agent_name'],
+    filterBarColumns: ['operation', 'agent_name', 'call_type'],
     
     primaryMetric: 'timestamp',
   },

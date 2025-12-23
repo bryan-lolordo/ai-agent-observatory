@@ -56,6 +56,7 @@ from observatory.models import (
     # Enums
     ModelProvider,
     AgentRole,
+    CallType,
     
     # Tracking metadata (existing)
     RoutingDecision,
@@ -131,6 +132,7 @@ def track_llm_call(
     completion_tokens: int,
     latency_ms: float,
     provider: ModelProvider = ModelProvider.OPENAI,
+    call_type: CallType = CallType.LLM,
     
     # Context
     agent_name: str = None,
@@ -284,6 +286,7 @@ def track_llm_call(
     return observatory.record_call(
         provider=provider,
         model_name=model_name,
+        call_type=call_type,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         latency_ms=latency_ms,
@@ -389,6 +392,7 @@ __all__ = [
     "StreamingMetrics",
     "ExperimentMetadata",
     "ErrorDetails",
+    "CallType",
     
     # Convenience functions
     "track_llm_call",

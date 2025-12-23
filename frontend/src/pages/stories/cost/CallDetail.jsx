@@ -7,6 +7,7 @@
 
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { useTimeRange } from '../../../context/TimeRangeContext';
 
 import Layer3Shell from '../../../components/stories/Layer3';
 
@@ -67,12 +68,12 @@ async function fetchCallData(callId) {
   };
 }
 
-async function fetchSimilarCalls(call) {
+async function fetchSimilarCalls(call, timeRange) {
   try {
     const params = new URLSearchParams({
       operation: call.operation,
       agent: call.agent_name,
-      days: '7',
+      days: String(timeRange || 7),
       limit: '20',
     });
     const response = await fetch(`/api/calls?${params}`);
@@ -85,8 +86,8 @@ async function fetchSimilarCalls(call) {
     const calls = data.calls || [];
     const costs = calls.map(c => c.total_cost || 0);
     const totalCost = costs.reduce((a, b) => a + b, 0);
-    const avgCost = costs.length ? totalCost / costs.length : null;
-    const maxCost = Math.max(...costs);
+    const avgCost = costs.length ? totalCost / costs.length : 0;
+    const maxCost = costs.length > 0 ? Math.max(...costs) : 0;
     
     // Transform to match our component expectations
     const items = calls.map(c => ({
@@ -120,7 +121,15 @@ async function fetchSimilarCalls(call) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function CostBreakdownBar({ breakdown }) {
-  const { prompt_cost, completion_cost, total_cost, prompt_pct, completion_pct } = breakdown;
+  // Map field names from config to what we expect
+  // Config returns: prompt, completion, total, promptPct, completionPct
+  const { 
+    prompt = 0,           // prompt cost
+    completion = 0,       // completion cost
+    total = 0,            // total cost
+    promptPct = 50,       // prompt percentage
+    completionPct = 50,   // completion percentage
+  } = breakdown || {};
   
   return (
     <div className="space-y-4">
@@ -129,15 +138,15 @@ function CostBreakdownBar({ breakdown }) {
         <div className="h-10 bg-slate-700 rounded-full overflow-hidden flex">
           <div 
             className="bg-blue-500 flex items-center justify-center text-sm text-white font-medium"
-            style={{ width: `${prompt_pct}%` }}
+            style={{ width: `${promptPct}%` }}
           >
-            {prompt_pct > 20 && `Input $${prompt_cost.toFixed(3)}`}
+            {promptPct > 20 && `Input $${prompt.toFixed(3)}`}
           </div>
           <div 
             className="bg-purple-500 flex items-center justify-center text-sm text-white font-medium"
-            style={{ width: `${completion_pct}%` }}
+            style={{ width: `${completionPct}%` }}
           >
-            {completion_pct > 20 && `Output $${completion_cost.toFixed(3)}`}
+            {completionPct > 20 && `Output $${completion.toFixed(3)}`}
           </div>
         </div>
       </div>
@@ -147,13 +156,13 @@ function CostBreakdownBar({ breakdown }) {
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-blue-500 rounded" />
           <span className="text-slate-400">
-            Input: ${prompt_cost.toFixed(3)} ({prompt_pct.toFixed(0)}%)
+            Input: ${prompt.toFixed(3)} ({promptPct.toFixed(0)}%)
           </span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-purple-500 rounded" />
           <span className="text-slate-400">
-            Output: ${completion_cost.toFixed(3)} ({completion_pct.toFixed(0)}%)
+            Output: ${completion.toFixed(3)} ({completionPct.toFixed(0)}%)
           </span>
         </div>
       </div>
@@ -193,7 +202,7 @@ function AlternativeModelsTable({ currentModel, currentCost, alternatives }) {
             <td className="py-3 px-4 text-amber-400 font-medium">{currentModel} (current)</td>
             <td className="py-3 px-4 text-right text-slate-300">—</td>
             <td className="py-3 px-4 text-right text-slate-300">—</td>
-            <td className="py-3 px-4 text-right font-medium text-slate-200">${currentCost.toFixed(3)}</td>
+            <td className="py-3 px-4 text-right font-medium text-slate-200">${(currentCost || 0).toFixed(3)}</td>
             <td className="py-3 px-4 text-right text-slate-500">—</td>
             <td className="py-3 px-4 text-right text-slate-300">100%</td>
           </tr>
@@ -208,10 +217,10 @@ function AlternativeModelsTable({ currentModel, currentCost, alternatives }) {
               <td className="py-3 px-4 text-right text-green-400">${alt.input_price}</td>
               <td className="py-3 px-4 text-right text-green-400">${alt.output_price}</td>
               <td className="py-3 px-4 text-right font-medium text-green-400">
-                ${alt.estimated_cost.toFixed(4)}
+                ${(alt.estimated_cost || 0).toFixed(4)}
               </td>
               <td className="py-3 px-4 text-right text-green-400 font-medium">
-                -{alt.savings_pct.toFixed(0)}%
+                -{(alt.savings_pct || 0).toFixed(0)}%
               </td>
               <td className="py-3 px-4 text-right text-yellow-400">{alt.quality}</td>
             </tr>
@@ -229,6 +238,7 @@ function AlternativeModelsTable({ currentModel, currentCost, alternatives }) {
 export default function CostCallDetail() {
   const { callId } = useParams();
   const navigate = useNavigate();
+  const { timeRange } = useTimeRange();
   const [call, setCall] = useState(null);
   const [similarData, setSimilarData] = useState({ items: [], stats: null });
   const [loading, setLoading] = useState(true);
@@ -240,7 +250,7 @@ export default function CostCallDetail() {
         const callData = await fetchCallData(callId);
         setCall(callData);
         
-        const similar = await fetchSimilarCalls(callData);
+        const similar = await fetchSimilarCalls(callData, timeRange);
         setSimilarData(similar);
       } catch (err) {
         console.error('Failed to load call data:', err);
@@ -249,7 +259,7 @@ export default function CostCallDetail() {
       }
     }
     loadData();
-  }, [callId]);
+  }, [callId, timeRange]);
 
   if (loading || !call) {
     return (
@@ -265,7 +275,14 @@ export default function CostCallDetail() {
 
   // Analyze the call
   const factors = analyzeCostFactors(call, similarData.stats);
-  const breakdown = getCostBreakdown(call);
+  const breakdown = getCostBreakdown(call) || {
+    prompt: 0,
+    completion: 0,
+    total: call.total_cost || 0,
+    promptPct: 50,
+    completionPct: 50,
+    pricing: null,
+  };
   const alternatives = getAlternativeModels(call);
   const fixes = getCostFixes(call, factors);
   const configHighlights = getCostConfigHighlights(call, factors);
@@ -327,12 +344,12 @@ export default function CostCallDetail() {
       diagnoseProps={{
         factors,
         isHealthy,
-        healthyMessage: `This call cost $${call.total_cost.toFixed(3)} which is within normal range for this operation.`,
+        healthyMessage: `This call cost $${(call.total_cost || 0).toFixed(3)} which is within normal range for this operation.`,
         breakdownTitle: '📊 Cost Breakdown',
         breakdownComponent: (
           <CostBreakdownBar breakdown={breakdown} />
         ),
-        breakdownSubtext: `${breakdown.prompt_pct.toFixed(0)}% input, ${breakdown.completion_pct.toFixed(0)}% output`,
+        breakdownSubtext: `${(breakdown.promptPct || 0).toFixed(0)}% input, ${(breakdown.completionPct || 0).toFixed(0)}% output`,
         additionalBreakdown: alternatives.length > 0 ? (
           <AlternativeModelsTable 
             currentModel={call.model_name}
@@ -362,8 +379,8 @@ export default function CostCallDetail() {
         // Cost-specific attributes
         costMetrics: {
           total_cost: call.total_cost,
-          prompt_cost: breakdown.prompt_cost,
-          completion_cost: breakdown.completion_cost,
+          prompt_cost: breakdown.prompt,
+          completion_cost: breakdown.completion,
           pricing: breakdown.pricing,
         },
       }}
@@ -381,15 +398,15 @@ export default function CostCallDetail() {
         columns: [
           { key: 'id', label: 'Call ID', format: (v) => v?.substring(0, 8) + '...' },
           { key: 'timestamp', label: 'Timestamp' },
-          { key: 'cost', label: 'Cost', format: (v) => `$${v?.toFixed(3)}` },
-          { key: 'tokens', label: 'Tokens', format: (v) => v?.toLocaleString() },
+          { key: 'cost', label: 'Cost', format: (v) => `$${(v ?? 0).toFixed(3)}` },
+          { key: 'tokens', label: 'Tokens', format: (v) => (v ?? 0).toLocaleString() },
           { key: 'model', label: 'Model' },
         ],
         aggregateStats: [
           { label: 'Total Calls', value: similarCalls.length, color: 'text-amber-400' },
-          { label: 'Total Spend', value: `$${operationStats?.total_cost?.toFixed(2) || '0'}`, color: 'text-amber-400' },
-          { label: 'Avg/Call', value: `$${operationStats?.avg_cost?.toFixed(3) || '0'}`, color: 'text-yellow-400' },
-          { label: 'Max Cost', value: `$${operationStats?.max_cost?.toFixed(3) || '0'}`, color: 'text-red-400' },
+          { label: 'Total Spend', value: `$${(operationStats?.total_cost ?? 0).toFixed(2)}`, color: 'text-amber-400' },
+          { label: 'Avg/Call', value: `$${(operationStats?.avg_cost ?? 0).toFixed(3)}`, color: 'text-yellow-400' },
+          { label: 'Max Cost', value: `$${(operationStats?.max_cost ?? 0).toFixed(3)}`, color: 'text-red-400' },
         ],
         issueKey: 'hasIssue',
         issueLabel: 'High',
@@ -414,8 +431,8 @@ export default function CostCallDetail() {
         // Cost-specific raw data
         costDetails: {
           total_cost: call.total_cost,
-          prompt_cost: breakdown.prompt_cost,
-          completion_cost: breakdown.completion_cost,
+          prompt_cost: breakdown.prompt,
+          completion_cost: breakdown.completion,
           pricing: breakdown.pricing,
         },
         fullData: call,
