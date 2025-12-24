@@ -360,6 +360,7 @@ class LLMCall(BaseModel):
     # Request details
     prompt: Optional[str] = None
     prompt_normalized: Optional[str] = None
+    content_hash: Optional[str] = None  # Hash of prompt for deduplication
     response_text: Optional[str] = None
     prompt_tokens: int
     completion_tokens: int
@@ -398,6 +399,7 @@ class LLMCall(BaseModel):
     system_prompt_tokens: Optional[int] = None
     user_message_tokens: Optional[int] = None
     chat_history_tokens: Optional[int] = None
+    chat_history_count: Optional[int] = None
     conversation_context_tokens: Optional[int] = None
     tool_definitions_tokens: Optional[int] = None
     

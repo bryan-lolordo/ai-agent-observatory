@@ -48,6 +48,48 @@ def compute_content_hash(content: str, length: int = 16) -> str:
     return hashlib.md5(content.encode()).hexdigest()[:length]
 
 
+def normalize_prompt(prompt: str) -> str:
+    """
+    Normalize prompt for semantic matching and cache key generation.
+    
+    Normalization:
+    - Lowercase
+    - Strip leading/trailing whitespace
+    - Collapse multiple whitespace to single space
+    - Remove punctuation (except essential ones)
+    
+    This enables finding similar prompts even with minor differences:
+    - "Find Python jobs in NYC" → "find python jobs in nyc"
+    - "FIND  Python   jobs in NYC!" → "find python jobs in nyc"
+    
+    Args:
+        prompt: Raw prompt text
+    
+    Returns:
+        Normalized prompt string
+    
+    Example:
+        >>> normalize_prompt("  Find Python JOBS in NYC!  ")
+        'find python jobs in nyc'
+    """
+    if not prompt:
+        return ""
+    
+    # Lowercase
+    normalized = prompt.lower()
+    
+    # Strip leading/trailing whitespace
+    normalized = normalized.strip()
+    
+    # Collapse multiple whitespace to single space
+    normalized = re.sub(r'\s+', ' ', normalized)
+    
+    # Remove punctuation (keep alphanumeric and spaces)
+    normalized = re.sub(r'[^\w\s]', '', normalized)
+    
+    return normalized.strip()
+
+
 # =============================================================================
 # CACHE ENTRY
 # =============================================================================

@@ -71,6 +71,7 @@ class LLMCallDB(Base):
     # Prompt and response
     prompt = Column(Text, nullable=True)
     prompt_normalized = Column(Text, nullable=True)
+    content_hash = Column(String, nullable=True, index=True)  # For deduplication detection
     response_text = Column(Text, nullable=True)
     
     prompt_tokens = Column(Integer)
@@ -105,6 +106,7 @@ class LLMCallDB(Base):
     system_prompt_tokens = Column(Integer, nullable=True, index=True)
     user_message_tokens = Column(Integer, nullable=True)
     chat_history_tokens = Column(Integer, nullable=True)
+    chat_history_count = Column(Integer, nullable=True)
     conversation_context_tokens = Column(Integer, nullable=True)
     tool_definitions_tokens = Column(Integer, nullable=True)
     
@@ -336,6 +338,7 @@ class Storage:
             model_name=llm_call.model_name,
             prompt=llm_call.prompt,
             prompt_normalized=llm_call.prompt_normalized,
+            content_hash=llm_call.content_hash,
             response_text=llm_call.response_text,
             prompt_tokens=llm_call.prompt_tokens,
             completion_tokens=llm_call.completion_tokens,
@@ -365,6 +368,7 @@ class Storage:
             system_prompt_tokens=llm_call.system_prompt_tokens,
             user_message_tokens=llm_call.user_message_tokens,
             chat_history_tokens=llm_call.chat_history_tokens,
+            chat_history_count=llm_call.chat_history_count,
             conversation_context_tokens=llm_call.conversation_context_tokens,
             tool_definitions_tokens=llm_call.tool_definitions_tokens,
             
@@ -490,6 +494,7 @@ class Storage:
             model_name=llm_call_db.model_name,
             prompt=llm_call_db.prompt,
             prompt_normalized=llm_call_db.prompt_normalized,
+            content_hash=llm_call_db.content_hash,
             response_text=llm_call_db.response_text,
             prompt_tokens=llm_call_db.prompt_tokens,
             completion_tokens=llm_call_db.completion_tokens,
@@ -519,6 +524,7 @@ class Storage:
             system_prompt_tokens=llm_call_db.system_prompt_tokens,
             user_message_tokens=llm_call_db.user_message_tokens,
             chat_history_tokens=llm_call_db.chat_history_tokens,
+            chat_history_count=llm_call_db.chat_history_count,
             conversation_context_tokens=llm_call_db.conversation_context_tokens,
             tool_definitions_tokens=llm_call_db.tool_definitions_tokens,
             

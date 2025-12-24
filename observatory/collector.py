@@ -37,6 +37,7 @@ from observatory.models import (
     ExperimentMetadata,
 )
 from observatory.storage import Storage
+from observatory.cache import normalize_prompt, compute_content_hash
 
 
 # =============================================================================
@@ -380,6 +381,18 @@ class MetricsCollector:
                 # If parsing fails, keep quality_evaluation as None
                 pass
         
+        # =====================================================================
+        # AUTO-GENERATE: prompt_normalized and content_hash for cache analytics
+        # =====================================================================
+        # If prompt exists but prompt_normalized wasn't provided, auto-generate
+        if prompt and not prompt_normalized:
+            prompt_normalized = normalize_prompt(prompt)
+        
+        # Generate content_hash for deduplication detection
+        content_hash = None
+        if prompt:
+            content_hash = compute_content_hash(prompt)
+        
         # Create the LLM call record
         llm_call = LLMCall(
             id=str(uuid.uuid4()),
@@ -403,6 +416,7 @@ class MetricsCollector:
             metadata=full_metadata,
             prompt=prompt,
             prompt_normalized=prompt_normalized,
+            content_hash=content_hash,
             response_text=response_text,
             system_prompt=system_prompt,      
             user_message=user_message,       

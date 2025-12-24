@@ -19,6 +19,7 @@ class PromptBreakdown(BaseModel):
     system_prompt_tokens: Optional[int] = None
     user_message_tokens: Optional[int] = None
     chat_history_tokens: Optional[int] = None
+    chat_history_count: Optional[int] = None
     conversation_context_tokens: Optional[int] = None
     tool_definitions_tokens: Optional[int] = None
     total_input_tokens: Optional[int] = None

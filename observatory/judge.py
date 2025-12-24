@@ -9,16 +9,24 @@ UPDATED: Now supports multiple client types:
   - OpenAI / Azure OpenAI clients
   - Semantic Kernel
   - Generic async/sync callables
+
+UPDATED (Phase 2): Added token breakdown, routing decision, and cache metadata
+to all judge call tracking for complete Observatory metrics coverage.
 """
 
+import asyncio
+import hashlib
 import json
 import random
 import time
-import asyncio
-import inspect
-from typing import Optional, Dict, Set, Any, Callable, TYPE_CHECKING, Tuple
+from typing import Optional, Dict, Set, Any, Tuple, TYPE_CHECKING
 
-from observatory.models import QualityEvaluation
+from observatory.models import (
+    QualityEvaluation,
+    ModelProvider,
+    RoutingDecision,
+    CacheMetadata,
+)
 
 if TYPE_CHECKING:
     from observatory.collector import Observatory
@@ -211,9 +219,10 @@ class LLMJudge:
         llm_client: Any,
         context: Optional[Dict] = None,
         force: bool = False,
-        # ⭐ NEW: Conversation tracking
+        # Conversation tracking
         conversation_id: Optional[str] = None,
         turn_number: Optional[int] = None,
+        parent_call_id: Optional[str] = None,
     ) -> Optional[QualityEvaluation]:
         """
         Async evaluation with sampling.
@@ -225,6 +234,8 @@ class LLMJudge:
             llm_client: LLM client (OpenAI, Semantic Kernel, or callable)
             context: Optional additional context
             force: Bypass sampling if True
+            conversation_id: Conversation identifier for linking
+            turn_number: Turn number in conversation
         
         Returns:
             QualityEvaluation or None if skipped
@@ -234,7 +245,8 @@ class LLMJudge:
         
         return await self._evaluate_async(
             operation, prompt, response, llm_client, context,
-            conversation_id=conversation_id, turn_number=turn_number
+            conversation_id=conversation_id, turn_number=turn_number,
+            parent_call_id=parent_call_id,
         )
     
     def maybe_evaluate_sync(
@@ -245,6 +257,10 @@ class LLMJudge:
         llm_client: Any,
         context: Optional[Dict] = None,
         force: bool = False,
+        # Conversation tracking
+        conversation_id: Optional[str] = None,
+        turn_number: Optional[int] = None,
+        parent_call_id: Optional[str] = None,
     ) -> Optional[QualityEvaluation]:
         """
         Sync evaluation with sampling.
@@ -256,6 +272,8 @@ class LLMJudge:
             llm_client: Sync LLM client (OpenAI/Azure)
             context: Optional additional context
             force: Bypass sampling if True
+            conversation_id: Conversation identifier for linking
+            turn_number: Turn number in conversation
         
         Returns:
             QualityEvaluation or None if skipped
@@ -263,7 +281,11 @@ class LLMJudge:
         if not self.should_evaluate(operation, force):
             return None
         
-        return self._evaluate_sync(operation, prompt, response, llm_client, context)
+        return self._evaluate_sync(
+            operation, prompt, response, llm_client, context,
+            conversation_id=conversation_id, turn_number=turn_number,
+            parent_call_id=parent_call_id, 
+        )
     
     # =========================================================================
     # INTERNAL EVALUATION LOGIC
@@ -278,6 +300,7 @@ class LLMJudge:
         context: Optional[Dict] = None,
         conversation_id: Optional[str] = None,  
         turn_number: Optional[int] = None, 
+        parent_call_id: Optional[str] = None,
     ) -> Optional[QualityEvaluation]:
         """Internal async evaluation with multi-client support."""
         try:
@@ -295,21 +318,17 @@ class LLMJudge:
             
             # Track judge call if enabled
             if self.track_judge_calls and self.observatory:
-                from observatory.models import ModelProvider
-                self.observatory.record_call(
-                    provider=ModelProvider.OPENAI,
-                    model_name=self.judge_model,
+                self._track_judge_call(
+                    operation=operation,
+                    judge_prompt=judge_prompt,
+                    result_text=result_text,
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
                     latency_ms=latency_ms,
-                    agent_name="LLMJudge",
-                    agent_role="reviewer",
-                    operation=f"judge_{operation}",
-                    prompt=judge_prompt[:1000],
-                    response_text=result_text,
-                    metadata={"client_type": client_type},
+                    client_type=client_type,
                     conversation_id=conversation_id,
                     turn_number=turn_number,
+                    parent_call_id=parent_call_id,
                 )
             
             return self._parse_and_create_evaluation(result_text, operation)
@@ -325,6 +344,9 @@ class LLMJudge:
         response: str,
         llm_client: Any,
         context: Optional[Dict] = None,
+        conversation_id: Optional[str] = None,
+        turn_number: Optional[int] = None,
+        parent_call_id: Optional[str] = None,
     ) -> Optional[QualityEvaluation]:
         """Internal sync evaluation with multi-client support."""
         try:
@@ -342,19 +364,17 @@ class LLMJudge:
             
             # Track judge call if enabled
             if self.track_judge_calls and self.observatory:
-                from observatory.models import ModelProvider
-                self.observatory.record_call(
-                    provider=ModelProvider.OPENAI,
-                    model_name=self.judge_model,
+                self._track_judge_call(
+                    operation=operation,
+                    judge_prompt=judge_prompt,
+                    result_text=result_text,
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
                     latency_ms=latency_ms,
-                    agent_name="LLMJudge",
-                    agent_role="reviewer",
-                    operation=f"judge_{operation}",
-                    prompt=judge_prompt[:1000],
-                    response_text=result_text,
-                    metadata={"client_type": client_type},
+                    client_type=client_type,
+                    conversation_id=conversation_id,
+                    turn_number=turn_number,
+                    parent_call_id=parent_call_id,
                 )
             
             return self._parse_and_create_evaluation(result_text, operation)
@@ -362,6 +382,99 @@ class LLMJudge:
         except Exception as e:
             print(f"⚠️ Judge evaluation failed for {operation}: {e}")
             return None
+    
+    # =========================================================================
+    # JUDGE CALL TRACKING (Phase 2 - Complete metrics)
+    # =========================================================================
+    
+    def _track_judge_call(
+        self,
+        operation: str,
+        judge_prompt: str,
+        result_text: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+        latency_ms: float,
+        client_type: str,
+        conversation_id: Optional[str] = None,
+        turn_number: Optional[int] = None,
+        parent_call_id: Optional[str] = None,
+    ):
+        """
+        Track judge call with complete Observatory metrics.
+        
+        Phase 2 Update: Now includes token breakdown, routing decision, 
+        and cache metadata for full Tier 2/3 coverage.
+        """
+        # Token breakdown - judge prompt has system instructions + user content
+        # Split at "ORIGINAL USER REQUEST:" marker
+        system_instructions_end = judge_prompt.find("ORIGINAL USER REQUEST:")
+        if system_instructions_end > 0:
+            system_part = judge_prompt[:system_instructions_end]
+            user_part = judge_prompt[system_instructions_end:]
+        else:
+            system_part = ""
+            user_part = judge_prompt
+        
+        system_tokens = len(system_part) // 4
+        user_tokens = len(user_part) // 4
+        
+        # Cache key for judge calls (same prompt = same evaluation)
+        cache_key = hashlib.md5(judge_prompt.encode()).hexdigest()[:16]
+        
+        # Routing decision - judge calls use specific model with low temperature
+        routing_decision = RoutingDecision(
+            chosen_model=self.judge_model,
+            alternative_models=["gpt-4o-mini", "gpt-4o"],
+            reasoning="Quality evaluation - deterministic judging with low temperature",
+            complexity_score=0.5,
+        )
+        
+        # Cache metadata - judge calls not cached yet but tracking for future
+        cache_metadata = CacheMetadata(
+            cache_hit=False,
+            cache_key=cache_key,
+            cache_cluster_id=f"judge_{operation}",
+        )
+        
+        # Record the call with complete metrics
+        self.observatory.record_call(
+            # Core metrics (Tier 1)
+            provider=ModelProvider.OPENAI,
+            model_name=self.judge_model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            latency_ms=latency_ms,
+            agent_name="LLMJudge",
+            agent_role="reviewer",
+            operation=f"judge_{operation}",
+            
+            # Content
+            prompt=judge_prompt[:1000],
+            response_text=result_text,
+            
+            # Token breakdown (Tier 2) - Phase 2 addition
+            system_prompt_tokens=system_tokens,
+            user_message_tokens=user_tokens,
+            
+            # Model config (Tier 2)
+            temperature=0.3,
+            max_tokens=600,
+            
+            # Routing decision (Tier 3) - Phase 2 addition
+            routing_decision=routing_decision,
+            
+            # Cache metadata (Tier 3) - Phase 2 addition
+            cache_metadata=cache_metadata,
+            
+            # Conversation linking
+            conversation_id=conversation_id,
+            turn_number=turn_number,
+            parent_call_id=parent_call_id,
+            
+            # Metadata
+            metadata={"client_type": client_type},
+        )
     
     # =========================================================================
     # MULTI-CLIENT LLM CALLING
@@ -626,8 +739,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
             raise ValueError("Missing 'score' field")
         
         score = data['score']
-        if not isinstance(score, (int, float)) or score < 0 or score > 10:
+        if not isinstance(score, (int, float)) or score < 0:
             raise ValueError(f"Invalid score: {score}")
+        
+        # Normalize if LLM returned 0-100 scale instead of 0-10
+        if score > 10:
+            score = round(score / 10.0, 1)
+        data['score'] = score
         
         return data
     

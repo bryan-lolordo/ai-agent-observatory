@@ -252,6 +252,7 @@ def get_detail(call_id: str) -> Optional[Dict[str, Any]]:
         "system_prompt_tokens": getattr(call, 'system_prompt_tokens', None),
         "user_message_tokens": getattr(call, 'user_message_tokens', None),
         "chat_history_tokens": getattr(call, 'chat_history_tokens', None),
+        "chat_history_count": getattr(call, 'chat_history_count', None),
         "conversation_context_tokens": getattr(call, 'conversation_context_tokens', None),
         "tool_definitions_tokens": getattr(call, 'tool_definitions_tokens', None),
         
@@ -434,6 +435,7 @@ def get_calls(
             "system_prompt_tokens": getattr(c, 'system_prompt_tokens', None),
             "user_message_tokens": getattr(c, 'user_message_tokens', None),
             "chat_history_tokens": getattr(c, 'chat_history_tokens', None),
+            "chat_history_count": getattr(c, 'chat_history_count', None),
             "conversation_context_tokens": getattr(c, 'conversation_context_tokens', None),
             "tool_definitions_tokens": getattr(c, 'tool_definitions_tokens', None),
             
