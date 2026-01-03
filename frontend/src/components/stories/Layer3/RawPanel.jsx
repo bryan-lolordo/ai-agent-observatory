@@ -26,16 +26,16 @@ function ExpandableSection({ title, tokens, content, defaultExpanded = false, hi
   };
 
   return (
-    <div className={`bg-slate-800 border rounded-lg overflow-hidden ${highlight ? 'border-yellow-600' : 'border-slate-700'}`}>
+    <div className={`bg-gray-800 border rounded-lg overflow-hidden ${highlight ? 'border-yellow-600' : 'border-gray-700'}`}>
       <div
-        className="flex justify-between items-center p-4 cursor-pointer hover:bg-slate-700/50 transition-colors"
+        className="flex justify-between items-center p-4 cursor-pointer hover:bg-gray-700/50 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-3">
-          <span className="text-slate-400">{expanded ? '▼' : '▶'}</span>
-          <span className="font-medium text-slate-300">{title}</span>
+          <span className="text-gray-400">{expanded ? '▼' : '▶'}</span>
+          <span className="font-medium text-gray-300">{title}</span>
           {tokens && (
-            <span className="text-sm text-slate-500">
+            <span className="text-sm text-gray-500">
               ({typeof tokens === 'number' ? tokens.toLocaleString() : tokens} tokens)
             </span>
           )}
@@ -47,14 +47,14 @@ function ExpandableSection({ title, tokens, content, defaultExpanded = false, hi
         </div>
         <button
           onClick={handleCopy}
-          className="text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded"
+          className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
         >
           Copy
         </button>
       </div>
       {expanded && content && (
-        <div className="p-4 border-t border-slate-700 bg-slate-900">
-          <pre className="text-sm text-slate-300 whitespace-pre-wrap font-mono overflow-x-auto max-h-96 overflow-y-auto">
+        <div className="p-4 border-t border-gray-700 bg-gray-900">
+          <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono overflow-x-auto max-h-96 overflow-y-auto">
             {typeof content === 'string' ? content : JSON.stringify(content, null, 2)}
           </pre>
         </div>
@@ -132,8 +132,8 @@ export default function RawPanel({
 
   if (allSections.length === 0) {
     return (
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 text-center">
-        <div className="text-slate-500">No raw data available</div>
+      <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 text-center">
+        <div className="text-gray-500">No raw data available</div>
       </div>
     );
   }

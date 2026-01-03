@@ -25,22 +25,22 @@ function FixCard({ fix, isImplemented, isRecommended, onSelect, onMarkImplemente
           ? 'border-green-700 bg-green-900/20'
           : isRecommended
           ? 'border-orange-600 bg-orange-900/10'
-          : 'border-slate-700 bg-slate-800'
+          : 'border-gray-700 bg-gray-800'
       }`}
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h4 className="font-semibold text-slate-200">{fix.title}</h4>
+            <h4 className="font-semibold text-gray-200">{fix.title}</h4>
             {isRecommended && <span className="text-green-400">⭐ Recommended</span>}
             {isImplemented && <span className="text-green-400 text-sm">✓ Implemented</span>}
           </div>
           {fix.subtitle && (
-            <p className="text-sm text-slate-400 mt-1">{fix.subtitle}</p>
+            <p className="text-sm text-gray-400 mt-1">{fix.subtitle}</p>
           )}
         </div>
-        <span className={`px-3 py-1 rounded text-sm ${fix.effortColor || 'text-green-400'} bg-slate-900`}>
+        <span className={`px-3 py-1 rounded text-sm ${fix.effortColor || 'text-green-400'} bg-gray-900`}>
           {fix.effort} Effort
         </span>
       </div>
@@ -48,14 +48,14 @@ function FixCard({ fix, isImplemented, isRecommended, onSelect, onMarkImplemente
       {/* Metrics Row */}
       <div className="grid grid-cols-4 gap-3 mb-4">
         {fix.metrics?.map(metric => (
-          <div key={metric.label} className="bg-slate-900 rounded-lg p-3 text-center">
-            <div className="text-lg font-bold text-slate-200">
+          <div key={metric.label} className="bg-gray-900 rounded-lg p-3 text-center">
+            <div className="text-lg font-bold text-gray-200">
               {metric.after}
             </div>
-            <div className={`text-xs ${metric.changePercent < 0 ? 'text-green-400' : metric.changePercent > 0 ? 'text-red-400' : 'text-slate-500'}`}>
+            <div className={`text-xs ${metric.changePercent < 0 ? 'text-green-400' : metric.changePercent > 0 ? 'text-red-400' : 'text-gray-500'}`}>
               {metric.changePercent === 0 ? '—' : `${metric.changePercent}%`}
             </div>
-            <div className="text-xs text-slate-500 mt-1">{metric.label}</div>
+            <div className="text-xs text-gray-500 mt-1">{metric.label}</div>
           </div>
         ))}
       </div>
@@ -63,11 +63,11 @@ function FixCard({ fix, isImplemented, isRecommended, onSelect, onMarkImplemente
       {/* Output Preview */}
       {fix.outputPreview && (
         <div className="mb-4">
-          <div className="text-xs text-slate-500 uppercase mb-2">Output Preview:</div>
-          <div className={`bg-slate-900 rounded-lg p-3 border ${
+          <div className="text-xs text-gray-500 uppercase mb-2">Output Preview:</div>
+          <div className={`bg-gray-900 rounded-lg p-3 border ${
             fix.outputTruncated ? 'border-yellow-800' : 'border-green-800'
           }`}>
-            <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono max-h-32 overflow-hidden">
+            <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono max-h-32 overflow-hidden">
               {fix.outputPreview.substring(0, 300)}{fix.outputPreview.length > 300 ? '...' : ''}
             </pre>
             {fix.outputNote && (
@@ -82,8 +82,8 @@ function FixCard({ fix, isImplemented, isRecommended, onSelect, onMarkImplemente
       {/* Best For + Actions */}
       <div className="flex justify-between items-center">
         {fix.bestFor && (
-          <div className="text-sm text-slate-400">
-            <span className="text-slate-500">Best for:</span> {fix.bestFor}
+          <div className="text-sm text-gray-400">
+            <span className="text-gray-500">Best for:</span> {fix.bestFor}
           </div>
         )}
         <button
@@ -103,14 +103,14 @@ function FixCard({ fix, isImplemented, isRecommended, onSelect, onMarkImplemente
 
 function QuickComparisonTable({ fixes, currentState }) {
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mt-6">
-      <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide mb-3">
+    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mt-6">
+      <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">
         📊 Quick Comparison
       </h3>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-slate-500 border-b border-slate-700">
+            <tr className="text-left text-gray-500 border-b border-gray-700">
               <th className="pb-2">Fix</th>
               <th className="pb-2">Latency</th>
               <th className="pb-2">Tokens</th>
@@ -122,12 +122,12 @@ function QuickComparisonTable({ fixes, currentState }) {
           <tbody>
             {/* Current State Row */}
             {currentState && (
-              <tr className="border-b border-slate-700/50">
-                <td className="py-2 text-slate-400">Current</td>
+              <tr className="border-b border-gray-700/50">
+                <td className="py-2 text-gray-400">Current</td>
                 <td className="py-2 text-red-400">{currentState.latency}</td>
                 <td className="py-2 text-red-400">{currentState.tokens}</td>
                 <td className="py-2 text-yellow-400">{currentState.cost}</td>
-                <td className="py-2 text-slate-300">{currentState.quality || '—'}</td>
+                <td className="py-2 text-gray-300">{currentState.quality || '—'}</td>
                 <td className="py-2">—</td>
               </tr>
             )}
@@ -138,8 +138,8 @@ function QuickComparisonTable({ fixes, currentState }) {
               const qualityMetric = fix.metrics?.find(m => m.label === 'Quality');
               
               return (
-                <tr key={fix.id} className="border-b border-slate-700/50">
-                  <td className="py-2 text-slate-200">{fix.title}</td>
+                <tr key={fix.id} className="border-b border-gray-700/50">
+                  <td className="py-2 text-gray-200">{fix.title}</td>
                   <td className="py-2 text-green-400">{latencyMetric?.after || '—'}</td>
                   <td className="py-2 text-green-400">{tokensMetric?.after || '—'}</td>
                   <td className="py-2 text-green-400">{costMetric?.after || '—'}</td>
@@ -158,47 +158,178 @@ function QuickComparisonTable({ fixes, currentState }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FIX COMPARISON VIEW (Stacked cards + AI Analysis)
+// CUMULATIVE IMPACT (NEW)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function FixComparisonView({ 
-  fixes, 
-  implementedFixes, 
-  currentState, 
-  onSelectFix, 
+function CumulativeImpact({ fixes, implementedFixes = [] }) {
+  if (fixes.length === 0) return null;
+
+  // Calculate cumulative impact
+  const allFixes = fixes.filter(f => implementedFixes.includes(f.id));
+  const pendingFixes = fixes.filter(f => !implementedFixes.includes(f.id));
+
+  const calculateCumulative = (fixList) => {
+    let totalLatency = 0;
+    let totalCost = 0;
+    let totalTokens = 0;
+
+    fixList.forEach(fix => {
+      const latencyMetric = fix.metrics?.find(m => m.label === 'Latency');
+      const costMetric = fix.metrics?.find(m => m.label === 'Cost');
+      const tokensMetric = fix.metrics?.find(m => m.label === 'Tokens');
+
+      if (latencyMetric?.after) {
+        // Extract numeric value (e.g., "2.0s" -> 2.0)
+        const match = latencyMetric.after.match(/([0-9.]+)/);
+        if (match) totalLatency += parseFloat(match[1]);
+      }
+
+      if (costMetric?.after) {
+        // Extract numeric value (e.g., "$0.05" -> 0.05)
+        const match = costMetric.after.match(/([0-9.]+)/);
+        if (match) totalCost += parseFloat(match[1]);
+      }
+
+      if (tokensMetric?.after) {
+        // Extract numeric value (e.g., "500" or "1,200" -> 1200)
+        const match = tokensMetric.after.replace(/,/g, '').match(/([0-9]+)/);
+        if (match) totalTokens += parseInt(match[1]);
+      }
+    });
+
+    return { totalLatency, totalCost, totalTokens };
+  };
+
+  const implemented = calculateCumulative(allFixes);
+  const potential = calculateCumulative(pendingFixes);
+
+  return (
+    <div className="bg-gradient-to-br from-purple-900/20 to-gray-900 border border-purple-600/30 rounded-lg p-6">
+      <h3 className="text-sm font-medium text-purple-300 uppercase tracking-wide mb-4">
+        📊 Cumulative Impact
+      </h3>
+
+      <div className="grid grid-cols-2 gap-6">
+        {/* Implemented */}
+        {allFixes.length > 0 && (
+          <div>
+            <div className="text-sm text-gray-400 mb-3">
+              ✅ Implemented ({allFixes.length} {allFixes.length === 1 ? 'fix' : 'fixes'})
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between bg-gray-800/50 rounded p-3">
+                <span className="text-gray-400">Latency Saved:</span>
+                <span className="text-green-400 font-bold">{implemented.totalLatency.toFixed(1)}s</span>
+              </div>
+              <div className="flex items-center justify-between bg-gray-800/50 rounded p-3">
+                <span className="text-gray-400">Cost Saved:</span>
+                <span className="text-green-400 font-bold">${implemented.totalCost.toFixed(3)}</span>
+              </div>
+              <div className="flex items-center justify-between bg-gray-800/50 rounded p-3">
+                <span className="text-gray-400">Tokens Reduced:</span>
+                <span className="text-green-400 font-bold">{implemented.totalTokens.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Potential */}
+        {pendingFixes.length > 0 && (
+          <div>
+            <div className="text-sm text-gray-400 mb-3">
+              ⏳ Remaining ({pendingFixes.length} {pendingFixes.length === 1 ? 'fix' : 'fixes'})
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between bg-gray-800/50 rounded p-3">
+                <span className="text-gray-400">Potential Latency:</span>
+                <span className="text-orange-400 font-bold">-{potential.totalLatency.toFixed(1)}s</span>
+              </div>
+              <div className="flex items-center justify-between bg-gray-800/50 rounded p-3">
+                <span className="text-gray-400">Potential Cost:</span>
+                <span className="text-orange-400 font-bold">-${potential.totalCost.toFixed(3)}</span>
+              </div>
+              <div className="flex items-center justify-between bg-gray-800/50 rounded p-3">
+                <span className="text-gray-400">Potential Tokens:</span>
+                <span className="text-orange-400 font-bold">-{potential.totalTokens.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* All fixes pending */}
+        {allFixes.length === 0 && pendingFixes.length > 0 && (
+          <div className="col-span-2">
+            <div className="text-center p-6 bg-orange-900/20 border border-orange-700 rounded-lg">
+              <div className="text-3xl mb-2">🚀</div>
+              <div className="text-lg font-semibold text-orange-300 mb-2">
+                Apply All {pendingFixes.length} Fixes
+              </div>
+              <div className="text-2xl font-bold text-orange-400 mb-1">
+                -{potential.totalLatency.toFixed(1)}s • -${potential.totalCost.toFixed(3)} • -{potential.totalTokens.toLocaleString()} tokens
+              </div>
+              <div className="text-sm text-gray-400 mt-3">
+                Estimated total impact if all fixes are implemented
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Progress bar if some implemented */}
+      {allFixes.length > 0 && pendingFixes.length > 0 && (
+        <div className="mt-6">
+          <div className="flex items-center justify-between text-sm text-gray-400 mb-2">
+            <span>Implementation Progress</span>
+            <span>{allFixes.length} of {fixes.length} applied</span>
+          </div>
+          <div className="bg-gray-700 rounded-full h-3 overflow-hidden">
+            <div
+              className="bg-gradient-to-r from-green-500 to-green-400 h-full transition-all"
+              style={{ width: `${(allFixes.length / fixes.length) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UPDATED FIX COMPARISON VIEW (with cumulative impact)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function FixComparisonView({
+  fixes,
+  implementedFixes,
+  currentState,
+  onSelectFix,
   onMarkImplemented,
   // AI Analysis props
   entityId,
   entityType,
-  themeColor,
   responseText,
-  // For patterns - pass a specific call ID for AI analysis
   aiCallId,
 }) {
-  // Determine if we can show AI Analysis
-  // For calls: use entityId directly
-  // For patterns: use aiCallId (first call in pattern)
   const callIdForAI = entityType === 'call' ? entityId : aiCallId;
   const canShowAI = !!callIdForAI;
 
   if (fixes.length === 0 && !canShowAI) {
     return (
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+      <div className="bg-gray-800 border border-gray-700 rounded-lg p-8 text-center">
         <div className="text-4xl mb-4">✅</div>
         <h3 className="text-lg font-medium text-green-400 mb-2">No Fixes Needed</h3>
-        <p className="text-slate-400">
+        <p className="text-gray-400">
           This is already well-optimized. No significant improvements available.
         </p>
       </div>
     );
   }
 
-  // Find recommended fix (first one or marked as recommended)
   const recommendedId = fixes.find(f => f.recommended)?.id || fixes[0]?.id;
 
   return (
     <div className="space-y-6">
-      {/* Static Fixes Section */}
+      {/* 1. STATIC FIXES SECTION */}
       {fixes.length > 0 && (
         <>
           {/* Implementation Tracker */}
@@ -211,26 +342,23 @@ function FixComparisonView({
                 {fixes.map(fix => (
                   <div key={fix.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className={implementedFixes.includes(fix.id) ? 'text-green-400' : 'text-slate-500'}>
+                      <span className={implementedFixes.includes(fix.id) ? 'text-green-400' : 'text-gray-500'}>
                         {implementedFixes.includes(fix.id) ? '☑' : '☐'}
                       </span>
-                      <span className={implementedFixes.includes(fix.id) ? 'text-green-300' : 'text-slate-400'}>
+                      <span className={implementedFixes.includes(fix.id) ? 'text-green-300' : 'text-gray-400'}>
                         {fix.title}
                       </span>
                     </div>
                     {implementedFixes.includes(fix.id) && (
                       <button
                         onClick={() => onMarkImplemented(fix.id)}
-                        className="text-xs text-slate-500 hover:text-slate-300"
+                        className="text-xs text-gray-500 hover:text-gray-300"
                       >
                         Undo
                       </button>
                     )}
                   </div>
                 ))}
-              </div>
-              <div className="mt-4 pt-3 border-t border-green-800 text-sm text-green-300">
-                {implementedFixes.length} of {fixes.length} fixes applied
               </div>
             </div>
           )}
@@ -249,31 +377,33 @@ function FixComparisonView({
             ))}
           </div>
 
-          {/* Quick Comparison Table */}
+          {/* 2. QUICK COMPARISON TABLE */}
           <QuickComparisonTable fixes={fixes} currentState={currentState} />
+
+          {/* 3. CUMULATIVE IMPACT (NEW) */}
+          <CumulativeImpact fixes={fixes} implementedFixes={implementedFixes} />
         </>
       )}
 
-      {/* No Static Fixes Message (but AI Analysis available) */}
+      {/* No Static Fixes Message */}
       {fixes.length === 0 && canShowAI && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 text-center">
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 text-center">
           <div className="text-3xl mb-3">✨</div>
-          <h3 className="text-lg font-medium text-slate-300 mb-2">No Rule-Based Fixes Detected</h3>
-          <p className="text-slate-400 text-sm">
+          <h3 className="text-lg font-medium text-gray-300 mb-2">No Rule-Based Fixes Detected</h3>
+          <p className="text-gray-400 text-sm">
             Try AI Analysis below for deeper, context-aware recommendations.
           </p>
         </div>
       )}
 
-      {/* AI Analysis Section */}
+      {/* 4. AI ANALYSIS SECTION */}
       {canShowAI && (
-        <div className="mt-8 pt-8 border-t border-slate-700">
-          <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide mb-4">
+        <div className="mt-8 pt-8 border-t border-gray-700">
+          <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
             🤖 AI-Powered Analysis
           </h3>
-          <AIAnalysisPanel 
-            callId={callIdForAI} 
-            themeColor={themeColor}
+          <AIAnalysisPanel
+            callId={callIdForAI}
             responseText={responseText}
           />
         </div>
@@ -305,14 +435,14 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold text-slate-200">{fix.title}</h2>
+            <h2 className="text-xl font-semibold text-gray-200">{fix.title}</h2>
             {fix.recommended && <span className="text-green-400">⭐</span>}
           </div>
           {fix.subtitle && (
-            <p className="text-slate-400 mt-1">{fix.subtitle}</p>
+            <p className="text-gray-400 mt-1">{fix.subtitle}</p>
           )}
         </div>
-        <span className={`px-3 py-1 rounded ${fix.effortColor || 'text-green-400'} bg-slate-900`}>
+        <span className={`px-3 py-1 rounded ${fix.effortColor || 'text-green-400'} bg-gray-900`}>
           {fix.effort} Effort
         </span>
       </div>
@@ -321,12 +451,12 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
       {fix.metrics && fix.metrics.length > 0 && (
         <div className="grid grid-cols-4 gap-4">
           {fix.metrics.map(metric => (
-            <div key={metric.label} className="bg-slate-900 rounded-lg p-4 text-center">
+            <div key={metric.label} className="bg-gray-900 rounded-lg p-4 text-center">
               <div className="text-3xl font-bold text-green-400">{metric.after}</div>
-              <div className={`text-sm ${metric.changePercent < 0 ? 'text-green-500' : metric.changePercent > 0 ? 'text-red-500' : 'text-slate-500'}`}>
+              <div className={`text-sm ${metric.changePercent < 0 ? 'text-green-500' : metric.changePercent > 0 ? 'text-red-500' : 'text-gray-500'}`}>
                 {metric.changePercent === 0 ? '—' : `${metric.changePercent}%`}
               </div>
-              <div className="text-xs text-slate-500 mt-1">{metric.label}</div>
+              <div className="text-xs text-gray-500 mt-1">{metric.label}</div>
             </div>
           ))}
         </div>
@@ -334,7 +464,7 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
 
       {/* Code Before/After */}
       <div>
-        <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide mb-3">
+        <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">
           💻 Implementation
         </h3>
         
@@ -345,12 +475,12 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
                 <span className="text-xs text-red-400 font-medium">BEFORE</span>
                 <button
                   onClick={() => handleCopy(fix.codeBefore)}
-                  className="text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded"
+                  className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
                 >
                   Copy
                 </button>
               </div>
-              <pre className="bg-slate-900 rounded-lg p-4 text-sm font-mono text-slate-300 overflow-x-auto max-h-64 overflow-y-auto">
+              <pre className="bg-gray-900 rounded-lg p-4 text-sm font-mono text-gray-300 overflow-x-auto max-h-64 overflow-y-auto">
                 {fix.codeBefore}
               </pre>
             </div>
@@ -364,7 +494,7 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
                   Copy
                 </button>
               </div>
-              <pre className="bg-slate-900 rounded-lg p-4 text-sm font-mono text-slate-300 overflow-x-auto max-h-64 overflow-y-auto border border-green-800">
+              <pre className="bg-gray-900 rounded-lg p-4 text-sm font-mono text-gray-300 overflow-x-auto max-h-64 overflow-y-auto border border-green-800">
                 {fix.codeAfter}
               </pre>
             </div>
@@ -375,12 +505,12 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
               <span className="text-xs text-green-400 font-medium">IMPLEMENTATION</span>
               <button
                 onClick={() => handleCopy(fix.codeAfter)}
-                className="text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded"
+                className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
               >
                 Copy
               </button>
             </div>
-            <pre className="bg-slate-900 rounded-lg p-4 text-sm font-mono text-slate-300 overflow-x-auto max-h-64 overflow-y-auto">
+            <pre className="bg-gray-900 rounded-lg p-4 text-sm font-mono text-gray-300 overflow-x-auto max-h-64 overflow-y-auto">
               {fix.codeAfter}
             </pre>
           </div>
@@ -390,7 +520,7 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
       {/* Output Before/After - OUTPUT CHANGE section */}
       {(fix.outputBefore || fix.outputAfter || responseText) && (
         <div>
-          <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide mb-3">
+          <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">
             📦 Output Change
           </h3>
           
@@ -503,13 +633,13 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
                   {/* BEFORE */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-xs text-slate-400">BEFORE (Actual Response)</span>
+                      <span className="text-xs text-gray-400">BEFORE (Actual Response)</span>
                       {beforeTokens && (
-                        <span className="text-xs text-slate-500">{beforeTokens.toLocaleString()} tokens</span>
+                        <span className="text-xs text-gray-500">{beforeTokens.toLocaleString()} tokens</span>
                       )}
                     </div>
-                    <div className="bg-slate-900 rounded-lg p-4 border border-slate-700 max-h-48 overflow-y-auto">
-                      <pre className="text-sm font-mono text-slate-300 whitespace-pre-wrap">
+                    <div className="bg-gray-900 rounded-lg p-4 border border-gray-700 max-h-48 overflow-y-auto">
+                      <pre className="text-sm font-mono text-gray-300 whitespace-pre-wrap">
                         {typeof beforeOutput === 'string' ? beforeOutput.substring(0, 1500) : beforeOutput}
                         {typeof beforeOutput === 'string' && beforeOutput.length > 1500 ? '...' : ''}
                       </pre>
@@ -518,7 +648,7 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
                   
                   {/* Arrow */}
                   <div className="flex justify-center">
-                    <span className="text-slate-600 text-lg">↓</span>
+                    <span className="text-gray-600 text-lg">↓</span>
                   </div>
                   
                   {/* AFTER */}
@@ -528,13 +658,13 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
                         AFTER (Predicted)
                       </span>
                       {afterTokens && (
-                        <span className="text-xs text-slate-500">~{afterTokens.toLocaleString()} tokens</span>
+                        <span className="text-xs text-gray-500">~{afterTokens.toLocaleString()} tokens</span>
                       )}
                     </div>
-                    <div className={`bg-slate-900 rounded-lg p-4 border max-h-48 overflow-y-auto ${
+                    <div className={`bg-gray-900 rounded-lg p-4 border max-h-48 overflow-y-auto ${
                       isTruncated ? 'border-yellow-800' : 'border-green-800'
                     }`}>
-                      <pre className="text-sm font-mono text-slate-300 whitespace-pre-wrap">
+                      <pre className="text-sm font-mono text-gray-300 whitespace-pre-wrap">
                         {afterOutput}
                       </pre>
                     </div>
@@ -548,14 +678,14 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
               );
             } else if (fix.outputPreview) {
               return (
-                <div className={`bg-slate-900 rounded-lg p-4 border ${
+                <div className={`bg-gray-900 rounded-lg p-4 border ${
                   fix.outputTruncated ? 'border-yellow-800' : 'border-green-800'
                 }`}>
-                  <pre className="text-sm font-mono text-slate-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                  <pre className="text-sm font-mono text-gray-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
                     {fix.outputPreview}
                   </pre>
                   {fix.outputNote && (
-                    <div className={`mt-3 pt-3 border-t border-slate-700 ${fix.outputNoteColor || 'text-green-400'} text-sm font-medium`}>
+                    <div className={`mt-3 pt-3 border-t border-gray-700 ${fix.outputNoteColor || 'text-green-400'} text-sm font-medium`}>
                       {fix.outputNote}
                     </div>
                   )}
@@ -564,9 +694,9 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
             } else if (beforeOutput) {
               return (
                 <div>
-                  <div className="text-xs text-slate-400 mb-2">Current Output</div>
-                  <div className="bg-slate-900 rounded-lg p-4 border border-slate-700 max-h-48 overflow-y-auto">
-                    <pre className="text-sm font-mono text-slate-400 whitespace-pre-wrap">
+                  <div className="text-xs text-gray-400 mb-2">Current Output</div>
+                  <div className="bg-gray-900 rounded-lg p-4 border border-gray-700 max-h-48 overflow-y-auto">
+                    <pre className="text-sm font-mono text-gray-400 whitespace-pre-wrap">
                       {typeof beforeOutput === 'string' ? beforeOutput.substring(0, 500) : beforeOutput}
                       {typeof beforeOutput === 'string' && beforeOutput.length > 500 ? '...' : ''}
                     </pre>
@@ -619,8 +749,8 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
 
       {/* Similar Count */}
       {similarCount > 1 && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <div className="text-sm text-slate-400">
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+          <div className="text-sm text-gray-400">
             <span className="text-orange-400 font-medium">{similarCount} similar calls</span> have this same issue. 
             Fixing this will multiply your savings by {similarCount}x.
           </div>
@@ -628,16 +758,16 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
       )}
 
       {/* Bottom Actions */}
-      <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
+      <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
         <button
           onClick={onBack}
-          className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg text-sm"
+          className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg text-sm"
         >
           ← Back to Compare
         </button>
         <button
           onClick={() => handleCopy(fix.codeAfter || '')}
-          className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg text-sm"
+          className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg text-sm"
         >
           Copy Code
         </button>
@@ -669,7 +799,6 @@ export default function FixPanel({
   // AI Analysis props (passed from Layer3Shell)
   entityId = null,
   entityType = 'call',
-  themeColor = '#f97316',
   responseText = null,
   // For patterns - pass first call ID for AI analysis
   aiCallId = null,
@@ -701,7 +830,6 @@ export default function FixPanel({
       // Pass AI Analysis props
       entityId={entityId}
       entityType={entityType}
-      themeColor={themeColor}
       responseText={responseText}
       aiCallId={aiCallId}
     />

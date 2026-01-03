@@ -141,35 +141,35 @@ export default function OptimizationQueue() {
   }, [processedOpportunities]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
+    <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
         
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-100 flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-gray-100 flex items-center gap-3">
             🔧 Optimization Queue
           </h1>
-          <p className="text-slate-400 mt-2">
+          <p className="text-gray-400 mt-2">
             All optimization opportunities across your LLM operations
           </p>
         </div>
 
         {/* Summary Stats */}
         <div className="grid grid-cols-4 gap-4 mb-6">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 text-center">
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
             <div className="text-3xl font-bold text-orange-400">{stats.total}</div>
-            <div className="text-sm text-slate-500">Total Opportunities</div>
+            <div className="text-sm text-gray-500">Total Opportunities</div>
           </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 text-center">
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
             <div className="text-3xl font-bold text-green-400">${stats.totalSavings.toFixed(2)}</div>
-            <div className="text-sm text-slate-500">Potential Savings</div>
+            <div className="text-sm text-gray-500">Potential Savings</div>
           </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 text-center">
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
             <div className="text-3xl font-bold text-emerald-400">{stats.quickWins}</div>
-            <div className="text-sm text-slate-500">Quick Wins (Low Effort)</div>
+            <div className="text-sm text-gray-500">Quick Wins (Low Effort)</div>
           </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="text-sm text-slate-500 mb-2">By Story</div>
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+            <div className="text-sm text-gray-500 mb-2">By Story</div>
             <div className="flex flex-wrap gap-2">
               {stats.byStory.map(story => (
                 <span
@@ -185,18 +185,18 @@ export default function OptimizationQueue() {
         </div>
 
         {/* Filters */}
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-6">
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-6">
           <div className="flex flex-wrap gap-6">
             {/* Story Filter */}
             <div>
-              <div className="text-xs text-slate-500 uppercase mb-2">Story</div>
+              <div className="text-xs text-gray-500 uppercase mb-2">Story</div>
               <div className="flex gap-2">
                 <button
                   onClick={() => setActiveStoryFilter('all')}
                   className={`px-3 py-1.5 rounded text-sm transition-colors ${
                     activeStoryFilter === 'all'
                       ? 'bg-orange-600/30 text-orange-400 border border-orange-600'
-                      : 'bg-slate-700 text-slate-400 border border-slate-600 hover:text-slate-200'
+                      : 'bg-gray-700 text-gray-400 border border-gray-600 hover:text-gray-200'
                   }`}
                 >
                   All
@@ -208,7 +208,7 @@ export default function OptimizationQueue() {
                     className={`px-3 py-1.5 rounded text-sm transition-colors ${
                       activeStoryFilter === story.id
                         ? 'border'
-                        : 'bg-slate-700 text-slate-400 border border-slate-600 hover:text-slate-200'
+                        : 'bg-gray-700 text-gray-400 border border-gray-600 hover:text-gray-200'
                     }`}
                     style={activeStoryFilter === story.id ? {
                       backgroundColor: `${story.color}20`,
@@ -224,7 +224,7 @@ export default function OptimizationQueue() {
 
             {/* Quick Filters */}
             <div>
-              <div className="text-xs text-slate-500 uppercase mb-2">Quick Filters</div>
+              <div className="text-xs text-gray-500 uppercase mb-2">Quick Filters</div>
               <div className="flex gap-2">
                 {QUICK_FILTERS.map(filter => (
                   <button
@@ -233,7 +233,7 @@ export default function OptimizationQueue() {
                     className={`px-3 py-1.5 rounded text-sm transition-colors ${
                       activeQuickFilter === filter.id
                         ? 'bg-orange-600/30 text-orange-400 border border-orange-600'
-                        : 'bg-slate-700 text-slate-400 border border-slate-600 hover:text-slate-200'
+                        : 'bg-gray-700 text-gray-400 border border-gray-600 hover:text-gray-200'
                     }`}
                   >
                     {filter.label}
@@ -245,29 +245,29 @@ export default function OptimizationQueue() {
         </div>
 
         {/* Opportunities Table */}
-        <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+        <div className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-900">
-                <tr className="text-left text-slate-500">
+              <thead className="bg-gray-900">
+                <tr className="text-left text-gray-500">
                   <th className="px-4 py-3">Story</th>
                   <th className="px-4 py-3">Agent</th>
                   <th className="px-4 py-3">Operation</th>
                   <th className="px-4 py-3">Issue</th>
                   <th 
-                    className="px-4 py-3 cursor-pointer hover:text-slate-300"
+                    className="px-4 py-3 cursor-pointer hover:text-gray-300"
                     onClick={() => handleSort('callCount')}
                   >
                     Calls {sortConfig.key === 'callCount' && (sortConfig.direction === 'desc' ? '↓' : '↑')}
                   </th>
                   <th 
-                    className="px-4 py-3 cursor-pointer hover:text-slate-300"
+                    className="px-4 py-3 cursor-pointer hover:text-gray-300"
                     onClick={() => handleSort('impact')}
                   >
                     Impact {sortConfig.key === 'impact' && (sortConfig.direction === 'desc' ? '↓' : '↑')}
                   </th>
                   <th 
-                    className="px-4 py-3 cursor-pointer hover:text-slate-300"
+                    className="px-4 py-3 cursor-pointer hover:text-gray-300"
                     onClick={() => handleSort('effort')}
                   >
                     Effort {sortConfig.key === 'effort' && (sortConfig.direction === 'desc' ? '↓' : '↑')}
@@ -277,10 +277,10 @@ export default function OptimizationQueue() {
               <tbody>
                 {loading ? (
                   Array.from({ length: 5 }).map((_, idx) => (
-                    <tr key={idx} className="border-t border-slate-700">
+                    <tr key={idx} className="border-t border-gray-700">
                       {Array.from({ length: 7 }).map((_, colIdx) => (
                         <td key={colIdx} className="px-4 py-3">
-                          <div className="h-4 bg-slate-700 rounded animate-pulse" />
+                          <div className="h-4 bg-gray-700 rounded animate-pulse" />
                         </td>
                       ))}
                     </tr>
@@ -292,7 +292,7 @@ export default function OptimizationQueue() {
                       <tr
                         key={opp.id}
                         onClick={() => handleRowClick(opp)}
-                        className="border-t border-slate-700 hover:bg-slate-700/50 cursor-pointer transition-colors"
+                        className="border-t border-gray-700 hover:bg-gray-700/50 cursor-pointer transition-colors"
                       >
                         <td className="px-4 py-3">
                           <span
@@ -302,12 +302,12 @@ export default function OptimizationQueue() {
                             {opp.storyIcon}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-slate-300">{opp.agent}</td>
-                        <td className="px-4 py-3 text-slate-400 font-mono">{opp.operation}</td>
-                        <td className="px-4 py-3 text-slate-300">{opp.issue}</td>
-                        <td className="px-4 py-3 text-slate-400">{opp.callCount || 1}</td>
+                        <td className="px-4 py-3 text-gray-300">{opp.agent}</td>
+                        <td className="px-4 py-3 text-gray-400 font-mono">{opp.operation}</td>
+                        <td className="px-4 py-3 text-gray-300">{opp.issue}</td>
+                        <td className="px-4 py-3 text-gray-400">{opp.callCount || 1}</td>
                         <td className="px-4 py-3">
-                          <span className={opp.impactValue > 0.1 ? 'text-green-400 font-medium' : 'text-slate-400'}>
+                          <span className={opp.impactValue > 0.1 ? 'text-green-400 font-medium' : 'text-gray-400'}>
                             {opp.impact}
                           </span>
                         </td>
@@ -325,7 +325,7 @@ export default function OptimizationQueue() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
+                    <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
                       No opportunities match the current filters
                     </td>
                   </tr>
@@ -334,7 +334,7 @@ export default function OptimizationQueue() {
             </table>
           </div>
 
-          <div className="px-4 py-3 border-t border-slate-700 text-sm text-slate-500 flex justify-between">
+          <div className="px-4 py-3 border-t border-gray-700 text-sm text-gray-500 flex justify-between">
             <span>
               Showing {processedOpportunities.length} of {opportunities.length} opportunities
             </span>

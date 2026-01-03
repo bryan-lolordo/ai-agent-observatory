@@ -13,7 +13,7 @@
  * - What fixes are available
  * - Custom panel content
  * 
- * UPDATED: Added aiCallId prop for pattern-based AI Analysis
+ * UPDATED: Passes storyId and data to TracePanel for cache support
  */
 
 import { useState } from 'react';
@@ -24,27 +24,28 @@ import AttributePanel from './AttributePanel';
 import SimilarPanel from './SimilarPanel';
 import RawPanel from './RawPanel';
 import FixPanel from './FixPanel';
+import TracePanel from './TracePanel';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BREADCRUMB NAVIGATION
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Breadcrumbs({ items, themeColor }) {
+function Breadcrumbs({ items, theme }) {
   return (
     <nav className="flex items-center gap-2 text-sm">
       {items.map((item, idx) => (
         <span key={idx} className="flex items-center gap-2">
-          {idx > 0 && <span className="text-slate-600">›</span>}
+          {idx > 0 && <span className="text-gray-600">›</span>}
           {item.href ? (
             <Link
               to={item.href}
-              className="text-slate-400 hover:text-slate-200 transition-colors"
+              className="text-gray-400 hover:text-gray-200 transition-colors"
             >
               {item.icon && <span className="mr-1">{item.icon}</span>}
               {item.label}
             </Link>
           ) : (
-            <span style={{ color: themeColor }}>
+            <span className={theme.text}>
               {item.icon && <span className="mr-1">{item.icon}</span>}
               {item.label}
             </span>
@@ -59,22 +60,20 @@ function Breadcrumbs({ items, themeColor }) {
 // TAB BUTTON
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TabButton({ active, onClick, children, badge, themeColor }) {
+function TabButton({ active, onClick, children, badge, theme }) {
   return (
     <button
       onClick={onClick}
       className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
         active
-          ? 'bg-slate-800/50'
-          : 'text-slate-400 border-transparent hover:text-slate-200 hover:border-slate-600'
+          ? `bg-gray-800/50 ${theme.text} ${theme.border}`
+          : 'text-gray-400 border-transparent hover:text-gray-200 hover:border-gray-600'
       }`}
-      style={active ? { color: themeColor, borderColor: themeColor } : {}}
     >
       {children}
       {badge != null && (
         <span
-          className="ml-2 px-2 py-0.5 text-white text-xs rounded-full"
-          style={{ backgroundColor: themeColor }}
+          className={`ml-2 px-2 py-0.5 text-white text-xs rounded-full ${theme.bg}`}
         >
           {badge}
         </span>
@@ -87,12 +86,25 @@ function TabButton({ active, onClick, children, badge, themeColor }) {
 // MAIN SHELL COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Default theme fallback (orange/latency)
+const DEFAULT_THEME = {
+  color: '#f97316',
+  text: 'text-orange-400',
+  bg: 'bg-orange-600',
+  bgLight: 'bg-orange-900/30',
+  border: 'border-orange-500',
+  borderLight: 'border-orange-500/30',
+  dividerGlow: 'shadow-[0_0_10px_rgba(249,115,22,0.5)]',
+};
+
 export default function Layer3Shell({
   // Story config
   storyId,
   storyLabel,
   storyIcon,
-  themeColor = '#f97316', // Default orange
+  theme = DEFAULT_THEME, // Full theme object with Tailwind classes
+
+  visibleTabs = ['diagnose', 'attribute', 'trace', 'similar', 'raw', 'fix'], // Default: all tabs
   
   // Entity info (call or pattern)
   entityId,
@@ -100,6 +112,9 @@ export default function Layer3Shell({
   entityLabel, // e.g., "ResumeMatching.deep_analyze_job"
   entitySubLabel, // e.g., "Dec 19, 2024 at 2:34 PM"
   entityMeta, // e.g., "openai / gpt-4o"
+  
+  // Full data object (NEW - for TracePanel to access)
+  data = null,
   
   // Breadcrumb items (optional - will auto-generate if not provided)
   breadcrumbs = null,
@@ -122,6 +137,9 @@ export default function Layer3Shell({
   
   // Attribute panel props
   attributeProps = {},
+
+  // Trace panel props
+  traceProps = {},  // { callId, conversationId, chatHistoryBreakdown }
   
   // Similar panel props
   similarProps = {},
@@ -141,6 +159,15 @@ export default function Layer3Shell({
   // Loading state
   loading = false,
 }) {
+
+  console.log('🟢 Layer3Shell:', {
+    storyId,
+    hasData: !!data,
+    dataKeys: data ? Object.keys(data).slice(0, 10) : [],
+    systemPromptTokens: data?.system_prompt_tokens,
+    cacheableTokens: data?.cacheable_tokens,
+  });
+
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('diagnose');
   const [implementedFixes, setImplementedFixes] = useState([]);
@@ -165,26 +192,31 @@ export default function Layer3Shell({
   const hasAIAnalysis = entityType === 'call' || !!aiCallId;
   const fixBadge = fixes.length > 0 ? fixes.length : (hasAIAnalysis ? '🤖' : null);
   
-  const tabs = [
+  // Define ALL possible tabs
+  const allTabs = [
     { id: 'diagnose', label: 'DIAGNOSE' },
     { id: 'attribute', label: 'ATTRIBUTE' },
     { id: 'similar', label: 'SIMILAR' },
+    { id: 'trace', label: 'TRACE' },
     { id: 'raw', label: 'RAW' },
     { id: 'fix', label: 'FIX', badge: fixBadge },
   ];
 
+  // ⭐ Filter to only show visible tabs
+  const tabs = allTabs.filter(tab => visibleTabs.includes(tab.id));
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
-        <div className="max-w-6xl mx-auto">
+      <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
+        <div className="max-w-7xl mx-auto">
           <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-slate-800 rounded w-1/3" />
+            <div className="h-8 bg-gray-800 rounded w-1/3" />
             <div className="grid grid-cols-4 gap-4">
               {[1, 2, 3, 4].map(i => (
-                <div key={i} className="h-24 bg-slate-800 rounded-lg" />
+                <div key={i} className="h-24 bg-gray-800 rounded-lg" />
               ))}
             </div>
-            <div className="h-64 bg-slate-800 rounded-lg" />
+            <div className="h-64 bg-gray-800 rounded-lg" />
           </div>
         </div>
       </div>
@@ -192,24 +224,21 @@ export default function Layer3Shell({
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
+      <div className="max-w-7xl mx-auto">
         
         {/* Top Navigation Bar - Breadcrumbs + Queue Button */}
         <div className="flex justify-between items-center mb-6">
-          <Breadcrumbs items={breadcrumbItems} themeColor={themeColor} />
-          
+          <Breadcrumbs items={breadcrumbItems} theme={theme} />
+
           <Link
             to="/optimization"
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-sm transition-colors"
           >
             <span>🔧</span>
             <span>Queue</span>
             {queueCount != null && (
-              <span 
-                className="px-2 py-0.5 text-white text-xs rounded-full"
-                style={{ backgroundColor: themeColor }}
-              >
+              <span className={`px-2 py-0.5 text-white text-xs rounded-full ${theme.bg}`}>
                 {queueCount}
               </span>
             )}
@@ -220,24 +249,22 @@ export default function Layer3Shell({
         <div className="mb-6">
           <div className="flex items-start justify-between">
             <div>
-              <h1 
-                className="text-2xl font-bold flex items-center gap-2"
-                style={{ color: themeColor }}
-              >
+              <h1 className={`text-3xl font-bold flex items-center gap-3 ${theme.text}`}>
+                <span className="text-4xl">{storyIcon}</span>
                 {storyIcon} {storyLabel}
               </h1>
               {entityLabel && (
-                <p className="text-slate-400 font-mono mt-1">{entityLabel}</p>
+                <p className="text-gray-400 font-mono mt-1">{entityLabel}</p>
               )}
               {(entitySubLabel || entityMeta) && (
-                <p className="text-slate-500 text-sm mt-1">
+                <p className="text-gray-500 text-sm mt-1">
                   {entitySubLabel}
                   {entitySubLabel && entityMeta && ' • '}
                   {entityMeta}
                 </p>
               )}
             </div>
-            <code className="text-sm text-slate-500 bg-slate-900 px-3 py-2 rounded-lg">
+            <code className="text-sm text-gray-500 bg-gray-900 px-3 py-2 rounded-lg">
               {entityId?.substring(0, 12)}...
             </code>
           </div>
@@ -247,29 +274,23 @@ export default function Layer3Shell({
         {kpis.length > 0 && (
           <div className={`grid gap-3 mb-6 ${kpis.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
             {kpis.map((kpi, idx) => (
-              <KPICard key={idx} {...kpi} themeColor={themeColor} />
+              <KPICard key={idx} {...kpi} theme={theme} />
             ))}
           </div>
         )}
 
         {/* Accent Bar */}
-        <div 
-          className="h-1 rounded-full mb-6"
-          style={{ 
-            background: `linear-gradient(to right, ${themeColor}, ${themeColor}50)`,
-            boxShadow: `0 0 10px ${themeColor}80`,
-          }}
-        />
+        <div className={`h-1 rounded-full mb-6 ${theme.bg} ${theme.dividerGlow}`} />
 
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-slate-700 mb-6">
+        <div className="flex gap-1 border-b border-gray-700 mb-6">
           {tabs.map(tab => (
             <TabButton
               key={tab.id}
               active={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               badge={tab.badge}
-              themeColor={themeColor}
+              theme={theme}
             >
               {tab.label}
             </TabButton>
@@ -277,7 +298,7 @@ export default function Layer3Shell({
         </div>
 
         {/* Panel Content */}
-        <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-6">
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
           {activeTab === 'diagnose' && (
             <DiagnosePanel
               {...diagnoseProps}
@@ -286,6 +307,13 @@ export default function Layer3Shell({
           )}
           {activeTab === 'attribute' && (
             <AttributePanel {...attributeProps} />
+          )}
+          {activeTab === 'trace' && (
+            <TracePanel 
+              {...traceProps}
+              storyType={storyId}
+              data={data}
+            />
           )}
           {activeTab === 'similar' && (
             <SimilarPanel 
@@ -306,7 +334,6 @@ export default function Layer3Shell({
               // Pass entity info for AI Analysis
               entityId={entityId}
               entityType={entityType}
-              themeColor={themeColor}
               // Pass response text for before/after comparison
               responseText={responseText}
               // Pass aiCallId for pattern-based AI Analysis

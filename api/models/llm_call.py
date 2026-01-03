@@ -110,7 +110,7 @@ class LLMCallResponse(BaseModel):
     trace_id: Optional[str] = None
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "call_123",
                 "session_id": "sess_456",
@@ -158,7 +158,7 @@ class LLMCallListResponse(BaseModel):
     filters_applied: Dict[str, Any] = Field(default_factory=dict)
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "calls": [],
                 "total": 175,

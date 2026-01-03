@@ -63,3 +63,10 @@ def get_quality_operation_detail_endpoint(
         )
     
     return result
+
+@router.get("/benchmarks/{call_id}")
+def get_quality_benchmarks_endpoint(call_id: str):
+    """Get quality comparison benchmarks for a call."""
+    from api.services.quality_service import get_quality_benchmarks
+    
+    return get_quality_benchmarks(call_id)

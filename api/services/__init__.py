@@ -8,8 +8,13 @@ All services return dicts for simplicity.
 Complete: All 8 stories implemented.
 """
 
-from .llm_call_service import get_detail as get_llm_call_detail
-from .llm_call_service import get_calls as get_llm_calls
+from .llm_call_service import (
+    get_detail as get_llm_call_detail,
+    get_calls as get_llm_calls,
+    get_calls_by_parent,           
+    get_calls_by_conversation,     
+    build_chat_history_breakdown,
+)
 
 # Story 1 - Latency Monster
 from .latency_service import get_summary as get_latency_summary
@@ -33,6 +38,7 @@ from .routing_service import (
 from .quality_service import (
     get_summary as get_quality_summary,
     get_operation_detail as get_quality_operation_detail,
+    get_quality_benchmarks,
 )
 
 # Story 5 - Token Efficiency
@@ -72,6 +78,9 @@ __all__ = [
     # Layer 3 - Call detail (shared by all stories)
     "get_llm_call_detail",
     "get_llm_calls",
+    "get_calls_by_parent",
+    "get_calls_by_conversation",
+    "build_chat_history_breakdown",
     
     # Story 1 - Latency Monster
     "get_latency_summary",
@@ -90,6 +99,7 @@ __all__ = [
     # Story 4 - Quality Monitoring
     "get_quality_summary",
     "get_quality_operation_detail",
+    "get_quality_benchmarks",
     
     # Story 5 - Token Efficiency
     "get_token_summary",

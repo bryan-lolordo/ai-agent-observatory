@@ -42,7 +42,7 @@ class TimeSeriesResponse(BaseModel):
     point_count: int
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "metric": "total_cost",
                 "aggregation": "day",
@@ -71,7 +71,7 @@ class MultiSeriesResponse(BaseModel):
     aggregation: Literal["hour", "day", "week"]
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "metric": "avg_latency_ms",
                 "series": {
@@ -107,7 +107,7 @@ class TrendAnalysis(BaseModel):
     data_points: int
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "metric": "total_cost",
                 "trend": "improving",
@@ -158,7 +158,7 @@ class ComparisonMetrics(BaseModel):
     significance_level: Optional[float] = None
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "current": {
                     "start_date": "2024-12-07T00:00:00Z",
@@ -216,7 +216,7 @@ class DistributionAnalysis(BaseModel):
     p99: float
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "metric": "latency_ms",
                 "buckets": [

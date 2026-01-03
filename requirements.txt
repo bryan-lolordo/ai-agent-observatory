@@ -46,6 +46,11 @@ python-dotenv>=1.0.0         # Environment variable management
 # psycopg2-binary>=2.9.0     # Uncomment for PostgreSQL instead of SQLite
 
 # =============================================================================
+# SEMANTIC CACHING
+# =============================================================================
+chromadb>=0.4.0               # Vector database with built-in embeddings
+
+# =============================================================================
 # DEVELOPMENT (Optional)
 # =============================================================================
  black>=23.0.0              # Code formatter

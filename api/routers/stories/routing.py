@@ -1,5 +1,5 @@
 """
-Story 3: Model Routing Router (UPDATED)
+Story 3: Model Routing Router
 Location: api/routers/stories/routing.py
 
 Layer 1: GET /api/stories/routing - Summary with opportunities

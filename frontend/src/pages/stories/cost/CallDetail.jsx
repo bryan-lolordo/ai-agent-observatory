@@ -135,7 +135,7 @@ function CostBreakdownBar({ breakdown }) {
     <div className="space-y-4">
       {/* Cost Bar */}
       <div>
-        <div className="h-10 bg-slate-700 rounded-full overflow-hidden flex">
+        <div className="h-10 bg-gray-700 rounded-full overflow-hidden flex">
           <div 
             className="bg-blue-500 flex items-center justify-center text-sm text-white font-medium"
             style={{ width: `${promptPct}%` }}
@@ -155,13 +155,13 @@ function CostBreakdownBar({ breakdown }) {
       <div className="flex gap-6 text-sm">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-blue-500 rounded" />
-          <span className="text-slate-400">
+          <span className="text-gray-400">
             Input: ${prompt.toFixed(3)} ({promptPct.toFixed(0)}%)
           </span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-purple-500 rounded" />
-          <span className="text-slate-400">
+          <span className="text-gray-400">
             Output: ${completion.toFixed(3)} ({completionPct.toFixed(0)}%)
           </span>
         </div>
@@ -177,43 +177,43 @@ function CostBreakdownBar({ breakdown }) {
 function AlternativeModelsTable({ currentModel, currentCost, alternatives }) {
   if (!alternatives || alternatives.length === 0) {
     return (
-      <div className="text-slate-500 text-sm">
+      <div className="text-gray-500 text-sm">
         No cheaper alternatives available for this task.
       </div>
     );
   }
   
   return (
-    <div className="bg-slate-900 rounded-lg overflow-hidden">
+    <div className="bg-gray-900 rounded-lg overflow-hidden">
       <table className="w-full text-sm">
-        <thead className="bg-slate-800">
+        <thead className="bg-gray-800">
           <tr>
-            <th className="text-left py-3 px-4 text-slate-400 font-medium">Model</th>
-            <th className="text-right py-3 px-4 text-slate-400 font-medium">Input/1K</th>
-            <th className="text-right py-3 px-4 text-slate-400 font-medium">Output/1K</th>
-            <th className="text-right py-3 px-4 text-slate-400 font-medium">Est. Cost</th>
-            <th className="text-right py-3 px-4 text-slate-400 font-medium">Savings</th>
-            <th className="text-right py-3 px-4 text-slate-400 font-medium">Quality</th>
+            <th className="text-left py-3 px-4 text-gray-400 font-medium">Model</th>
+            <th className="text-right py-3 px-4 text-gray-400 font-medium">Input/1K</th>
+            <th className="text-right py-3 px-4 text-gray-400 font-medium">Output/1K</th>
+            <th className="text-right py-3 px-4 text-gray-400 font-medium">Est. Cost</th>
+            <th className="text-right py-3 px-4 text-gray-400 font-medium">Savings</th>
+            <th className="text-right py-3 px-4 text-gray-400 font-medium">Quality</th>
           </tr>
         </thead>
         <tbody>
           {/* Current model row */}
-          <tr className="bg-amber-900/10 border-b border-slate-700">
+          <tr className="bg-amber-900/10 border-b border-gray-700">
             <td className="py-3 px-4 text-amber-400 font-medium">{currentModel} (current)</td>
-            <td className="py-3 px-4 text-right text-slate-300">—</td>
-            <td className="py-3 px-4 text-right text-slate-300">—</td>
-            <td className="py-3 px-4 text-right font-medium text-slate-200">${(currentCost || 0).toFixed(3)}</td>
-            <td className="py-3 px-4 text-right text-slate-500">—</td>
-            <td className="py-3 px-4 text-right text-slate-300">100%</td>
+            <td className="py-3 px-4 text-right text-gray-300">—</td>
+            <td className="py-3 px-4 text-right text-gray-300">—</td>
+            <td className="py-3 px-4 text-right font-medium text-gray-200">${(currentCost || 0).toFixed(3)}</td>
+            <td className="py-3 px-4 text-right text-gray-500">—</td>
+            <td className="py-3 px-4 text-right text-gray-300">100%</td>
           </tr>
           
           {/* Alternative models */}
           {alternatives.map((alt) => (
             <tr 
               key={alt.name} 
-              className="border-b border-slate-700 hover:bg-slate-800/50 cursor-pointer"
+              className="border-b border-gray-700 hover:bg-gray-800/50 cursor-pointer"
             >
-              <td className="py-3 px-4 text-slate-300">{alt.name}</td>
+              <td className="py-3 px-4 text-gray-300">{alt.name}</td>
               <td className="py-3 px-4 text-right text-green-400">${alt.input_price}</td>
               <td className="py-3 px-4 text-right text-green-400">${alt.output_price}</td>
               <td className="py-3 px-4 text-right font-medium text-green-400">

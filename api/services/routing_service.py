@@ -688,3 +688,271 @@ def _build_quality_histogram(scores: List[float]) -> List[Dict]:
         for score, count in sorted(buckets.items())
         if count > 0
     ]
+
+# =============================================================================
+# LAYER 3: DETAILED ROUTING ANALYSIS (for individual calls)
+# =============================================================================
+
+def analyze_call_routing(call: Dict) -> Dict[str, Any]:
+    """
+    Detailed routing analysis for a single call (Layer 3).
+    
+    Returns comprehensive analysis including:
+    - Routing verdict (optimal/overprovisioned/underprovisioned)
+    - Complexity breakdown by factors
+    - Alternative model comparisons
+    - Detailed reasoning
+    - Potential savings/costs
+    
+    This is READ-ONLY analysis - doesn't change actual routing.
+    """
+    # Extract basic info
+    current_model = call.get("model_name") or "unknown"
+    complexity = call.get("complexity_score")
+    
+    # Estimate complexity if not available
+    if complexity is None:
+        complexity = _estimate_complexity(call)
+    
+    quality = _get_quality_score(call)
+    is_cheap = _is_cheap_model(current_model)
+    
+    # Determine opportunity
+    opportunity = _classify_opportunity(complexity, quality, is_cheap)
+    
+    # Determine verdict (more specific than opportunity)
+    if opportunity == "keep":
+        verdict = "optimal"
+    elif opportunity == "downgrade":
+        verdict = "overprovisioned"
+    else:  # upgrade
+        verdict = "underprovisioned"
+    
+    # Build complexity breakdown
+    complexity_breakdown = _build_complexity_breakdown(call, complexity)
+    
+    # Get suggested model
+    suggested_model = _suggest_model(opportunity, current_model)
+    
+    # Build alternatives table
+    alternatives = _build_alternatives_table(call, current_model, suggested_model)
+    
+    # Calculate savings/cost impact
+    current_cost = call.get("total_cost") or 0
+    if opportunity == "downgrade":
+        potential_savings = current_cost * 0.90  # 90% savings
+        quality_impact = "-10%"  # Slight quality drop
+    elif opportunity == "upgrade":
+        potential_savings = -current_cost * 15  # Costs 16x more
+        quality_impact = "+15%"  # Better quality
+    else:
+        potential_savings = 0
+        quality_impact = "0%"
+    
+    # Build reasoning text
+    reasoning = _build_routing_reasoning(
+        complexity, quality, current_model, suggested_model, opportunity
+    )
+    
+    return {
+        "verdict": verdict,
+        "current_model": current_model,
+        "suggested_model": suggested_model,
+        "complexity_score": complexity,
+        "complexity_breakdown": complexity_breakdown,
+        "alternatives": alternatives,
+        "reasoning": reasoning,
+        "potential_savings_usd": round(potential_savings, 4),
+        "quality_impact": quality_impact,
+        "opportunity": opportunity,
+    }
+
+
+def _build_complexity_breakdown(call: Dict, complexity: Optional[float]) -> Dict[str, Any]:
+    """
+    Break down complexity into components.
+    
+    Returns dict with factors like input_length, output_length, reasoning_depth, etc.
+    """
+    prompt_tokens = call.get("prompt_tokens") or 0
+    completion_tokens = call.get("completion_tokens") or 0
+    operation = call.get("operation") or ""
+    tool_call_count = call.get("tool_call_count") or 0
+    
+    # Calculate individual factors
+    factors = {}
+    
+    # Input length factor
+    input_score = min(prompt_tokens / 2000, 1.0)
+    factors["input_length"] = {
+        "value": round(input_score, 2),
+        "label": f"{prompt_tokens} tokens"
+    }
+    
+    # Output length factor
+    output_score = min(completion_tokens / 500, 1.0)
+    factors["output_length"] = {
+        "value": round(output_score, 2),
+        "label": f"{completion_tokens} tokens"
+    }
+    
+    # Reasoning depth (based on operation name and output/input ratio)
+    reasoning_keywords = ["analyze", "deep", "refine", "improve", "critique"]
+    has_reasoning = any(kw in operation.lower() for kw in reasoning_keywords)
+    
+    if completion_tokens > 0 and prompt_tokens > 0:
+        output_ratio = completion_tokens / prompt_tokens
+        reasoning_score = min(output_ratio / 0.5, 1.0) if has_reasoning else min(output_ratio / 1.0, 0.5)
+    else:
+        reasoning_score = 0.5 if has_reasoning else 0.1
+    
+    factors["reasoning_depth"] = {
+        "value": round(reasoning_score, 2),
+        "label": "Deep analysis" if has_reasoning else "Simple task"
+    }
+    
+    # Tool usage factor
+    tool_score = min(tool_call_count / 5, 1.0)
+    factors["tool_usage"] = {
+        "value": round(tool_score, 2),
+        "label": f"{tool_call_count} tool calls" if tool_call_count else "No tools"
+    }
+    
+    # Domain knowledge (based on operation type)
+    domain_ops = ["analyze_job", "match_resume", "critique", "judge"]
+    requires_domain = any(op in operation.lower() for op in domain_ops)
+    domain_score = 0.6 if requires_domain else 0.2
+    
+    factors["domain_knowledge"] = {
+        "value": round(domain_score, 2),
+        "label": "Domain-specific" if requires_domain else "General"
+    }
+    
+    return factors
+
+
+def _build_alternatives_table(
+    call: Dict,
+    current_model: str,
+    suggested_model: Optional[str]
+) -> List[Dict[str, Any]]:
+    """
+    Build alternatives table showing cost/quality trade-offs.
+    
+    Returns list of alternative models with estimated metrics.
+    """
+    prompt_tokens = call.get("prompt_tokens") or 0
+    completion_tokens = call.get("completion_tokens") or 0
+    current_cost = call.get("total_cost") or 0
+    
+    # Define model options with cost multipliers
+    model_options = [
+        {
+            "model": "gpt-3.5-turbo",
+            "cost_multiplier": 0.1,
+            "quality_multiplier": 0.85,
+            "latency_delta": "-50%"
+        },
+        {
+            "model": "gpt-4o-mini",
+            "cost_multiplier": 1.0,
+            "quality_multiplier": 0.90,
+            "latency_delta": "0%"
+        },
+        {
+            "model": "gpt-4o",
+            "cost_multiplier": 16.0,
+            "quality_multiplier": 1.0,
+            "latency_delta": "+20%"
+        },
+    ]
+    
+    alternatives = []
+    
+    for option in model_options:
+        model = option["model"]
+        
+        # Estimate cost
+        if current_cost > 0:
+            estimated_cost = current_cost * option["cost_multiplier"]
+        else:
+            # Fallback calculation
+            pricing = MODEL_COSTS.get(model, MODEL_COSTS["gpt-4o-mini"])
+            input_cost = (prompt_tokens / 1000) * pricing["input"]
+            output_cost = (completion_tokens / 1000) * pricing["output"]
+            estimated_cost = input_cost + output_cost
+        
+        # Estimate quality as percentage
+        estimated_quality = f"~{int(option['quality_multiplier'] * 100)}%"
+        
+        # Determine verdict
+        is_current = model.lower() in current_model.lower()
+        is_suggested = suggested_model and model.lower() in suggested_model.lower()
+        
+        if is_suggested:
+            verdict = "BEST"
+        elif is_current:
+            verdict = "CURRENT"
+        elif option["cost_multiplier"] > 1.0:
+            verdict = "EXPENSIVE"
+        else:
+            verdict = "CHEAPER"
+        
+        alternatives.append({
+            "model": model,
+            "estimated_cost": round(estimated_cost, 4),
+            "estimated_quality": estimated_quality,
+            "latency_delta": option["latency_delta"],
+            "verdict": verdict
+        })
+    
+    # Sort by cost
+    alternatives.sort(key=lambda x: x["estimated_cost"])
+    
+    return alternatives
+
+
+def _build_routing_reasoning(
+    complexity: Optional[float],
+    quality: Optional[float],
+    current_model: str,
+    suggested_model: Optional[str],
+    opportunity: str
+) -> str:
+    """Build human-readable reasoning for routing decision."""
+    
+    if opportunity == "keep":
+        if complexity is None:
+            return f"Using {current_model} - unable to assess complexity"
+        elif complexity < THRESHOLDS["complexity_low"]:
+            return f"Using {current_model} for low complexity task ({complexity:.2f}) - optimal for speed/cost balance"
+        elif complexity < THRESHOLDS["complexity_high"]:
+            return f"Using {current_model} for medium complexity task ({complexity:.2f}) - well-matched"
+        else:
+            return f"Using {current_model} for high complexity task ({complexity:.2f}) - appropriate premium model"
+    
+    elif opportunity == "downgrade":
+        reasons = []
+        
+        if complexity is not None and complexity < THRESHOLDS["complexity_low"]:
+            reasons.append(f"Low complexity ({complexity:.2f})")
+        
+        if quality is not None and quality >= THRESHOLDS["quality_good"]:
+            reasons.append(f"High quality already achieved ({quality:.1f}/10)")
+        
+        reasons.append("Task doesn't require premium model")
+        
+        return f"{current_model} is overprovisioned. {' • '.join(reasons)}. Switching to {suggested_model} could save 90% with minimal quality impact."
+    
+    else:  # upgrade
+        reasons = []
+        
+        if complexity is not None and complexity >= THRESHOLDS["complexity_high"]:
+            reasons.append(f"High complexity ({complexity:.2f})")
+        
+        if quality is not None and quality < THRESHOLDS["quality_good"]:
+            reasons.append(f"Below-target quality ({quality:.1f}/10)")
+        
+        reasons.append("Task requires more capable model")
+        
+        return f"{current_model} is underprovisioned. {' • '.join(reasons)}. Upgrading to {suggested_model} would improve quality by ~15%."

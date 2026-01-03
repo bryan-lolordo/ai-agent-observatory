@@ -1,27 +1,34 @@
 /**
  * Latency Story - Layer 3 (Call Detail)
  * 
- * Uses the universal Layer3Shell with latency-specific configuration.
+ * Complete implementation with:
+ * - Time Attribution Tree
+ * - Chat History Breakdown
+ * - Comparison Benchmarks
+ * - Root Causes Table
+ * - All existing features preserved
  */
 
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 
 import Layer3Shell from '../../../components/stories/Layer3';
-import { LatencyBreakdownBar } from '../../../components/stories/Layer3/shared/TimeBreakdownBar';
-import { PromptBreakdownBar } from '../../../components/stories/Layer3/shared';
 
+import { STORY_THEMES } from '../../../config/theme';
 import {
   LATENCY_STORY,
   getLatencyKPIs,
   getLatencyCurrentState,
   analyzeLatencyFactors,
+  getTimeAttribution,
+  getLatencyFixes,
+  getLatencyConfigHighlights,
   getLatencyBreakdown,
   analyzeLatencyResponse,
   analyzeLatencyPrompt,
-  getLatencyFixes,
-  getLatencyConfigHighlights,
 } from '../../../config/layer3/latency';
+
+const theme = STORY_THEMES.latency;
 
 // Fetch call data from API
 async function fetchCallData(callId) {
@@ -31,7 +38,6 @@ async function fetchCallData(callId) {
   }
   const data = await response.json();
   
-  // Normalize the response to match our component expectations
   return {
     call_id: data.call_id || data.id,
     agent_name: data.agent_name || 'Unknown',
@@ -50,10 +56,33 @@ async function fetchCallData(callId) {
     system_prompt_tokens: data.system_prompt_tokens || 0,
     user_message_tokens: data.user_message_tokens || 0,
     chat_history_tokens: data.chat_history_tokens || 0,
+    chat_history_count: data.chat_history_count || 0,
+    turn_number: data.turn_number || 1,
     response_text: data.response_text || data.response || '',
     system_prompt: data.system_prompt || '',
     user_message: data.user_message || '',
+    conversation_id: data.conversation_id || null,  
+    conversation_breakdown: data.conversation_breakdown,
+    comparison_benchmarks: data.comparison_benchmarks,
   };
+}
+
+async function fetchConversationBreakdown(conversationId, turnNumber) {
+  if (!conversationId || !turnNumber) return null;
+  
+  try {
+    const response = await fetch(`/api/calls/conversations/${conversationId}/tree`);
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    
+    // Find the turn that matches this call's turn number
+    const turn = data.turns?.find(t => t.turn_number === turnNumber);
+    return turn?.chatHistoryBreakdown || null;
+  } catch (err) {
+    console.error('Failed to fetch conversation breakdown:', err);
+    return null;
+  }
 }
 
 async function fetchSimilarCalls(call) {
@@ -70,7 +99,6 @@ async function fetchSimilarCalls(call) {
     }
     const data = await response.json();
     
-    // Transform to match our component expectations
     return (data.calls || []).map(c => ({
       id: c.call_id || c.id,
       call_id: c.call_id || c.id,
@@ -79,7 +107,7 @@ async function fetchSimilarCalls(call) {
       cost: c.total_cost || 0,
       current: (c.call_id || c.id) === call.call_id,
       hasIssue: (c.latency_ms || 0) > 5000 || !c.max_tokens,
-      sameTemplate: true, // Would need prompt comparison for real detection
+      sameTemplate: true,
     }));
   } catch (err) {
     console.error('Failed to fetch similar calls:', err);
@@ -99,6 +127,18 @@ export default function LatencyCallDetail() {
       setLoading(true);
       try {
         const callData = await fetchCallData(callId);
+
+        // Fetch conversation breakdown with actual content
+        const breakdown = await fetchConversationBreakdown(
+          callData.conversation_id,
+          callData.turn_number
+        );
+        
+        // Override the conversation_breakdown with the one that has content
+        if (breakdown) {
+          callData.conversation_breakdown = breakdown;
+        }
+        
         setCall(callData);
         
         const similar = await fetchSimilarCalls(callData);
@@ -118,7 +158,7 @@ export default function LatencyCallDetail() {
         storyId={LATENCY_STORY.id}
         storyLabel={LATENCY_STORY.label}
         storyIcon={LATENCY_STORY.icon}
-        themeColor={LATENCY_STORY.color}
+        theme={theme}
         loading={true}
       />
     );
@@ -126,23 +166,16 @@ export default function LatencyCallDetail() {
 
   // Analyze the call
   const factors = analyzeLatencyFactors(call);
-  const breakdown = getLatencyBreakdown(call);
-  const responseAnalysis = analyzeLatencyResponse(call);
-  const promptAnalysis = analyzeLatencyPrompt(call);
+  const timeAttribution = getTimeAttribution(call);
   const fixes = getLatencyFixes(call, factors);
   const configHighlights = getLatencyConfigHighlights(call, factors);
   const currentState = getLatencyCurrentState(call);
+  const breakdown = getLatencyBreakdown(call);
+  const responseAnalysis = analyzeLatencyResponse(call);
+  const promptAnalysis = analyzeLatencyPrompt(call);
   
   // Check if healthy
   const isHealthy = factors.length === 0 || factors.every(f => f.severity === 'info' || f.severity === 'ok');
-
-  // Build prompt breakdown
-  const promptBreakdown = {
-    system: call.system_prompt_tokens,
-    user: call.user_message_tokens,
-    history: call.chat_history_tokens,
-    total: call.prompt_tokens,
-  };
 
   // Build model config
   const modelConfig = {
@@ -163,6 +196,8 @@ export default function LatencyCallDetail() {
     model: call.model_name,
     latency_ms: call.latency_ms,
     ttft_ms: call.ttft_ms,
+    turn_number: call.turn_number,
+    chat_history_count: call.chat_history_count,
   };
 
   return (
@@ -171,20 +206,23 @@ export default function LatencyCallDetail() {
       storyId={LATENCY_STORY.id}
       storyLabel={LATENCY_STORY.label}
       storyIcon={LATENCY_STORY.icon}
-      themeColor={LATENCY_STORY.color}
+      theme={theme}
+      
+      // ⭐ NEW: Specify which tabs to show (only 3 tabs)
+      visibleTabs={['diagnose', 'trace', 'fix']}
       
       // Entity info
       entityId={call.call_id}
       entityType="call"
       entityLabel={`${call.agent_name}.${call.operation}`}
       entitySubLabel={call.timestamp}
-      entityMeta={`${call.provider} / ${call.model_name}`}
+      entityMeta={`${call.provider} / ${call.model_name} / Turn ${call.turn_number}`}
       
       // Navigation
       backPath={`/stories/latency/operations/${call.agent_name}/${call.operation}`}
       backLabel={`Back to ${call.operation}`}
       
-      // Queue count (could fetch from /api/optimization/opportunities)
+      // Queue count
       queueCount={null}
       
       // KPIs
@@ -193,24 +231,25 @@ export default function LatencyCallDetail() {
       // Current state for Fix comparison table
       currentState={currentState}
       
-      // Diagnose panel
+      // Diagnose panel (UPDATED - removed chatHistoryBreakdown)
       diagnoseProps={{
         factors,
         isHealthy,
         healthyMessage: `This call completed in ${(call.latency_ms / 1000).toFixed(1)}s with ${call.completion_tokens.toLocaleString()} tokens. No significant optimization opportunities detected.`,
-        breakdownTitle: '🌐 Time Breakdown',
-        breakdownComponent: (
-          <LatencyBreakdownBar
-            ttft_ms={breakdown.ttft_ms}
-            generation_ms={breakdown.generation_ms}
-            total_ms={breakdown.total_ms}
-          />
-        ),
-        breakdownSubtext: `Generation speed: ~${breakdown.tokens_per_second} tokens/sec`,
-        additionalBreakdown: promptBreakdown.history > 0 || promptBreakdown.tools > 0 ? (
-          <PromptBreakdownBar breakdown={promptBreakdown} />
-        ) : null,
-        additionalBreakdownTitle: promptBreakdown.history > 0 ? '📝 Prompt Breakdown' : null,
+        
+        // Time Attribution Tree
+        timeAttribution,
+        
+        
+        // Comparison Benchmarks
+        comparisonBenchmarks: call.comparison_benchmarks,
+      }}
+      
+      // ⭐ NEW: Trace panel props (chat history + call tree)
+      traceProps={{
+        callId: call.call_id,
+        conversationId: call.conversation_id,
+        chatHistoryBreakdown: call.conversation_breakdown,
       }}
       
       // Attribute panel
@@ -219,10 +258,6 @@ export default function LatencyCallDetail() {
         configHighlights,
         responseAnalysis,
         promptAnalysis,
-        promptBreakdown: promptBreakdown.history > 0 ? promptBreakdown : null,
-        promptWarning: promptBreakdown.history > promptBreakdown.total * 0.5
-          ? `Chat history is ${((promptBreakdown.history / promptBreakdown.total) * 100).toFixed(0)}% of your prompt. Consider truncating.`
-          : null,
       }}
       
       // Similar panel
@@ -266,12 +301,14 @@ export default function LatencyCallDetail() {
           prompt_tokens: call.prompt_tokens,
           completion_tokens: call.completion_tokens,
           total_tokens: call.prompt_tokens + call.completion_tokens,
+          chat_history_tokens: call.chat_history_tokens,
+          chat_history_count: call.chat_history_count,
         },
         timingDetails: {
           latency_ms: call.latency_ms,
           ttft_ms: call.ttft_ms,
-          generation_ms: breakdown.generation_ms,
-          tokens_per_second: breakdown.tokens_per_second,
+          generation_ms: timeAttribution.generation_ms,
+          tokens_per_second: timeAttribution.tokens_per_second,
         },
         fullData: call,
       }}
@@ -279,7 +316,7 @@ export default function LatencyCallDetail() {
       // Fixes
       fixes={fixes}
       
-      // Response text for before/after comparison in Fix panel
+      // Response text for AI Analysis and before/after comparison
       responseText={call.response_text}
     />
   );

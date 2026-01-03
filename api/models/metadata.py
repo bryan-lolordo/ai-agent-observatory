@@ -59,7 +59,7 @@ class ProjectsResponse(BaseModel):
     total: int
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "projects": [
                     {
@@ -80,7 +80,7 @@ class ModelsResponse(BaseModel):
     total: int
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "models": [
                     {
@@ -102,7 +102,7 @@ class AgentsResponse(BaseModel):
     total: int
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "agents": [
                     {
@@ -124,7 +124,7 @@ class OperationsResponse(BaseModel):
     total: int
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "operations": [
                     {

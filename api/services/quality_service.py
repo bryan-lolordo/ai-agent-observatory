@@ -10,6 +10,7 @@ Layer 3: Shared CallDetail (uses llm_call_service.py)
 from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict
 from datetime import datetime
+from observatory.storage import ObservatoryStorage
 
 # =============================================================================
 # CONSTANTS & THRESHOLDS
@@ -28,16 +29,27 @@ THRESHOLDS = {
 # HELPER FUNCTIONS
 # =============================================================================
 
-def _get_quality_score(call: Dict) -> Optional[float]:
-    """Get quality score from call data."""
-    # Try extracted column first
-    if call.get("judge_score") is not None:
-        return call["judge_score"]
+def _get_quality_score(call) -> Optional[float]:
+    """Extract quality score from call (handles both dict and object)."""
+    # Try direct attribute first (new extracted column)
+    if hasattr(call, 'judge_score') and call.judge_score is not None:
+        return call.judge_score
     
-    # Try quality_evaluation JSON
-    quality = call.get("quality_evaluation") or {}
-    if isinstance(quality, dict):
-        return quality.get("judge_score")
+    # Try dict access
+    if isinstance(call, dict):
+        if 'judge_score' in call and call['judge_score'] is not None:
+            return call['judge_score']
+        
+        # Fallback to nested quality_evaluation
+        if 'quality_evaluation' in call and call['quality_evaluation']:
+            qe = call['quality_evaluation']
+            if isinstance(qe, dict) and 'judge_score' in qe:
+                return qe['judge_score']
+    
+    # Try nested quality_evaluation object
+    if hasattr(call, 'quality_evaluation') and call.quality_evaluation:
+        if hasattr(call.quality_evaluation, 'judge_score'):
+            return call.quality_evaluation.judge_score
     
     return None
 
@@ -465,4 +477,79 @@ def get_operation_detail(
         
         # Histogram
         "quality_distribution": quality_distribution,
+    }
+
+def get_quality_benchmarks(call_id: str) -> Dict[str, Any]:
+    """Get quality comparison benchmarks for a call."""
+    
+    # Get current call
+    current_call_obj = ObservatoryStorage.get_llm_call_by_id(call_id)
+    
+    if not current_call_obj:
+        return {"available": False, "reason": "Call not found"}
+    
+    current_score = _get_quality_score(current_call_obj)
+    
+    if current_score is None:
+        return {"available": False, "reason": "No quality score for this call"}
+    
+    if not current_call_obj.operation:
+        return {"available": False, "reason": "No operation context"}
+    
+    # Get all calls for same operation (no time filter - respect frontend filter)
+    try:
+        operation_calls = ObservatoryStorage.get_llm_calls(
+            agent_name=current_call_obj.agent_name,
+            operation=current_call_obj.operation,
+            limit=1000,  # Increased limit
+        )
+    except Exception as e:
+        return {"available": False, "reason": f"Database error: {str(e)}"}
+    
+    if len(operation_calls) < 2:
+        return {"available": False, "reason": "Not enough calls for comparison"}
+    
+    # Filter to calls with quality scores
+    scored_calls = []
+    for c in operation_calls:
+        if c.id == call_id:
+            continue
+        score = _get_quality_score(c)
+        if score is not None:
+            scored_calls.append({
+                "id": c.id,
+                "score": score,
+                "timestamp": c.timestamp,
+            })
+    
+    if len(scored_calls) == 0:
+        return {"available": False, "reason": "No other scored calls"}
+    
+    # Find highest score
+    highest = max(scored_calls, key=lambda x: x["score"])
+    
+    # Calculate median
+    all_scores = [c["score"] for c in scored_calls] + [current_score]
+    all_scores.sort()
+    median_score = all_scores[len(all_scores) // 2]
+    
+    return {
+        "available": True,
+        "current": {
+            "call_id": call_id,
+            "score": current_score,
+            "operation": current_call_obj.operation,
+        },
+        "highest_same_operation": {
+            "call_id": highest["id"],
+            "score": highest["score"],
+            "better_by": round(highest["score"] / current_score, 1) if current_score > 0 else 0,
+            "timestamp": highest["timestamp"].isoformat() if highest["timestamp"] else None,
+        },
+        "median_for_operation": {
+            "score": median_score,
+            "comparison": "worse" if current_score < median_score else "better",
+            "ratio": round(abs(current_score - median_score) / median_score, 1) if median_score > 0 else 0,
+        },
+        "total_calls_for_operation": len(scored_calls) + 1,
     }

@@ -6,6 +6,7 @@
  * - Lower thresholds for factor detection
  * - Fallback factors when criteria_scores not available
  * - More fix recommendations
+ * - QUALITY_CUSTOM_SECTIONS export added for DiagnosePanel
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -39,7 +40,7 @@ const THRESHOLDS = {
 
 function getScoreStatus(score) {
   if (score === null || score === undefined) {
-    return { status: 'unknown', emoji: '⚪', label: 'Not Evaluated', color: 'text-slate-400' };
+    return { status: 'unknown', emoji: '⚪', label: 'Not Evaluated', color: 'text-gray-400' };
   }
   if (score < THRESHOLDS.quality_critical) {
     return { status: 'critical', emoji: '🔴', label: 'Critical', color: 'text-red-400' };
@@ -358,11 +359,34 @@ export function getQualityCriteriaBreakdown(call) {
 export function getJudgeEvaluation(call) {
   const evaluation = extractQualityEvaluation(call);
   
+  // Extract issues from backend flags
+  const issues_found = [];
+  if (evaluation.hallucination_flag) {
+    issues_found.push("Hallucination detected");
+  }
+  if (evaluation.factual_error) {
+    issues_found.push("Contains factual errors");
+  }
+  if (evaluation.failure_reason) {
+    issues_found.push(evaluation.failure_reason);
+  }
+  
+  // Extract suggestions (backend has single string, not array)
+  const suggestions = [];
+  if (evaluation.improvement_suggestion) {
+    suggestions.push(evaluation.improvement_suggestion);
+  }
+  
+  // Return structured data matching what the UI expects
   return {
     reasoning: evaluation.reasoning || evaluation.judge_reasoning || null,
-    issues_found: evaluation.issues_found || evaluation.issues || [],
-    strengths: evaluation.strengths || [],
-    suggestions: evaluation.suggestions || evaluation.recommendations || [],
+    issues_found: issues_found,
+    strengths: [], // Backend doesn't track strengths separately
+    suggestions: suggestions,
+    confidence_score: evaluation.confidence_score || null,
+    evidence_cited: evaluation.evidence_cited || null,
+    judge_model: evaluation.judge_model || null,
+    hallucination_details: evaluation.hallucination_details || null,
   };
 }
 
@@ -781,3 +805,205 @@ export const QUALITY_RAW_CONFIG = {
     'modelConfig',
   ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CUSTOM DIAGNOSIS SECTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const QUALITY_CUSTOM_SECTIONS = [
+  // Section 1: Criteria Breakdown (progress bars)
+  {
+    title: '📊 Criteria Breakdown',
+    content: ({ callData }) => {
+      const criteriaBreakdown = getQualityCriteriaBreakdown(callData);
+      
+      if (criteriaBreakdown.length === 0) {
+        return (
+          <div className="bg-gray-800 rounded-lg p-4 text-center text-gray-500">
+            No detailed criteria scores available
+          </div>
+        );
+      }
+      
+      return (
+        <div className="space-y-4">
+          {criteriaBreakdown.map((criterion) => {
+            const percentage = (criterion.score / criterion.maxScore) * 100;
+            const colorClass = 
+              criterion.status === 'critical' ? 'bg-red-500' :
+              criterion.status === 'warning' ? 'bg-yellow-500' :
+              'bg-green-500';
+            
+            return (
+              <div key={criterion.key}>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <span className="text-gray-200 font-medium">{criterion.label}</span>
+                    <span className="text-gray-500 text-sm ml-2">— {criterion.description}</span>
+                  </div>
+                  <span className="text-gray-300 font-bold">
+                    {criterion.score.toFixed(1)}/{criterion.maxScore}
+                  </span>
+                </div>
+                <div className="bg-gray-700 rounded-full h-3 overflow-hidden">
+                  <div
+                    className={`h-full ${colorClass} transition-all`}
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+  },
+  
+  // Section 2: Judge Evaluation (reasoning, issues, strengths)
+  {
+    title: '🧠 Judge Evaluation',
+    content: ({ callData }) => {
+      const judgeEval = getJudgeEvaluation(callData);
+      
+      // Check if we have any evaluation data
+      const hasData = judgeEval.reasoning || 
+                      (judgeEval.issues_found && judgeEval.issues_found.length > 0) ||
+                      (judgeEval.strengths && judgeEval.strengths.length > 0) ||
+                      judgeEval.confidence_score !== null;
+      
+      if (!hasData) {
+        return (
+          <div className="bg-gray-800 rounded-lg p-4 text-center text-gray-500">
+            No judge evaluation available for this call
+          </div>
+        );
+      }
+      
+      return (
+        <div className="space-y-4">
+          {/* Judge Reasoning */}
+          {judgeEval.reasoning && (
+            <div>
+              <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">
+                🧠 Judge Reasoning
+              </h4>
+              <div className="bg-gray-900 rounded-lg p-4">
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  {judgeEval.reasoning}
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {/* Issues Found */}
+          {judgeEval.issues_found && judgeEval.issues_found.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-red-400 uppercase tracking-wide mb-2">
+                ⚠️ Issues Found ({judgeEval.issues_found.length})
+              </h4>
+              <div className="bg-red-900/10 border border-red-800 rounded-lg p-4">
+                <ul className="space-y-2">
+                  {judgeEval.issues_found.map((issue, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm text-red-300">
+                      <span className="text-red-400 mt-0.5">•</span>
+                      <span>{issue}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+          
+          {/* Hallucination Details (if present) */}
+          {judgeEval.hallucination_details && (
+            <div>
+              <h4 className="text-sm font-medium text-red-400 uppercase tracking-wide mb-2">
+                🚨 Hallucination Details
+              </h4>
+              <div className="bg-red-900/20 border border-red-800 rounded-lg p-4">
+                <p className="text-sm text-red-300 leading-relaxed">
+                  {judgeEval.hallucination_details}
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {/* Strengths */}
+          {judgeEval.strengths && judgeEval.strengths.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-green-400 uppercase tracking-wide mb-2">
+                ✅ Strengths ({judgeEval.strengths.length})
+              </h4>
+              <div className="bg-green-900/10 border border-green-800 rounded-lg p-4">
+                <ul className="space-y-2">
+                  {judgeEval.strengths.map((strength, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm text-green-300">
+                      <span className="text-green-400 mt-0.5">✓</span>
+                      <span>{strength}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+          
+          {/* Suggestions (if available) */}
+          {judgeEval.suggestions && judgeEval.suggestions.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-blue-400 uppercase tracking-wide mb-2">
+                💡 Suggestions ({judgeEval.suggestions.length})
+              </h4>
+              <div className="bg-blue-900/10 border border-blue-800 rounded-lg p-4">
+                <ul className="space-y-2">
+                  {judgeEval.suggestions.map((suggestion, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm text-blue-300">
+                      <span className="text-blue-400 mt-0.5">→</span>
+                      <span>{suggestion}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+          
+          {/* Metadata (Confidence, Evidence, Judge Model) */}
+          {(judgeEval.confidence_score !== null || judgeEval.evidence_cited !== null || judgeEval.judge_model) && (
+            <div>
+              <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">
+                📊 Evaluation Metadata
+              </h4>
+              <div className="bg-gray-900 rounded-lg p-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {judgeEval.confidence_score !== null && (
+                    <div>
+                      <div className="text-xs text-gray-500 mb-1">Confidence</div>
+                      <div className="text-sm text-gray-300 font-medium">
+                        {Math.round(judgeEval.confidence_score * 100)}%
+                      </div>
+                    </div>
+                  )}
+                  {judgeEval.evidence_cited !== null && (
+                    <div>
+                      <div className="text-xs text-gray-500 mb-1">Evidence Cited</div>
+                      <div className="text-sm text-gray-300 font-medium">
+                        {judgeEval.evidence_cited ? 'Yes' : 'No'}
+                      </div>
+                    </div>
+                  )}
+                  {judgeEval.judge_model && (
+                    <div className="col-span-2">
+                      <div className="text-xs text-gray-500 mb-1">Judge Model</div>
+                      <div className="text-sm text-gray-300 font-mono">
+                        {judgeEval.judge_model}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+  },
+];

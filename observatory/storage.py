@@ -6,7 +6,7 @@ import os
 import json
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, DateTime, JSON, Text, distinct
+from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, DateTime, JSON, Text, distinct, Index
 from sqlalchemy.orm import declarative_base, sessionmaker, Session as DBSession
 
 from observatory.models import (
@@ -93,8 +93,8 @@ class LLMCallDB(Base):
     
     # === EXISTING: CONVERSATION LINKING ===
     conversation_id = Column(String, nullable=True, index=True)
-    turn_number = Column(Integer, nullable=True)
-    parent_call_id = Column(String, nullable=True)
+    turn_number = Column(Integer, nullable=True, index=True) 
+    parent_call_id = Column(String, nullable=True, index=True)
     user_id = Column(String, nullable=True, index=True)
     
     # === EXISTING: MODEL CONFIGURATION ===
@@ -130,6 +130,9 @@ class LLMCallDB(Base):
     trace_id = Column(String, nullable=True, index=True)
     request_id = Column(String, nullable=True)
     environment = Column(String, nullable=True, index=True)
+    
+    # === PREFIX CACHE DETECTION ===
+    prompt_prefix_hash = Column(String, nullable=True, index=True)
     
     # === EXISTING: EXPERIMENT TRACKING ===
     experiment_id = Column(String, nullable=True, index=True)
@@ -199,6 +202,12 @@ class LLMCallDB(Base):
     test_dataset_id = Column(String, nullable=True, index=True)
     
     meta_data = Column(JSON, default={})
+
+    # Add this at the very end of the class, after meta_data
+    __table_args__ = (
+        Index('idx_conversation_turn', 'conversation_id', 'turn_number'),
+        Index('idx_conversation_timestamp', 'conversation_id', 'timestamp'),
+    )
 
 
 class Storage:
@@ -392,6 +401,7 @@ class Storage:
             trace_id=llm_call.trace_id,
             request_id=llm_call.request_id,
             environment=llm_call.environment,
+            prompt_prefix_hash=llm_call.prompt_prefix_hash,
             
             # Experiment tracking
             experiment_id=llm_call.experiment_id,
@@ -463,7 +473,17 @@ class Storage:
         
         prompt_breakdown = None
         if llm_call_db.prompt_breakdown:
-            prompt_breakdown = PromptBreakdown(**llm_call_db.prompt_breakdown)
+            breakdown_data = dict(llm_call_db.prompt_breakdown)
+            if llm_call_db.system_prompt and 'system_prompt' not in breakdown_data:
+                breakdown_data['system_prompt'] = llm_call_db.system_prompt
+            if llm_call_db.user_message and 'user_message' not in breakdown_data:
+                breakdown_data['user_message'] = llm_call_db.user_message
+            prompt_breakdown = PromptBreakdown(**breakdown_data)
+        elif llm_call_db.system_prompt or llm_call_db.user_message:
+            prompt_breakdown = PromptBreakdown(
+                system_prompt=llm_call_db.system_prompt,
+                user_message=llm_call_db.user_message,
+            )
         
         prompt_metadata = None
         if llm_call_db.prompt_metadata:
@@ -548,6 +568,9 @@ class Storage:
             trace_id=llm_call_db.trace_id,
             request_id=llm_call_db.request_id,
             environment=llm_call_db.environment,
+            
+            # Prefix cache detection
+            prompt_prefix_hash=llm_call_db.prompt_prefix_hash,
             
             # Experiment tracking
             experiment_id=llm_call_db.experiment_id,
@@ -638,6 +661,8 @@ class Storage:
         user_id: Optional[str] = None,
         experiment_id: Optional[str] = None,
         call_type: Optional[CallType] = None,
+        parent_call_id: Optional[str] = None,  
+        order_by: Optional[str] = None,        
         limit: int = 1000,
     ) -> List[LLMCall]:
         """Get LLM calls with optional filters."""
@@ -681,7 +706,28 @@ class Storage:
             if call_type:
                 query = query.filter(LLMCallDB.call_type == call_type.value)
 
-            query = query.order_by(LLMCallDB.timestamp.desc()).limit(limit)
+            # Parent call filter (for building call trees)
+            if parent_call_id:
+                query = query.filter(LLMCallDB.parent_call_id == parent_call_id)
+            
+            # Custom ordering (for trace trees and conversation views)
+            if order_by:
+                if order_by == "turn_number":
+                    query = query.order_by(LLMCallDB.turn_number.asc())
+                elif order_by == "timestamp_asc":
+                    query = query.order_by(LLMCallDB.timestamp.asc())
+                elif order_by == "timestamp_desc":
+                    query = query.order_by(LLMCallDB.timestamp.desc())
+                elif order_by == "latency_ms":
+                    query = query.order_by(LLMCallDB.latency_ms.desc())
+                elif order_by == "total_cost":
+                    query = query.order_by(LLMCallDB.total_cost.desc())
+                # Add more as needed
+            else:
+                # Default ordering (only if no custom order_by specified)
+                query = query.order_by(LLMCallDB.timestamp.desc())
+            
+            query = query.limit(limit)
             
             return [self._from_llm_call_db(c) for c in query.all()]
         finally:

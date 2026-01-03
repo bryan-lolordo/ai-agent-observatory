@@ -75,7 +75,26 @@ export function getLatencyCurrentState(call) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FACTOR DETECTION
+// TIME ATTRIBUTION (NEW)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function getTimeAttribution(call) {
+  const ttft_ms = call.ttft_ms || call.time_to_first_token_ms || (call.latency_ms * 0.1);
+  const generation_ms = call.latency_ms - ttft_ms;
+  const tokens_per_second = call.completion_tokens / (generation_ms / 1000);
+
+  return {
+    total_ms: call.latency_ms,
+    ttft_ms,
+    generation_ms,
+    completion_tokens: call.completion_tokens,
+    tokens_per_second,
+    expected_tokens_per_second: 20, // Expected baseline
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FACTOR DETECTION (ENHANCED)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function analyzeLatencyFactors(call) {
@@ -84,6 +103,21 @@ export function analyzeLatencyFactors(call) {
   const ttft_ms = call.ttft_ms || call.latency_ms * 0.1;
   const generation_ms = call.latency_ms - ttft_ms;
   const generation_pct = (generation_ms / call.latency_ms) * 100;
+
+  // Factor: Large chat history (PRIORITIZED for multi-turn)
+  if (call.chat_history_tokens && call.chat_history_tokens > call.prompt_tokens * 0.4) {
+    const pct = ((call.chat_history_tokens / call.prompt_tokens) * 100).toFixed(0);
+    const estimated_latency_impact = (call.chat_history_tokens / call.prompt_tokens) * call.latency_ms;
+    
+    factors.push({
+      id: 'large_history',
+      severity: call.chat_history_tokens > call.prompt_tokens * 0.6 ? 'critical' : 'warning',
+      label: `Chat History: ${call.chat_history_tokens.toLocaleString()} tokens (${pct}%)`,
+      impact: `+${(estimated_latency_impact / 1000).toFixed(0)}s (${((estimated_latency_impact / call.latency_ms) * 100).toFixed(0)}%)`,
+      description: `Conversation history accumulation is the primary driver of latency. Old turns from earlier in the conversation are still being processed but may not be necessary for the current response.`, // ✅ DETAILED
+      hasFix: true,
+    });
+  }
 
   // Factor: High completion tokens
   if (call.completion_tokens > 500) {
@@ -96,7 +130,7 @@ export function analyzeLatencyFactors(call) {
       severity,
       label: `Completion Tokens: ${call.completion_tokens.toLocaleString()}`,
       impact: `+${(generation_ms / 1000).toFixed(1)}s (${generation_pct.toFixed(0)}% of latency)`,
-      description: 'High token generation is driving latency.',
+      description: 'High token generation is driving latency. The model is producing a very long response which takes significant time to generate.', // ✅ DETAILED
       hasFix: true,
     });
   }
@@ -108,7 +142,7 @@ export function analyzeLatencyFactors(call) {
       severity: call.completion_tokens > 500 ? 'warning' : 'info',
       label: 'No max_tokens Limit',
       impact: 'Output length is unbounded',
-      description: 'Without a limit, the model decides generation length.',
+      description: 'Without a limit, the model decides generation length. This can lead to unexpectedly long responses and unpredictable latency. Setting max_tokens provides control over response length.', // ✅ DETAILED
       hasFix: true,
     });
   }
@@ -120,13 +154,13 @@ export function analyzeLatencyFactors(call) {
       severity: call.latency_ms > 5000 ? 'warning' : 'info',
       label: 'Streaming Disabled',
       impact: `User waits ${(call.latency_ms / 1000).toFixed(1)}s for response`,
-      description: 'Enable streaming for better perceived performance.',
+      description: 'Enable streaming for better perceived performance. Users can start reading the response immediately instead of waiting for the entire generation to complete.', // ✅ DETAILED
       hasFix: true,
     });
   }
 
-  // Factor: High prompt tokens
-  if (call.prompt_tokens > 2000) {
+  // Factor: High prompt tokens (only if NOT from chat history)
+  if (call.prompt_tokens > 2000 && (!call.chat_history_tokens || call.chat_history_tokens < call.prompt_tokens * 0.3)) {
     const severity =
       call.prompt_tokens > 8000 ? 'critical' :
       call.prompt_tokens > 4000 ? 'warning' : 'info';
@@ -136,20 +170,7 @@ export function analyzeLatencyFactors(call) {
       severity,
       label: `Prompt Tokens: ${call.prompt_tokens.toLocaleString()}`,
       impact: `+${(ttft_ms / 1000).toFixed(1)}s TTFT`,
-      description: 'Large prompts increase time to first token.',
-      hasFix: true,
-    });
-  }
-
-  // Factor: Large chat history
-  if (call.chat_history_tokens && call.chat_history_tokens > call.prompt_tokens * 0.4) {
-    const pct = ((call.chat_history_tokens / call.prompt_tokens) * 100).toFixed(0);
-    factors.push({
-      id: 'large_history',
-      severity: call.chat_history_tokens > call.prompt_tokens * 0.6 ? 'critical' : 'warning',
-      label: `Chat History: ${call.chat_history_tokens.toLocaleString()} tokens (${pct}%)`,
-      impact: 'Conversation history dominating input',
-      description: 'Long history increases processing time.',
+      description: 'Large prompts increase time to first token. The model needs to process all input tokens before generating the first output token, leading to higher perceived latency.', // ✅ DETAILED
       hasFix: true,
     });
   }
@@ -234,22 +255,25 @@ export function analyzeLatencyPrompt(call) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FIX DEFINITIONS (Enhanced with tradeoffs, benefits, output previews)
+// FIX DEFINITIONS (ENHANCED with Conversation Pruning)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function getLatencyFixes(call, factors) {
   const fixes = [];
   const breakdown = getLatencyBreakdown(call);
 
-  // Fix 1: Add max_tokens
-  if (factors.some(f => f.id === 'no_max_tokens' || f.id === 'high_completion_tokens')) {
-    const estimatedNewLatency = Math.round(call.latency_ms * 0.25);
-    const estimatedNewTokens = 500;
-    
+  // Fix 1: Truncate/Prune Conversation History (NEW - HIGH PRIORITY)
+  if (factors.some(f => f.id === 'large_history')) {
+    const chatHistory = call.chat_history_tokens || 0;
+    const pct = chatHistory > 0 ? (chatHistory / call.prompt_tokens) * 100 : 0;
+    const estimatedNewTokens = call.prompt_tokens - (chatHistory * 0.6); // Remove 60% of history
+    const estimatedNewLatency = call.latency_ms * (estimatedNewTokens / call.prompt_tokens);
+    const latencySavings = call.latency_ms - estimatedNewLatency;
+
     fixes.push({
-      id: 'add_max_tokens',
-      title: 'Add max_tokens=500',
-      subtitle: 'Quick Fix - Hard Limit',
+      id: 'truncate_history',
+      title: 'Prune Conversation History',
+      subtitle: 'Remove old turns (keep last 2)',
       effort: 'Low',
       effortColor: 'text-green-400',
       recommended: true,
@@ -259,162 +283,57 @@ export function getLatencyFixes(call, factors) {
           label: 'Latency',
           before: `${(call.latency_ms / 1000).toFixed(1)}s`,
           after: `~${(estimatedNewLatency / 1000).toFixed(1)}s`,
-          changePercent: -75,
+          changePercent: -Math.round((latencySavings / call.latency_ms) * 100),
         },
         {
           label: 'Tokens',
-          before: call.completion_tokens.toLocaleString(),
-          after: '500',
-          changePercent: -Math.round((1 - 500 / call.completion_tokens) * 100),
+          before: call.prompt_tokens.toLocaleString(),
+          after: Math.round(estimatedNewTokens).toLocaleString(),
+          changePercent: -Math.round(((chatHistory * 0.6) / call.prompt_tokens) * 100),
         },
         {
           label: 'Cost',
           before: `$${call.total_cost.toFixed(3)}`,
-          after: `$${(call.total_cost * 0.3).toFixed(3)}`,
-          changePercent: -70,
+          after: `$${(call.total_cost * (estimatedNewTokens / call.prompt_tokens)).toFixed(3)}`,
+          changePercent: -Math.round(((chatHistory * 0.6) / call.prompt_tokens) * 100),
         },
         {
           label: 'Quality',
-          before: 'Complete',
-          after: '⚠️ Truncated',
-          changePercent: 0,
-          status: 'warning',
-        },
-      ],
-      
-      codeBefore: `response = client.chat.completions.create(
-    model="${call.model_name || 'gpt-4o'}",
-    messages=messages,
-    temperature=${call.temperature || 0.7}
-)`,
-      codeAfter: `response = client.chat.completions.create(
-    model="${call.model_name || 'gpt-4o'}",
-    messages=messages,
-    temperature=${call.temperature || 0.7},
-    max_tokens=500  # Hard limit
-)`,
-      
-      outputPreview: `## Section 1: Skills Alignment
-The candidate demonstrates strong proficiency in several key areas 
-that align well with the position requirements. Specifically:
-- Python Development: 6+ years experience with Django, Flask...
-- Cloud Architecture: Extensive AWS and Azure experience...
-[312 tokens - COMPLETE]
-
-## Section 2: Experience Match  
-Looking at the candidate's work history, we can see strong
-alignment with the role requirements. Their time at Syndigo
-demonstrates the ability to work with enterprise clients and
-manage complex technical pro`,
-      outputNote: '⚠️ STOPS HERE - Cut off mid-word at 500 tokens',
-      outputNoteColor: 'text-red-400',
-      outputTruncated: true,
-      
-      tradeoffs: [
-        'Response ends abruptly mid-sentence',
-        'No final score or recommendation',
-        'May break downstream JSON parsing',
-        'User gets incomplete analysis',
-      ],
-      benefits: [
-        'One line code change',
-        'Immediate latency reduction',
-        'Predictable max cost',
-      ],
-      bestFor: 'Quick fix when you\'ll iterate on the prompt later',
-    });
-  }
-
-  // Fix 2: Simplify Prompt
-  const promptAnalysis = analyzeLatencyPrompt(call);
-  if (promptAnalysis.encourages_verbosity || call.completion_tokens > 1000) {
-    fixes.push({
-      id: 'simplify_prompt',
-      title: 'Simplify Prompt',
-      subtitle: 'Better Fix - Guided Output',
-      effort: 'Medium',
-      effortColor: 'text-yellow-400',
-      
-      metrics: [
-        {
-          label: 'Latency',
-          before: `${(call.latency_ms / 1000).toFixed(1)}s`,
-          after: '~2.0s',
-          changePercent: -84,
-        },
-        {
-          label: 'Tokens',
-          before: call.completion_tokens.toLocaleString(),
-          after: '~200',
-          changePercent: -91,
-        },
-        {
-          label: 'Cost',
-          before: `$${call.total_cost.toFixed(3)}`,
-          after: '$0.03',
-          changePercent: -82,
-        },
-        {
-          label: 'Quality',
-          before: 'Complete',
-          after: '✅ Complete',
+          before: 'Full context',
+          after: '✅ Recent only',
           changePercent: 0,
         },
       ],
       
-      codeBefore: `# BEFORE - Your current prompt
-system_prompt = """
-Provide a COMPREHENSIVE analysis covering:
-1. Skills alignment
-2. Experience match  
-3. Education analysis
-4. Cultural fit assessment
-5. Potential red flags
-6. Suggested interview questions
-7. Final recommendations
-"""`,
-      codeAfter: `# AFTER - Simplified prompt
-system_prompt = """
-Provide a brief assessment with:
-- Match score (1-10)
-- Top 3 strengths  
-- Top 2 concerns
-- Recommendation (proceed/pass/maybe)
-
-Keep response under 150 words.
-"""`,
+      codeBefore: `# Full history: ${chatHistory.toLocaleString()} tokens across ${call.chat_history_count || '?'} messages
+messages = conversation_history`,
       
-      outputPreview: `**Match Score: 8.5/10**
+      codeAfter: `MAX_HISTORY = 10  # Keep last N messages
 
-**Top Strengths:**
-1. Strong Python and cloud architecture experience (6+ years)
-2. Proven leadership with enterprise clients at Syndigo
-3. Hands-on AI/ML project experience with production systems
+def truncate_history(messages):
+    system = messages[0] if messages[0]["role"] == "system" else None
+    recent = messages[-MAX_HISTORY:]
+    return [system] + recent if system else recent
 
-**Concerns:**
-1. No direct machine learning model training experience
-2. Relatively short tenure at most recent role (1.5 years)
-
-**Recommendation:** Proceed to technical interview
-
-The candidate's strong technical foundation and enterprise 
-experience outweigh the concerns. Recommend focusing the 
-interview on ML fundamentals and long-term career goals.`,
-      outputNote: '✅ Complete, coherent, actionable response',
+messages = truncate_history(conversation_history)
+# Now: ~${Math.round(chatHistory * 0.4).toLocaleString()} tokens`,
+      
+      outputPreview: call.response_text?.substring(0, 500) || 'Same quality output with less input context',
+      outputNote: '✅ Same output quality, ${Math.round(chatHistory * 0.6).toLocaleString()} fewer input tokens',
       outputNoteColor: 'text-green-400',
       
       tradeoffs: [
-        'Requires prompt engineering effort',
-        'Less detail when you need deep analysis',
-        'May need iteration to get right',
+        'Loses early conversation context',
+        'May forget initial instructions from Turn 1-2',
+        'Not suitable for tasks requiring full conversation history',
       ],
       benefits: [
-        'Complete, coherent output',
-        'Human-readable format',
-        'Actionable recommendations',
-        'Natural language flexibility',
+        `Removes ${Math.round(chatHistory * 0.6).toLocaleString()} unnecessary tokens`,
+        'Significantly faster processing',
+        'Lower token costs',
+        'Simple to implement',
       ],
-      bestFor: 'When you need readable output for humans to review',
+      bestFor: 'Multi-turn chats where recent context is most important',
     });
   }
 
@@ -506,76 +425,7 @@ Total time is same, but feels instant.`,
     });
   }
 
-  // Fix 4: Truncate history
-  if (factors.some(f => f.id === 'large_history')) {
-    fixes.push({
-      id: 'truncate_history',
-      title: 'Truncate History',
-      subtitle: 'Context Management',
-      effort: 'Low',
-      effortColor: 'text-green-400',
-      
-      metrics: [
-        {
-          label: 'Prompt',
-          before: call.prompt_tokens.toLocaleString(),
-          after: Math.round(call.prompt_tokens * 0.4).toLocaleString(),
-          changePercent: -60,
-        },
-        {
-          label: 'TTFT',
-          before: `${((call.ttft_ms || 0) / 1000).toFixed(1)}s`,
-          after: `${(((call.ttft_ms || 0) * 0.4) / 1000).toFixed(1)}s`,
-          changePercent: -60,
-        },
-        {
-          label: 'Cost',
-          before: `$${call.total_cost.toFixed(3)}`,
-          after: `$${(call.total_cost * 0.6).toFixed(3)}`,
-          changePercent: -40,
-        },
-        {
-          label: 'Quality',
-          before: 'Full context',
-          after: 'Recent only',
-          changePercent: 0,
-        },
-      ],
-      
-      codeBefore: `messages = conversation_history  # Full history: ${call.chat_history_tokens?.toLocaleString() || 0} tokens`,
-      codeAfter: `MAX_HISTORY = 10  # Keep last N messages
-
-def truncate_history(messages):
-    system = messages[0] if messages[0]["role"] == "system" else None
-    recent = messages[-MAX_HISTORY:]
-    return [system] + recent if system else recent
-
-messages = truncate_history(conversation_history)`,
-      
-      outputPreview: `Before: 50 messages in history (3,500 tokens)
-After: 10 most recent messages (700 tokens)
-
-Model still has enough context for coherent responses,
-but processes 5x less input data.`,
-      outputNote: '✅ Faster responses, lower cost, usually same quality',
-      outputNoteColor: 'text-green-400',
-      
-      tradeoffs: [
-        'Loses older conversation context',
-        'May forget early instructions',
-        'Not suitable for long-running analysis',
-      ],
-      benefits: [
-        'Significant latency reduction',
-        'Lower token costs',
-        'Simple to implement',
-        'Works for most chat applications',
-      ],
-      bestFor: 'Chat applications where recent context is most important',
-    });
-  }
-
-  return fixes.slice(0, 4); // Max 4 fixes
+    return fixes.slice(0, 4); // Max 4 fixes
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

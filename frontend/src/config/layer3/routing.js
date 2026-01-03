@@ -117,103 +117,68 @@ export function getFactors(call) {
   const routing = call.routing_analysis || {};
   const factors = [];
   
+  const verdict = routing.verdict; // NEW: optimal, overprovisioned, underprovisioned
   const complexity = routing.complexity_score ?? call.complexity_score;
   const quality = call.judge_score;
-  const opportunity = routing.opportunity;
   const isCheap = routing.is_cheap_model ?? false;
   const model = call.model_name || '';
   
-  // Downgrade scenario factors
-  if (opportunity === 'downgrade') {
+  // NEW: Use verdict instead of opportunity for clearer logic
+  if (verdict === 'overprovisioned') {
     factors.push({
-      label: 'Overpowered Model',
-      status: 'info',
-      detail: `Using ${model} for a low-complexity task (${complexity?.toFixed(2) || 'N/A'})`,
+      label: 'Model Overprovisioned',
+      status: 'warning',
+      detail: routing.reasoning || `Using ${model} for a task that could use a cheaper model`,
     });
     
-    if (quality !== null && quality >= 8) {
-      factors.push({
-        label: 'High Quality Maintained',
-        status: 'success',
-        detail: `Quality score ${quality.toFixed(1)}/10 suggests simpler model would suffice`,
-      });
-    }
-    
-    const savings = routing.potential_savings;
+    const savings = routing.potential_savings_usd;
     if (savings > 0) {
       factors.push({
         label: 'Cost Reduction Available',
         status: 'info',
-        detail: `Potential savings of ${formatCurrency(savings)} per call (~${routing.potential_savings_pct}%)`,
+        detail: `Potential savings of ${formatCurrency(savings)} per call (${routing.quality_impact})`,
       });
     }
   }
   
-  // Upgrade scenario factors
-  else if (opportunity === 'upgrade') {
+  else if (verdict === 'underprovisioned') {
     factors.push({
-      label: 'Underpowered Model',
-      status: 'warning',
-      detail: `Using ${model} for a high-complexity task (${complexity?.toFixed(2) || 'N/A'})`,
+      label: 'Model Underprovisioned',
+      status: 'critical',
+      detail: routing.reasoning || `Using ${model} for a task that needs more capable model`,
     });
     
     if (quality !== null && quality < 8) {
       factors.push({
-        label: 'Quality Below Threshold',
+        label: 'Quality Below Target',
         status: 'critical',
-        detail: `Quality score ${quality.toFixed(1)}/10 indicates need for stronger model`,
+        detail: `Quality score ${quality.toFixed(1)}/10 suggests need for stronger model`,
       });
     }
-    
-    factors.push({
-      label: 'Complex Task Detected',
-      status: 'warning',
-      detail: 'Task complexity suggests need for advanced reasoning capabilities',
-    });
   }
   
-  // Keep scenario factors
-  else {
+  else { // optimal
     factors.push({
       label: 'Model Well-Matched',
       status: 'success',
-      detail: `${model} is appropriate for this task complexity`,
+      detail: routing.reasoning || `${model} is appropriate for this task`,
     });
-    
-    if (complexity !== null && complexity !== undefined) {
-      const complexityLabel = complexity < 0.4 ? 'low' : complexity < 0.7 ? 'medium' : 'high';
-      factors.push({
-        label: 'Complexity Aligned',
-        status: 'success',
-        detail: `Task complexity (${complexityLabel}) matches model capability`,
-      });
-    }
-    
-    if (quality !== null && quality >= 7) {
-      factors.push({
-        label: 'Quality Acceptable',
-        status: 'success',
-        detail: `Quality score ${quality.toFixed(1)}/10 meets expectations`,
-      });
-    }
   }
   
-  // Add token-based complexity indicator
-  if (call.prompt_tokens && call.completion_tokens) {
-    const ratio = call.prompt_tokens / call.completion_tokens;
-    if (ratio > 20) {
+  // NEW: Show complexity breakdown if available
+  if (routing.complexity_breakdown) {
+    const breakdown = routing.complexity_breakdown;
+    const topFactors = Object.entries(breakdown)
+      .sort((a, b) => b[1].value - a[1].value)
+      .slice(0, 2); // Top 2 contributors
+    
+    topFactors.forEach(([key, data]) => {
       factors.push({
-        label: 'High Input/Output Ratio',
+        label: `${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} Factor`,
         status: 'info',
-        detail: `${ratio.toFixed(0)}:1 ratio suggests extraction/classification task`,
+        detail: `${data.label} contributes ${(data.value * 100).toFixed(0)}% to complexity`,
       });
-    } else if (ratio < 2) {
-      factors.push({
-        label: 'Low Input/Output Ratio',
-        status: 'info',
-        detail: `${ratio.toFixed(1)}:1 ratio suggests generation task`,
-      });
-    }
+    });
   }
   
   return factors;
@@ -393,94 +358,37 @@ export function getCustomSections(call) {
   const routing = call.routing_analysis || {};
   const sections = [];
   
-  const complexity = routing.complexity_score ?? call.complexity_score;
-  const operationAvgComplexity = call.comparison?.operation_avg_complexity;
-  
-  // Complexity Analysis Section
-  if (complexity !== null && complexity !== undefined) {
+  // Alternative Models Table Data
+  if (routing.alternatives && routing.alternatives.length > 0) {
     sections.push({
-      id: 'complexity-analysis',
-      title: 'Complexity Analysis',
-      type: 'chart',
-      data: {
-        chartType: 'bar',
-        items: [
-          { 
-            label: 'This Call', 
-            value: complexity, 
-            color: complexity < 0.4 ? '#22c55e' : complexity < 0.7 ? '#eab308' : '#ef4444',
-            max: 1.0,
-          },
-          { 
-            label: 'Low Threshold', 
-            value: 0.4, 
-            color: '#3b82f6',
-            max: 1.0,
-          },
-          { 
-            label: 'High Threshold', 
-            value: 0.7, 
-            color: '#8b5cf6',
-            max: 1.0,
-          },
-        ],
-      },
-    });
-  }
-  
-  // Routing Decision Section
-  const opportunity = routing.opportunity;
-  if (opportunity) {
-    const model = call.model_name || 'Unknown';
-    const suggestedModel = routing.suggested_model;
-    
-    sections.push({
-      id: 'routing-decision',
-      title: 'Routing Decision',
-      type: 'cards',
-      data: {
-        cards: [
-          {
-            label: 'Current Model',
-            value: model,
-            icon: '🤖',
-            color: routing.is_cheap_model ? 'blue' : 'purple',
-          },
-          {
-            label: 'Task Type',
-            value: complexity < 0.4 ? 'Simple' : complexity < 0.7 ? 'Medium' : 'Complex',
-            icon: complexity < 0.4 ? '📝' : complexity < 0.7 ? '📊' : '🧠',
-            color: complexity < 0.4 ? 'green' : complexity < 0.7 ? 'yellow' : 'red',
-          },
-          {
-            label: 'Recommendation',
-            value: opportunity === 'downgrade' 
-              ? `Switch to ${suggestedModel || 'cheaper model'}`
-              : opportunity === 'upgrade'
-              ? `Switch to ${suggestedModel || 'stronger model'}`
-              : 'Keep current model',
-            icon: opportunity === 'downgrade' ? '↓' : opportunity === 'upgrade' ? '↑' : '✓',
-            color: opportunity === 'downgrade' ? 'blue' : opportunity === 'upgrade' ? 'red' : 'green',
-          },
-        ],
-      },
-    });
-  }
-  
-  // Model Comparison Section (if we have alternative models)
-  if (call.alternative_models && call.alternative_models.length > 0) {
-    sections.push({
-      id: 'model-comparison',
-      title: 'Alternative Models',
+      id: 'alternatives-table',
+      title: '📊 Alternative Models Comparison',
       type: 'table',
       data: {
-        headers: ['Model', 'Est. Cost', 'Quality', 'Savings'],
-        rows: call.alternative_models.map(alt => [
-          alt.name,
-          formatCurrency(alt.estimated_cost),
-          alt.quality,
-          formatCurrency((call.total_cost || 0) - alt.estimated_cost),
-        ]),
+        headers: ['Model', 'Quality', 'Est. Cost', 'Latency', 'Verdict'],
+        rows: routing.alternatives.map(alt => ({
+          model: alt.model,
+          quality: alt.estimated_quality,
+          cost: alt.estimated_cost,
+          latency: alt.latency_delta,
+          verdict: alt.verdict,
+        })),
+      },
+    });
+  }
+  
+  // Complexity Breakdown Data
+  if (routing.complexity_breakdown) {
+    sections.push({
+      id: 'complexity-breakdown',
+      title: '🎯 Complexity Breakdown',
+      type: 'breakdown',
+      data: {
+        items: Object.entries(routing.complexity_breakdown).map(([key, data]) => ({
+          label: key.replace(/_/g, ' '),
+          value: data.value,
+          description: data.label,
+        })),
       },
     });
   }

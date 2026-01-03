@@ -2,7 +2,10 @@
  * Quality Story - Layer 3 (Call Detail)
  * Location: src/pages/stories/quality/CallDetail.jsx
  * 
- * Uses the universal Layer3Shell with quality-specific configuration.
+ * UPDATED:
+ * - Added benchmarks fetch for DIAGNOSE tab comparison
+ * - Added traceProps for TRACE tab
+ * - Cleaned up data fetching
  */
 
 import { useParams, useNavigate } from 'react-router-dom';
@@ -28,21 +31,21 @@ import {
 
 function CriteriaBreakdownBar({ criteria }) {
   if (!criteria?.length) {
-    return <div className="text-slate-500 text-sm">No criteria breakdown available</div>;
+    return <div className="text-gray-500 text-sm">No criteria breakdown available</div>;
   }
 
   return (
-    <div className="bg-slate-900 rounded-lg p-4 space-y-3">
+    <div className="bg-gray-900 rounded-lg p-4 space-y-3">
       {criteria.map(c => {
         const pct = (c.score / 10) * 100;
         const color = c.status === 'critical' ? 'red' : c.status === 'warning' ? 'yellow' : 'green';
         return (
           <div key={c.key}>
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-slate-400">{c.label}</span>
+              <span className="text-gray-400">{c.label}</span>
               <span className={`text-${color}-400`}>{c.score.toFixed(1)}/10</span>
             </div>
-            <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
               <div className={`h-full bg-${color}-500`} style={{ width: `${pct}%` }} />
             </div>
           </div>
@@ -60,20 +63,20 @@ function JudgeEvaluationSection({ evaluation }) {
     <div className="space-y-4">
       {reasoning && (
         <div>
-          <h4 className="text-sm font-medium text-slate-400 uppercase tracking-wide mb-2">🧠 Judge Reasoning</h4>
-          <div className="bg-slate-900 rounded-lg p-4">
-            <p className="text-slate-300 text-sm leading-relaxed">{reasoning}</p>
+          <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">🧠 Judge Reasoning</h4>
+          <div className="bg-gray-900 rounded-lg p-4">
+            <p className="text-gray-300 text-sm leading-relaxed">{reasoning}</p>
           </div>
         </div>
       )}
       {issues_found?.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-slate-400 uppercase tracking-wide mb-2">❌ Issues Found</h4>
-          <div className="bg-slate-900 rounded-lg p-4 space-y-2">
+          <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">❌ Issues Found</h4>
+          <div className="bg-gray-900 rounded-lg p-4 space-y-2">
             {issues_found.map((issue, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
                 <span className="text-red-400">•</span>
-                <span className="text-slate-300">{issue}</span>
+                <span className="text-gray-300">{issue}</span>
               </div>
             ))}
           </div>
@@ -81,12 +84,12 @@ function JudgeEvaluationSection({ evaluation }) {
       )}
       {strengths?.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-slate-400 uppercase tracking-wide mb-2">✅ Strengths</h4>
-          <div className="bg-slate-900 rounded-lg p-4 space-y-2">
+          <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">✅ Strengths</h4>
+          <div className="bg-gray-900 rounded-lg p-4 space-y-2">
             {strengths.map((s, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
                 <span className="text-green-400">•</span>
-                <span className="text-slate-300">{s}</span>
+                <span className="text-gray-300">{s}</span>
               </div>
             ))}
           </div>
@@ -135,13 +138,18 @@ async function fetchCallData(callId) {
     system_prompt: data.system_prompt || '',
     user_message: data.user_message || '',
     operation_avg_score: data.operation_avg_score,
+    conversation_id: data.conversation_id,
+    request_id: data.request_id,
   };
 }
 
 async function fetchSimilarCalls(call) {
   try {
     const params = new URLSearchParams({
-      operation: call.operation, agent: call.agent_name, days: '7', limit: '20',
+      operation: call.operation, 
+      agent: call.agent_name, 
+      days: '7', 
+      limit: '20',
     });
     const response = await fetch(`/api/calls?${params}`);
     if (!response.ok) return { items: [], stats: null };
@@ -168,7 +176,19 @@ async function fetchSimilarCalls(call) {
         low_quality: calls.filter(c => c.judge_score != null && c.judge_score < 7).length,
       },
     };
-  } catch { return { items: [], stats: null }; }
+  } catch { 
+    return { items: [], stats: null }; 
+  }
+}
+
+async function fetchBenchmarks(callId) {
+  try {
+    const response = await fetch(`/api/stories/quality/benchmarks/${callId}`);
+    if (!response.ok) return { available: false };
+    return await response.json();
+  } catch {
+    return { available: false };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -180,6 +200,7 @@ export default function QualityCallDetail() {
   const navigate = useNavigate();
   const [call, setCall] = useState(null);
   const [similarData, setSimilarData] = useState({ items: [], stats: null });
+  const [benchmarks, setBenchmarks] = useState({ available: false });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -188,15 +209,40 @@ export default function QualityCallDetail() {
       try {
         const callData = await fetchCallData(callId);
         setCall(callData);
-        setSimilarData(await fetchSimilarCalls(callData));
-      } catch (err) { console.error('Failed to load call data:', err); }
-      finally { setLoading(false); }
+        
+        // Fetch similar calls and benchmarks in parallel
+        const [similar, bench] = await Promise.all([
+          fetchSimilarCalls(callData),
+          fetchBenchmarks(callId),
+        ]);
+        
+        setSimilarData(similar);
+        setBenchmarks(bench);
+      } catch (err) { 
+        console.error('Failed to load call data:', err); 
+      } finally { 
+        setLoading(false); 
+      }
     }
     loadData();
   }, [callId]);
 
   if (loading || !call) {
-    return <Layer3Shell storyId={QUALITY_STORY.id} storyLabel={QUALITY_STORY.label} storyIcon={QUALITY_STORY.icon} themeColor={QUALITY_STORY.color} loading={true} />;
+    return (
+      <Layer3Shell 
+        storyId={QUALITY_STORY.id} 
+        storyLabel={QUALITY_STORY.label} 
+        storyIcon={QUALITY_STORY.icon} 
+        theme={{
+          color: QUALITY_STORY.color,
+          text: 'text-red-400',
+          bg: 'bg-red-600',
+          border: 'border-red-500',
+          dividerGlow: 'shadow-[0_0_10px_rgba(239,68,68,0.5)]',
+        }}
+        loading={true} 
+      />
+    );
   }
 
   // Analyze the call
@@ -209,27 +255,88 @@ export default function QualityCallDetail() {
   const isHealthy = factors.length === 0 || factors.every(f => f.severity === 'info' || f.severity === 'ok');
   const { items: similarCalls, stats: opStats } = similarData;
 
-  const modelConfig = { provider: call.provider, model: call.model_name, temperature: call.temperature, max_tokens: call.max_tokens };
-  const promptBreakdown = call.chat_history_tokens > 0 ? { system: call.system_prompt_tokens, user: call.user_message_tokens, history: call.chat_history_tokens, total: call.prompt_tokens } : null;
-  const metadata = { call_id: call.call_id, agent: call.agent_name, operation: call.operation, timestamp: call.timestamp, judge_score: call.judge_score, hallucination_flag: call.hallucination_flag };
+  const modelConfig = { 
+    provider: call.provider, 
+    model: call.model_name, 
+    temperature: call.temperature, 
+    max_tokens: call.max_tokens 
+  };
+  
+  const promptBreakdown = call.chat_history_tokens > 0 ? { 
+    system: call.system_prompt_tokens, 
+    user: call.user_message_tokens, 
+    history: call.chat_history_tokens, 
+    total: call.prompt_tokens 
+  } : null;
+  
+  const metadata = { 
+    call_id: call.call_id, 
+    agent: call.agent_name, 
+    operation: call.operation, 
+    timestamp: call.timestamp, 
+    judge_score: call.judge_score, 
+    hallucination_flag: call.hallucination_flag 
+  };
 
   return (
     <Layer3Shell
-      storyId={QUALITY_STORY.id} storyLabel={QUALITY_STORY.label} storyIcon={QUALITY_STORY.icon} themeColor={QUALITY_STORY.color}
-      entityId={call.call_id} entityType="call" entityLabel={`${call.agent_name}.${call.operation}`} entitySubLabel={call.timestamp} entityMeta={`${call.provider} / ${call.model_name}`}
-      backPath={`/stories/quality/operations/${call.agent_name}/${call.operation}`} backLabel={`Back to ${call.operation}`}
-      kpis={getQualityKPIs(call, opStats)} currentState={currentState} responseText={call.response_text}
+      storyId={QUALITY_STORY.id} 
+      storyLabel={QUALITY_STORY.label} 
+      storyIcon={QUALITY_STORY.icon}
+      theme={{
+        color: QUALITY_STORY.color,
+        text: 'text-red-400',
+        bg: 'bg-red-600',
+        border: 'border-red-500',
+        borderLight: 'border-red-500/30',
+        dividerGlow: 'shadow-[0_0_10px_rgba(239,68,68,0.5)]',
+      }}
+      
+      entityId={call.call_id} 
+      entityType="call" 
+      entityLabel={`${call.agent_name}.${call.operation}`} 
+      entitySubLabel={call.timestamp} 
+      entityMeta={`${call.provider} / ${call.model_name}`}
+      
+      backPath={`/stories/quality/operations/${call.agent_name}/${call.operation}`} 
+      backLabel={`Back to ${call.operation}`}
+      
+      kpis={getQualityKPIs(call, opStats)} 
+      currentState={currentState} 
+      responseText={call.response_text}
 
       diagnoseProps={{
-        factors, isHealthy,
-        healthyMessage: call.judge_score ? `Scored ${call.judge_score.toFixed(1)}/10 with no significant issues.` : 'Not evaluated.',
+        factors, 
+        isHealthy,
+        healthyMessage: call.judge_score 
+          ? `Scored ${call.judge_score.toFixed(1)}/10 with no significant issues.` 
+          : 'Not evaluated.',
         breakdownTitle: '📊 Criteria Breakdown',
         breakdownComponent: <CriteriaBreakdownBar criteria={criteria} />,
-        additionalBreakdown: judgeEval.reasoning || judgeEval.issues_found?.length ? <JudgeEvaluationSection evaluation={judgeEval} /> : null,
+        additionalBreakdown: judgeEval.reasoning || judgeEval.issues_found?.length 
+          ? <JudgeEvaluationSection evaluation={judgeEval} /> 
+          : null,
         additionalBreakdownTitle: judgeEval.reasoning ? '🧠 Judge Evaluation' : null,
+        comparisonBenchmarks: benchmarks,
+        benchmarkConfig: {
+          metricKey: 'score',
+          formatValue: (v) => `${v.toFixed(1)}/10`,
+          comparisonLabel: 'better',
+          higherIsBetter: true,
+          thresholdForCallout: 1.5,
+        },
       }}
 
-      attributeProps={{ modelConfig, configHighlights, promptBreakdown }}
+      attributeProps={{ 
+        modelConfig, 
+        configHighlights, 
+        promptBreakdown 
+      }}
+
+      traceProps={{
+        callId: call.call_id,
+        conversationId: call.conversation_id,
+      }}
 
       similarProps={{
         groupOptions: [
@@ -237,7 +344,9 @@ export default function QualityCallDetail() {
           { id: 'lowQuality', label: 'Low Quality', filterFn: items => items.filter(i => i.score != null && i.score < 7) },
           { id: 'issues', label: 'With Issues', filterFn: items => items.filter(i => i.hasIssue) },
         ],
-        defaultGroup: 'operation', items: similarCalls, currentItemId: call.call_id,
+        defaultGroup: 'operation', 
+        items: similarCalls, 
+        currentItemId: call.call_id,
         columns: [
           { key: 'id', label: 'Call ID', format: v => v?.substring(0, 8) + '...' },
           { key: 'timestamp', label: 'Timestamp' },
@@ -246,11 +355,13 @@ export default function QualityCallDetail() {
           { key: 'cost', label: 'Cost', format: v => `$${v?.toFixed(3)}` },
         ],
         aggregateStats: [
-          { label: 'Total Calls', value: similarCalls.length, color: 'text-yellow-400' },
-          { label: 'Avg Score', value: opStats?.avg_score ? `${opStats.avg_score.toFixed(1)}/10` : '—', color: 'text-yellow-400' },
+          { label: 'Total Calls', value: similarCalls.length, color: 'text-red-400' },
+          { label: 'Avg Score', value: opStats?.avg_score ? `${opStats.avg_score.toFixed(1)}/10` : '—', color: 'text-red-400' },
           { label: 'Low Quality', value: opStats?.low_quality || 0, color: 'text-red-400' },
         ],
-        issueKey: 'hasIssue', issueLabel: 'Issue', okLabel: 'OK',
+        issueKey: 'hasIssue', 
+        issueLabel: 'Issue', 
+        okLabel: 'OK',
       }}
 
       rawProps={{
@@ -262,8 +373,12 @@ export default function QualityCallDetail() {
         response: call.response_text, 
         responseTokens: call.completion_tokens,
         modelConfig, 
-        tokenBreakdown: { prompt_tokens: call.prompt_tokens, completion_tokens: call.completion_tokens, total_tokens: call.prompt_tokens + call.completion_tokens },
-        qualityEvaluation: call.quality_evaluation,  // ← ADD THIS
+        tokenBreakdown: { 
+          prompt_tokens: call.prompt_tokens, 
+          completion_tokens: call.completion_tokens, 
+          total_tokens: call.prompt_tokens + call.completion_tokens 
+        },
+        qualityEvaluation: call.quality_evaluation,
         fullData: call,
       }}
 

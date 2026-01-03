@@ -41,7 +41,7 @@ class ErrorResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "error",
                 "message": "Story not found",
@@ -74,7 +74,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     pagination: PaginationMeta
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "items": [],
                 "pagination": {
@@ -102,7 +102,7 @@ class HealthResponse(BaseModel):
     uptime_seconds: Optional[float] = None
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "ok",
                 "version": "1.0.0",
@@ -124,7 +124,7 @@ class SuccessResponse(BaseModel):
     data: Optional[Dict[str, Any]] = None
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "ok",
                 "message": "Operation completed successfully",
@@ -141,7 +141,7 @@ class CreatedResponse(BaseModel):
     resource_url: Optional[str] = None
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "created",
                 "message": "Optimization created",
@@ -158,7 +158,7 @@ class DeletedResponse(BaseModel):
     id: str
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "deleted",
                 "message": "Alert deleted successfully",

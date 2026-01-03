@@ -622,7 +622,7 @@ def get_opportunity_detail(
     """
     Layer 3: Detailed view of a single cache opportunity.
     
-    Shows the repeated prompt, response, all calls, and type-specific fix.
+    ENHANCED: Includes detailed prompt breakdown for CacheablePromptView component.
     """
     # Filter to this operation
     op_calls = [
@@ -652,12 +652,64 @@ def get_opportunity_detail(
     wasted_cost = (len(group_calls) - 1) * avg_cost if len(group_calls) > 1 else 0
     savable_time = avg_latency * (len(group_calls) - 1) if len(group_calls) > 1 else 0
     
+    # Extract prompt components for CacheablePromptView
+    system_prompt = first_call.get('system_prompt', '')
+    system_prompt_tokens = first_call.get('system_prompt_tokens') or 0
+    user_message = first_call.get('user_message', '')
+    
+    # Calculate averages for variable components - FIX: Handle None values
+    avg_user_tokens = sum((c.get('user_message_tokens') or 0) for c in group_calls) / len(group_calls)
+    avg_history_tokens = sum((c.get('chat_history_tokens') or 0) for c in group_calls) / len(group_calls)
+    avg_tool_tokens = sum((c.get('tool_definitions_tokens') or 0) for c in group_calls) / len(group_calls)
+    
+    # Total tokens and cacheable analysis
+    total_tokens = system_prompt_tokens + avg_user_tokens + avg_history_tokens + avg_tool_tokens
+    if total_tokens == 0:
+        total_tokens = first_call.get('prompt_tokens', 0)
+        cacheable_tokens = int(total_tokens * 0.5)
+        cacheable_percentage = 50.0
+    else:
+        if cache_type == "exact":
+            cacheable_tokens = int(total_tokens)
+            cacheable_percentage = 100.0
+        else:
+            cacheable_tokens = system_prompt_tokens
+            cacheable_percentage = (system_prompt_tokens / total_tokens * 100) if total_tokens > 0 else 0
+    
+    # Build insights for CacheablePromptView
+    insights = []
+    if cache_type == "exact":
+        insights.extend([
+            f"Entire prompt is 100% identical across {len(group_calls)} calls",
+            "Perfect candidate for response caching (key-value cache)",
+            f"Save ${wasted_cost / (len(group_calls) - 1):.4f} per call by caching responses" if len(group_calls) > 1 else "Cache responses to avoid redundant API calls",
+            "First call generates response, subsequent calls serve from cache instantly",
+        ])
+    elif cache_type == "stable":
+        insights.extend([
+            f"System prompt is 100% static across all {len(group_calls)} calls - perfect for caching",
+            f"By enabling prompt caching, you'll save ${wasted_cost / (len(group_calls) - 1) if len(group_calls) > 1 else 0:.4f} per call",
+            "First call will write the cache (same cost), all subsequent calls benefit from 90% reduction",
+        ])
+        if avg_history_tokens > 0:
+            insights.append("Chat history changes on every turn - cannot be cached (conversation state)")
+        if len(set(c.get('user_message', '') for c in group_calls)) == len(group_calls):
+            insights.append("User message is unique each time - cannot be cached")
+    
+    # Build chat_history structure if present
+    chat_history = None
+    if avg_history_tokens > 0:
+        for c in group_calls:
+            if (c.get('chat_history_tokens') or 0) > 0:
+                chat_history = [{"role": "assistant", "content": "(Previous conversation turn)", "tokens": int(avg_history_tokens)}]
+                break
+    
     # Build calls table
-    calls_table = []
+    affected_calls = []
     sorted_calls = sorted(group_calls, key=lambda x: x.get('timestamp', ''), reverse=True)
     
     for idx, call in enumerate(sorted_calls):
-        calls_table.append({
+        affected_calls.append({
             'index': idx + 1,
             'call_id': call.get('id'),
             'timestamp': call.get('timestamp'),
@@ -668,8 +720,9 @@ def get_opportunity_detail(
             'latency_formatted': f"{call.get('latency_ms', 0) / 1000:.2f}s",
             'total_cost': call.get('total_cost'),
             'cost_formatted': format_cost(call.get('total_cost', 0)),
-            'is_first': idx == len(sorted_calls) - 1,  # Oldest is "first"
+            'is_first': idx == len(sorted_calls) - 1,
             'note': '✅ (first call)' if idx == len(sorted_calls) - 1 else '🔄 cacheable',
+            'user_message_preview': (call.get('user_message', '') or '')[:100],
         })
     
     # Get diagnosis and code snippet based on cache type
@@ -679,39 +732,45 @@ def get_opportunity_detail(
         'group_id': group_id,
         'agent_name': agent_name,
         'operation': operation_name,
-        
-        # Cache type info
         'cache_type': cache_type,
         'cache_type_emoji': _get_type_emoji(cache_type),
         'cache_type_name': _get_type_name(cache_type),
         'effort': _get_effort_level(cache_type),
-        
-        # Metrics
         'repeat_count': len(group_calls),
+        'occurrence_count': len(group_calls),
         'wasted_calls': len(group_calls) - 1,
         'wasted_cost': wasted_cost,
         'wasted_cost_formatted': format_cost(wasted_cost),
+        'total_wasted': wasted_cost,
         'savable_time_ms': savable_time,
         'savable_time_formatted': f"~{savable_time / 1000:.1f}s" if savable_time > 1000 else f"~{savable_time:.0f}ms",
         'avg_cost': avg_cost,
         'avg_cost_formatted': format_cost(avg_cost),
+        'current_cost_per_call': avg_cost,
         'avg_latency_ms': avg_latency,
         'avg_latency_formatted': f"{avg_latency / 1000:.2f}s",
-        
-        # Content
         'prompt': first_call.get('prompt'),
-        'system_prompt': first_call.get('system_prompt'),
         'response_text': first_call.get('response_text'),
         'prompt_tokens': first_call.get('prompt_tokens'),
         'completion_tokens': first_call.get('completion_tokens'),
-        
-        # Diagnosis
+        'system_prompt': system_prompt,
+        'system_prompt_tokens': system_prompt_tokens,
+        'user_message': user_message,
+        'user_message_tokens': int(avg_user_tokens),
+        'chat_history': chat_history,
+        'chat_history_tokens': int(avg_history_tokens),
+        'tool_definitions': first_call.get('tool_definitions') if avg_tool_tokens > 0 else None,
+        'tool_definitions_tokens': int(avg_tool_tokens),
+        'total_tokens': int(total_tokens),
+        'cacheable_tokens': cacheable_tokens,
+        'cacheable_percentage': round(cacheable_percentage, 1),
+        'savings_per_call': wasted_cost / (len(group_calls) - 1) if len(group_calls) > 1 else 0,
+        'cache_enabled': False,
         'diagnosis': diagnosis,
-        
-        # All calls in this group
-        'calls': calls_table,
+        'insights': insights,
+        'calls': affected_calls,
+        'affected_calls': affected_calls,
     }
-
 
 def _get_diagnosis(cache_type: str, repeat_count: int, wasted_cost: float, avg_latency: float, operation: str) -> Dict[str, Any]:
     """Generate type-specific diagnosis with code snippet."""

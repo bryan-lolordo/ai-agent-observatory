@@ -93,82 +93,28 @@ ALTERNATIVE_MODELS = [
 # =============================================================================
 
 def _get_routing_analysis(call) -> Dict[str, Any]:
-    """Get routing opportunity analysis for a single call (for Routing Layer 3)."""
-    # Get complexity score
-    complexity = getattr(call, 'complexity_score', None)
-    if complexity is None:
-        # Estimate from tokens if not available
-        prompt_tokens = call.prompt_tokens or 0
-        completion_tokens = call.completion_tokens or 0
-        if prompt_tokens > 0:
-            token_complexity = min(prompt_tokens / 2000, 1.0)
-            output_ratio = completion_tokens / max(prompt_tokens, 1)
-            reasoning_complexity = min(output_ratio / 0.5, 1.0)
-            complexity = round(token_complexity * 0.6 + reasoning_complexity * 0.4, 2)
+    """
+    Get routing opportunity analysis for a single call (for Routing Layer 3).
     
-    # Get quality score
-    quality = getattr(call, 'judge_score', None) or _get_judge_score(call)
+    Delegates to routing_service for detailed analysis.
+    """
+    # Import here to avoid circular dependency
+    from api.services.routing_service import analyze_call_routing
     
-    # Get model info
-    model = call.model_name or ""
-    model_lower = model.lower()
-    is_cheap = any(cheap.lower() in model_lower for cheap in CHEAP_MODELS)
-    
-    # Classify opportunity
-    opportunity = "keep"
-    if complexity is not None:
-        if complexity >= ROUTING_THRESHOLDS["complexity_high"] and is_cheap:
-            if quality is None or quality < ROUTING_THRESHOLDS["quality_good"]:
-                opportunity = "upgrade"
-        elif complexity < ROUTING_THRESHOLDS["complexity_low"]:
-            if quality is not None and quality >= ROUTING_THRESHOLDS["quality_good"]:
-                opportunity = "downgrade"
-    
-    # Get display values
-    if opportunity == "downgrade":
-        opp_emoji, opp_label, status_emoji = "↓", "Downgrade", "🔵"
-        suggested_model = "gpt-3.5-turbo"
-    elif opportunity == "upgrade":
-        opp_emoji, opp_label, status_emoji = "↑", "Upgrade", "🔴"
-        suggested_model = "gpt-4o"
-    else:
-        opp_emoji, opp_label, status_emoji = "✓", "Keep", "🟢"
-        suggested_model = None
-    
-    # Complexity label
-    if complexity is None:
-        complexity_label = "Unknown"
-    elif complexity < ROUTING_THRESHOLDS["complexity_low"]:
-        complexity_label = "Low"
-    elif complexity < ROUTING_THRESHOLDS["complexity_high"]:
-        complexity_label = "Medium"
-    else:
-        complexity_label = "High"
-    
-    # Calculate potential savings
-    cost = call.total_cost or 0
-    if opportunity == "downgrade":
-        savings = round(cost * 0.70, 4)
-        savings_pct = 70
-    elif opportunity == "upgrade":
-        savings = round(-cost * 2.0, 4)
-        savings_pct = -200
-    else:
-        savings = 0
-        savings_pct = 0
-    
-    return {
-        "complexity_score": complexity,
-        "complexity_label": complexity_label,
-        "opportunity": opportunity,
-        "opportunity_emoji": opp_emoji,
-        "opportunity_label": opp_label,
-        "status_emoji": status_emoji,
-        "suggested_model": suggested_model,
-        "potential_savings": savings,
-        "potential_savings_pct": savings_pct,
-        "is_cheap_model": is_cheap,
+    # Convert call object to dict format that routing_service expects
+    call_dict = {
+        "model_name": call.model_name,
+        "complexity_score": getattr(call, 'complexity_score', None),
+        "judge_score": getattr(call, 'judge_score', None),
+        "prompt_tokens": call.prompt_tokens,
+        "completion_tokens": call.completion_tokens,
+        "total_cost": call.total_cost,
+        "operation": call.operation,
+        "tool_call_count": getattr(call, 'tool_call_count', 0),
     }
+    
+    # Get detailed analysis
+    return analyze_call_routing(call_dict)
 
 
 # =============================================================================
@@ -224,7 +170,11 @@ def get_detail(call_id: str) -> Optional[Dict[str, Any]]:
         "agent_name": call.agent_name,
         "operation": call.operation,
         "session_id": getattr(call, 'session_id', None),
-        
+
+        # Parent call
+        "request_id": getattr(call, 'request_id', None),
+        "parent_call_id": getattr(call, 'parent_call_id', None),
+
         # Call type
         "call_type": getattr(call, 'call_type', 'llm').value if hasattr(getattr(call, 'call_type', None), 'value') else getattr(call, 'call_type', 'llm'),
 
@@ -329,6 +279,12 @@ def get_detail(call_id: str) -> Optional[Dict[str, Any]]:
         
         # Routing Analysis (for Routing Layer 3)
         "routing_analysis": _get_routing_analysis(call),
+
+        # NEW: Conversation Breakdown (for Latency Layer 3)
+        "conversation_breakdown": _analyze_conversation_breakdown(call),
+        
+        # NEW: Comparison Benchmarks (for Latency Layer 3)
+        "comparison_benchmarks": _get_comparison_benchmarks(call),
     }
 
 
@@ -469,6 +425,134 @@ def get_calls(
     
     return result
 
+# =============================================================================
+# TRACE TREE METHODS (NEW)
+# =============================================================================
+
+def get_calls_by_parent(parent_call_id: str) -> List[Dict[str, Any]]:
+    """
+    Get all child calls for a parent.
+    Used to build call tree hierarchy.
+    
+    Args:
+        parent_call_id: The request_id of the parent call
+        
+    Returns:
+        List of child calls (same format as get_calls)
+    """
+    try:
+        children = ObservatoryStorage.get_llm_calls(
+            parent_call_id=parent_call_id,
+            limit=1000  # Reasonable limit for children
+        )
+    except Exception as e:
+        print(f"Error fetching child calls: {e}")
+        return []
+    
+    # Convert to same format as get_calls()
+    result = []
+    for c in children:
+        # Reuse existing conversion logic
+        cache_hit = _get_cache_hit(c)
+        judge_score = _get_judge_score(c)
+        hallucination_flag = _get_hallucination_flag(c)
+        
+        token_ratio = None
+        if c.completion_tokens and c.completion_tokens > 0:
+            token_ratio = round(c.prompt_tokens / c.completion_tokens, 1)
+        
+        result.append({
+            "call_id": c.id,
+            "timestamp": c.timestamp.isoformat() if c.timestamp else None,
+            "agent_name": c.agent_name,
+            "agent_role": getattr(c, 'agent_role', None).value if getattr(c, 'agent_role', None) else None,
+            "operation": c.operation,
+            "model_name": c.model_name,
+            "latency_ms": c.latency_ms,
+            "prompt_tokens": c.prompt_tokens,
+            "completion_tokens": c.completion_tokens,
+            "total_tokens": c.total_tokens,
+            "total_cost": c.total_cost,
+            "success": c.success,
+            "error": getattr(c, 'error', None),
+            "request_id": getattr(c, 'request_id', None),  # Important for tree building
+            "parent_call_id": getattr(c, 'parent_call_id', None),
+            "conversation_id": getattr(c, 'conversation_id', None),
+            "turn_number": getattr(c, 'turn_number', None),
+            "cache_hit": cache_hit,
+            "judge_score": judge_score,
+            "hallucination_flag": hallucination_flag,
+            "token_ratio": token_ratio,
+        })
+    
+    return result
+
+
+def get_calls_by_conversation(
+    conversation_id: str,
+    role_filter: Optional[str] = None,
+    order_by: str = "turn_number",
+) -> List[Dict[str, Any]]:
+    """
+    Get all calls in a conversation.
+    
+    Args:
+        conversation_id: Conversation identifier
+        role_filter: Optional filter (e.g., "orchestrator")
+        order_by: Sort field ("turn_number", "timestamp")
+        
+    Returns:
+        List of calls in conversation
+    """
+    try:
+        calls = ObservatoryStorage.get_llm_calls(
+            conversation_id=conversation_id,
+            order_by=order_by,
+            limit=1000
+        )
+    except Exception as e:
+        print(f"Error fetching conversation calls: {e}")
+        return []
+    
+    # Apply role filter if specified
+    if role_filter:
+        calls = [c for c in calls if getattr(c, 'agent_role', None) and getattr(c, 'agent_role').value == role_filter]
+    
+    # Convert using same logic as get_calls_by_parent
+    result = []
+    for c in calls:
+        cache_hit = _get_cache_hit(c)
+        judge_score = _get_judge_score(c)
+        
+        token_ratio = None
+        if c.completion_tokens and c.completion_tokens > 0:
+            token_ratio = round(c.prompt_tokens / c.completion_tokens, 1)
+        
+        result.append({
+            "call_id": c.id,
+            "timestamp": c.timestamp.isoformat() if c.timestamp else None,
+            "agent_name": c.agent_name,
+            "agent_role": getattr(c, 'agent_role', None).value if getattr(c, 'agent_role', None) else None,
+            "operation": c.operation,
+            "model_name": c.model_name,
+            "latency_ms": c.latency_ms,
+            "prompt_tokens": c.prompt_tokens,
+            "completion_tokens": c.completion_tokens,
+            "total_tokens": c.total_tokens,
+            "total_cost": c.total_cost,
+            "success": c.success,
+            "request_id": getattr(c, 'request_id', None),
+            "parent_call_id": getattr(c, 'parent_call_id', None),
+            "conversation_id": getattr(c, 'conversation_id', None),
+            "turn_number": getattr(c, 'turn_number', None),
+            "user_message": _extract_user_message(c),
+            "cache_hit": cache_hit,
+            "judge_score": judge_score,
+            "token_ratio": token_ratio,
+        })
+    
+    return result
+
 
 # =============================================================================
 # HELPER FUNCTIONS - EXTRACTION
@@ -476,19 +560,18 @@ def get_calls(
 
 def _extract_system_prompt(call) -> Optional[str]:
     """Extract system prompt from prompt_breakdown or prompt field."""
-    if hasattr(call, 'prompt_breakdown') and call.prompt_breakdown:
-        if hasattr(call.prompt_breakdown, 'system_prompt'):
-            return call.prompt_breakdown.system_prompt
-    return None
+    try:
+        return call.prompt_breakdown.system_prompt if call.prompt_breakdown else None
+    except AttributeError:
+        return None
 
 
 def _extract_user_message(call) -> Optional[str]:
     """Extract user message from prompt_breakdown or prompt field."""
-    if hasattr(call, 'prompt_breakdown') and call.prompt_breakdown:
-        if hasattr(call.prompt_breakdown, 'user_message'):
-            return call.prompt_breakdown.user_message
-    return None
-
+    try:
+        return call.prompt_breakdown.user_message if call.prompt_breakdown else None
+    except AttributeError:
+        return None
 
 def _get_judge_score(call) -> Optional[float]:
     """Get quality judge score."""
@@ -1067,4 +1150,338 @@ def _generate_diagnosis(call, comparison: Dict) -> Dict[str, Any]:
         "issue_count": len(issues),
         "issues": issues,
         "recommendations": recommendations,
+    }
+
+# =============================================================================
+# CONVERSATION BREAKDOWN ANALYSIS (NEW)
+# =============================================================================
+
+def _analyze_conversation_breakdown(call) -> Optional[Dict[str, Any]]:
+    """
+    Analyze multi-turn conversation to identify optimization opportunities.
+    
+    Returns detailed breakdown of chat history with recommendations.
+    Used by Latency Layer 3 to visualize conversation accumulation.
+    """
+    chat_history_tokens = getattr(call, 'chat_history_tokens', None)
+    chat_history_count = getattr(call, 'chat_history_count', None)
+    turn_number = getattr(call, 'turn_number', None)
+    
+    if not chat_history_tokens or not turn_number or turn_number <= 1:
+        return None
+    
+    system_prompt_tokens = getattr(call, 'system_prompt_tokens', None) or 0
+    user_message_tokens = getattr(call, 'user_message_tokens', None) or 0
+    conversation_context_tokens = getattr(call, 'conversation_context_tokens', None) or 0
+    prompt_tokens = call.prompt_tokens or 0
+    
+    messages = []
+    
+    # System prompt
+    if system_prompt_tokens > 0:
+        messages.append({
+            'type': 'system',
+            'turn': 0,
+            'tokens': system_prompt_tokens,
+            'percentage': (system_prompt_tokens / prompt_tokens * 100) if prompt_tokens else 0,
+            'status': 'cacheable',
+            'color': 'blue',
+            'label': 'System Prompt'
+        })
+    
+    # Estimate tokens per turn
+    if chat_history_count and chat_history_count > 0:
+        avg_tokens_per_message = chat_history_tokens / chat_history_count
+        
+        for i in range(1, turn_number):
+            messages.append({
+                'type': 'user',
+                'turn': i,
+                'tokens': int(avg_tokens_per_message * 0.3),
+                'percentage': (avg_tokens_per_message * 0.3 / prompt_tokens * 100) if prompt_tokens else 0,
+                'status': 'old' if i < turn_number - 1 else 'recent',
+                'color': 'yellow' if i < turn_number - 1 else 'orange',
+                'label': f'Turn {i} User'
+            })
+            
+            messages.append({
+                'type': 'assistant',
+                'turn': i,
+                'tokens': int(avg_tokens_per_message * 0.7),
+                'percentage': (avg_tokens_per_message * 0.7 / prompt_tokens * 100) if prompt_tokens else 0,
+                'status': 'old' if i < turn_number - 1 else 'recent',
+                'color': 'yellow' if i < turn_number - 1 else 'orange',
+                'label': f'Turn {i} Assistant'
+            })
+    
+    # Current user message
+    if user_message_tokens > 0:
+        messages.append({
+            'type': 'user',
+            'turn': turn_number,
+            'tokens': user_message_tokens,
+            'percentage': (user_message_tokens / prompt_tokens * 100) if prompt_tokens else 0,
+            'status': 'current',
+            'color': 'green',
+            'label': f'Turn {turn_number} User (Current)'
+        })
+    
+    # Static context
+    if conversation_context_tokens > 0:
+        messages.append({
+            'type': 'context',
+            'turn': 0,
+            'tokens': conversation_context_tokens,
+            'percentage': (conversation_context_tokens / prompt_tokens * 100) if prompt_tokens else 0,
+            'status': 'cacheable',
+            'color': 'blue',
+            'label': 'Static Context (Job/Resume)'
+        })
+    
+    # Calculate insights
+    old_tokens = sum(m['tokens'] for m in messages if m['status'] == 'old')
+    cacheable_tokens = sum(m['tokens'] for m in messages if m['status'] == 'cacheable')
+    current_tokens = sum(m['tokens'] for m in messages if m['status'] == 'current')
+    
+    insights = []
+    
+    if old_tokens > prompt_tokens * 0.4:
+        pct = (old_tokens / prompt_tokens * 100)
+        insights.append(f"{pct:.0f}% ({old_tokens:,} tokens) are old turns not needed for current task")
+    
+    if cacheable_tokens > prompt_tokens * 0.2:
+        pct = (cacheable_tokens / prompt_tokens * 100)
+        insights.append(f"{pct:.0f}% ({cacheable_tokens:,} tokens) are static → cache candidate")
+    
+    if current_tokens < prompt_tokens * 0.05:
+        pct = (current_tokens / prompt_tokens * 100)
+        insights.append(f"Only {pct:.1f}% ({current_tokens} tokens) is new user input")
+    
+    return {
+        'messages': messages,
+        'total_tokens': prompt_tokens,
+        'old_tokens': old_tokens,
+        'cacheable_tokens': cacheable_tokens,
+        'current_tokens': current_tokens,
+        'turn_number': turn_number,
+        'chat_history_count': chat_history_count,
+        'insights': insights,
+    }
+
+
+def build_chat_history_breakdown(conversation_id: str, current_turn: int) -> Dict[str, Any]:
+    """
+    Build chat history breakdown with actual message content.
+
+    Used by the /tree endpoint to provide expandable chat history.
+    Returns messages with content for the ChatHistoryBreakdown component.
+    """
+    # Get all orchestrator calls in conversation
+    try:
+        calls = ObservatoryStorage.get_llm_calls(
+            conversation_id=conversation_id,
+            order_by="turn_number",
+            limit=100
+        )
+    except Exception:
+        return {"messages": []}
+
+    # Filter to orchestrator calls only
+    orchestrator_calls = [c for c in calls if getattr(c, 'agent_role', None) and getattr(c, 'agent_role').value == 'orchestrator']
+
+    if not orchestrator_calls:
+        return {"messages": []}
+
+    messages = []
+    total_tokens = 0
+
+    # Get the current call to extract system prompt
+    current_call = next((c for c in orchestrator_calls if getattr(c, 'turn_number', 0) == current_turn), None)
+
+    if current_call:
+        total_tokens = current_call.prompt_tokens or 0
+
+        # 1. System Prompt 
+        system_prompt = _extract_system_prompt(current_call)
+        system_prompt_tokens = getattr(current_call, 'system_prompt_tokens', None) or 0
+
+        if system_prompt and system_prompt_tokens > 0:
+            messages.append({
+                'type': 'system',
+                'turn': 0,
+                'tokens': system_prompt_tokens,
+                'percentage': (system_prompt_tokens / total_tokens * 100) if total_tokens else 0,
+                'status': 'cacheable',
+                'label': 'System Prompt',
+                'content': system_prompt[:500] + '...' if len(system_prompt) > 500 else system_prompt,
+                'optimization': 'Enable caching for 90% cost reduction on repeated calls' if system_prompt_tokens > 500 else None
+            })
+
+    # 2. Chat History 
+    for call in orchestrator_calls:
+        turn = getattr(call, 'turn_number', 0)
+
+        if turn >= current_turn:
+            break
+
+        # User message
+        user_msg = _extract_user_message(call)
+        user_tokens = getattr(call, 'user_message_tokens', None) or 0
+
+        if user_msg and user_tokens > 0:
+            status = 'recent' if turn >= current_turn - 2 else 'old'
+
+            messages.append({
+                'type': 'user',
+                'turn': turn,
+                'tokens': user_tokens,
+                'percentage': (user_tokens / total_tokens * 100) if total_tokens else 0,
+                'status': status,
+                'label': f'Turn {turn} User',
+                'content': user_msg,
+                'optimization': f'Turn {turn} could be summarized or removed' if status == 'old' else None
+            })
+
+        # Assistant response
+        response = getattr(call, 'response_text', None)
+        response_tokens = call.completion_tokens or 0
+
+        if response:
+            status = 'recent' if turn >= current_turn - 2 else 'old'
+
+            messages.append({
+                'type': 'assistant',
+                'turn': turn,
+                'tokens': response_tokens,
+                'percentage': (response_tokens / total_tokens * 100) if total_tokens else 0,
+                'status': status,
+                'label': f'Turn {turn} Assistant',
+                'content': response[:300] + '...' if len(response) > 300 else response,
+                'optimization': None
+            })
+
+    # 3. Current user message
+    if current_call:
+        current_user_msg = _extract_user_message(current_call)
+        current_user_tokens = getattr(current_call, 'user_message_tokens', None) or 0
+
+        if current_user_msg and current_user_tokens > 0:
+            messages.append({
+                'type': 'user',
+                'turn': current_turn,
+                'tokens': current_user_tokens,
+                'percentage': (current_user_tokens / total_tokens * 100) if total_tokens else 0,
+                'status': 'current',
+                'label': f'Turn {current_turn} User (Current)',
+                'content': current_user_msg,
+                'optimization': None
+            })
+        # 4. Current assistant response
+        current_response = getattr(current_call, 'response_text', None)
+        current_response_tokens = current_call.completion_tokens or 0
+        
+        if current_response:
+            messages.append({
+                'type': 'assistant',
+                'turn': current_turn,
+                'tokens': current_response_tokens,
+                'percentage': (current_response_tokens / total_tokens * 100) if total_tokens else 0,
+                'status': 'current',
+                'label': f'Turn {current_turn} Assistant (Current)',
+                'content': current_response[:300] + '...' if len(current_response) > 300 else current_response,
+                'optimization': None
+            })
+
+    # Calculate stats
+    old_tokens = sum(m['tokens'] for m in messages if m.get('status') == 'old')
+    cacheable_tokens = sum(m['tokens'] for m in messages if m.get('status') == 'cacheable')
+    current_tokens = sum(m['tokens'] for m in messages if m.get('status') == 'current')
+    recent_tokens = sum(m['tokens'] for m in messages if m.get('status') == 'recent')
+
+    return {
+        'messages': messages,
+        'total_tokens': total_tokens,
+        'old_tokens': old_tokens,
+        'cacheable_tokens': cacheable_tokens,
+        'current_tokens': current_tokens,
+        'recent_tokens': recent_tokens,
+        'turn_number': current_turn,
+    }
+
+
+def _get_comparison_benchmarks(call) -> Dict[str, Any]:
+    """
+    Get comparison benchmarks for this call.
+    
+    Returns 3 types of comparisons:
+    1. Fastest same operation
+    2. Fastest similar context (similar tokens + turn)
+    3. Median for operation
+    """
+    if not call.agent_name or not call.operation:
+        return {'available': False}
+    
+    end_time = datetime.utcnow()
+    start_time = end_time - timedelta(days=7)
+    
+    try:
+        operation_calls = ObservatoryStorage.get_llm_calls(
+            agent_name=call.agent_name,
+            operation=call.operation,
+            start_time=start_time,
+            end_time=end_time,
+            limit=100,
+        )
+    except Exception:
+        return {'available': False}
+    
+    if len(operation_calls) < 2:
+        return {'available': False}
+    
+    successful_calls = [c for c in operation_calls if c.success and c.latency_ms]
+    if not successful_calls:
+        return {'available': False}
+    
+    # 1. Fastest same operation
+    fastest_same = min(successful_calls, key=lambda c: c.latency_ms)
+    
+    # 2. Fastest similar context
+    turn_number = getattr(call, 'turn_number', None)
+    similar_context_calls = [
+        c for c in successful_calls
+        if abs(c.prompt_tokens - call.prompt_tokens) < call.prompt_tokens * 0.3
+        and (not turn_number or abs(getattr(c, 'turn_number', 0) - turn_number) <= 1)
+    ]
+    fastest_similar = min(similar_context_calls, key=lambda c: c.latency_ms) if similar_context_calls else None
+    
+    # 3. Median for operation
+    latencies = sorted([c.latency_ms for c in successful_calls])
+    median_latency = latencies[len(latencies) // 2]
+    median_call = next((c for c in successful_calls if c.latency_ms == median_latency), None)
+    
+    return {
+        'available': True,
+        'current': {
+            'latency_ms': call.latency_ms,
+            'prompt_tokens': call.prompt_tokens,
+            'completion_tokens': call.completion_tokens,
+            'turn_number': turn_number,
+        },
+        'fastest_same_operation': {
+            'latency_ms': fastest_same.latency_ms,
+            'speedup': round(call.latency_ms / fastest_same.latency_ms, 1),
+            'call_id': fastest_same.id,
+        } if fastest_same else None,
+        'fastest_similar_context': {
+            'latency_ms': fastest_similar.latency_ms,
+            'speedup': round(call.latency_ms / fastest_similar.latency_ms, 1),
+            'call_id': fastest_similar.id,
+            'prompt_tokens': fastest_similar.prompt_tokens,
+            'turn_number': getattr(fastest_similar, 'turn_number', None),
+        } if fastest_similar else None,
+        'median_for_operation': {
+            'latency_ms': median_latency,
+            'comparison': 'faster' if call.latency_ms < median_latency else 'slower',
+            'ratio': round(call.latency_ms / median_latency, 1),
+        } if median_call else None,
     }

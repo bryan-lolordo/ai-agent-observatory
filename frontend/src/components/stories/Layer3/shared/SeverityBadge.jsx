@@ -1,5 +1,7 @@
 /**
  * SeverityBadge - Displays severity level with icon and color
+ * 
+ * UPDATED: WARNING badge uses outlined style (variation 1.2), larger font
  */
 
 const SEVERITY_STYLES = {
@@ -10,9 +12,10 @@ const SEVERITY_STYLES = {
     icon: '🔴',
   },
   warning: {
-    bg: 'bg-yellow-900/50',
-    text: 'text-yellow-300',
-    border: 'border-yellow-700',
+    // Variation 1.2: Outlined style
+    bg: 'bg-transparent',
+    text: 'text-yellow-400',
+    border: 'border-yellow-400 border-2',
     icon: '🟡',
   },
   info: {
@@ -33,7 +36,7 @@ export default function SeverityBadge({ severity }) {
   const style = SEVERITY_STYLES[severity] || SEVERITY_STYLES.info;
 
   return (
-    <span className={`px-2 py-0.5 rounded text-xs border ${style.bg} ${style.text} ${style.border}`}>
+    <span className={`px-3 py-1 rounded text-sm border ${style.bg} ${style.text} ${style.border} font-semibold`}>
       {style.icon} {severity.toUpperCase()}
     </span>
   );

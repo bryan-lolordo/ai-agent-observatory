@@ -83,7 +83,7 @@ class OptimizationStoryResponse(BaseModel):
     recommendations: List[Dict[str, str]] = Field(default_factory=list)
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "mode": "baseline",
                 "status": "ok",
@@ -161,7 +161,7 @@ class OptimizationRecord(BaseModel):
     notes: Optional[str] = None
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "opt_001",
                 "name": "Add output constraints to deep_analyze_job",
@@ -212,7 +212,7 @@ class OptimizationImpact(BaseModel):
     goal_description: Optional[str] = None
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "optimization_id": "opt_001",
                 "metrics": {

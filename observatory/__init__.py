@@ -182,6 +182,7 @@ def track_llm_call(
     system_prompt_tokens: int = None,
     user_message_tokens: int = None,
     chat_history_tokens: int = None,
+    chat_history_count: int = None,  # ✅ CHANGE 1: Added for conversation tracking
     conversation_context_tokens: int = None,
     tool_definitions_tokens: int = None,
     
@@ -208,6 +209,9 @@ def track_llm_call(
     trace_id: str = None,
     request_id: str = None,
     environment: str = None,
+
+    # ADD THIS PARAMETER:
+    prompt_prefix_hash: str = None,
     
     # NEW: Experiment tracking
     experiment_id: str = None,
@@ -259,6 +263,7 @@ def track_llm_call(
         system_prompt_tokens: System prompt token count (NEW)
         user_message_tokens: User message token count (NEW)
         chat_history_tokens: Chat history token count (NEW)
+        chat_history_count: Number of messages in chat history (NEW)
         conversation_context_tokens: Memory state token count (NEW)
         tool_definitions_tokens: Tool schemas token count (NEW)
         tool_calls_made: List of tool calls (NEW)
@@ -320,6 +325,7 @@ def track_llm_call(
         system_prompt_tokens=system_prompt_tokens,
         user_message_tokens=user_message_tokens,
         chat_history_tokens=chat_history_tokens,
+        chat_history_count=chat_history_count,  # ✅ CHANGE 2: Pass to record_call
         conversation_context_tokens=conversation_context_tokens,
         tool_definitions_tokens=tool_definitions_tokens,
         tool_calls_made=tool_calls_made,
@@ -336,6 +342,7 @@ def track_llm_call(
         trace_id=trace_id,
         request_id=request_id,
         environment=environment,
+        prompt_prefix_hash=prompt_prefix_hash,
         experiment_id=experiment_id,
         control_group=control_group,
         experiment_metadata=experiment_metadata,

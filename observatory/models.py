@@ -426,6 +426,9 @@ class LLMCall(BaseModel):
     trace_id: Optional[str] = None  # OpenTelemetry
     request_id: Optional[str] = None  # Provider request ID
     environment: Optional[str] = None  # dev, staging, prod
+
+    # Prefix cache detection
+    prompt_prefix_hash: Optional[str] = None
     
     # === EXISTING: Optimization metadata ===
     routing_decision: Optional[RoutingDecision] = None

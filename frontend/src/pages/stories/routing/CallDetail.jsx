@@ -120,7 +120,7 @@ export default function RoutingCallDetail() {
       storyId={STORY_ID}
       storyLabel="Model Routing"
       storyIcon={theme.emoji}
-      themeColor={theme.color}
+      theme={theme}
       // Entity info
       entityId={call.call_id}
       entityType="call"
@@ -158,69 +158,80 @@ export default function RoutingCallDetail() {
         healthyMessage: `This call is using ${call.model_name} appropriately for the task complexity.`,
         breakdownTitle: "🎯 Routing Analysis",
         breakdownComponent: customSections.length > 0 ? (
-          <div className="space-y-4">
-            {/* Complexity Chart */}
-            {customSections.find((s) => s.id === "complexity-analysis") && (
-              <div className="bg-slate-900 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-slate-400 mb-3">
-                  Complexity Score
-                </h4>
-                <div className="space-y-2">
-                  {customSections
-                    .find((s) => s.id === "complexity-analysis")
-                    ?.data?.items?.map((item, idx) => (
+          <div className="space-y-6">
+            {customSections.map((section) => (
+              <div key={section.id} className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                <h4 className="text-sm font-medium text-gray-300 mb-4">{section.title}</h4>
+                
+                {/* Alternatives Table */}
+                {section.type === 'table' && section.data && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-800/50">
+                        <tr className="border-b border-gray-700">
+                          {section.data.headers.map((header, idx) => (
+                            <th key={idx} className="text-center py-3 px-4 text-gray-400 font-medium">
+                              {header}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {section.data.rows.map((row, idx) => {
+                          const verdictColors = {
+                            'BEST': 'bg-green-500/20 border-green-500/30 text-green-400',
+                            'CURRENT': 'bg-blue-500/20 border-blue-500/30 text-blue-400',
+                            'CHEAPER': 'bg-purple-500/20 border-purple-500/30 text-purple-400',
+                            'EXPENSIVE': 'bg-red-500/20 border-red-500/30 text-red-400',
+                          };
+                          const verdictClass = verdictColors[row.verdict] || 'bg-gray-500/20 border-gray-500/30 text-gray-400';
+                          
+                          return (
+                            <tr key={idx} className="border-b border-gray-800">
+                              <td className="py-3 px-4 text-center font-mono text-gray-200">{row.model}</td>
+                              <td className="py-3 px-4 text-center text-gray-300">{row.quality}</td>
+                              <td className="py-3 px-4 text-center text-gray-300">${row.cost.toFixed(4)}</td>
+                              <td className="py-3 px-4 text-center text-gray-300">{row.latency}</td>
+                              <td className="py-3 px-4 text-center">
+                                <span className={`px-2 py-1 rounded border text-xs font-medium ${verdictClass}`}>
+                                  {row.verdict}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                
+                {/* Complexity Breakdown */}
+                {section.type === 'breakdown' && section.data && (
+                  <div className="space-y-3">
+                    {section.data.items.map((item, idx) => (
                       <div key={idx} className="flex items-center gap-3">
-                        <span className="text-sm text-slate-400 w-24">
+                        <span className="text-sm text-gray-400 w-32 capitalize">
                           {item.label}
                         </span>
-                        <div className="flex-1 h-4 bg-slate-700 rounded overflow-hidden">
+                        <div className="flex-1 h-6 bg-gray-700 rounded overflow-hidden">
                           <div
-                            className="h-full rounded"
-                            style={{
-                              width: `${(item.value / item.max) * 100}%`,
-                              backgroundColor: item.color,
-                            }}
-                          />
+                            className="h-full bg-purple-500 flex items-center justify-end pr-2"
+                            style={{ width: `${(item.value * 100)}%` }}
+                          >
+                            {item.value > 0.1 && (
+                              <span className="text-xs text-white font-medium">
+                                {(item.value * 100).toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-sm text-slate-300 w-12 text-right">
-                          {item.value.toFixed(2)}
-                        </span>
+                        <span className="text-sm text-gray-500 w-32">{item.description}</span>
                       </div>
                     ))}
-                </div>
+                  </div>
+                )}
               </div>
-            )}
-
-            {/* Routing Decision Cards */}
-            {customSections.find((s) => s.id === "routing-decision") && (
-              <div className="grid grid-cols-3 gap-3">
-                {customSections
-                  .find((s) => s.id === "routing-decision")
-                  ?.data?.cards?.map((card, idx) => {
-                    const colorMap = {
-                      green: "border-green-500/30 bg-green-500/10",
-                      yellow: "border-yellow-500/30 bg-yellow-500/10",
-                      red: "border-red-500/30 bg-red-500/10",
-                      blue: "border-blue-500/30 bg-blue-500/10",
-                      purple: "border-purple-500/30 bg-purple-500/10",
-                    };
-                    return (
-                      <div
-                        key={idx}
-                        className={`rounded-lg p-3 border ${colorMap[card.color] || colorMap.purple}`}
-                      >
-                        <div className="text-2xl mb-1">{card.icon}</div>
-                        <div className="text-xs text-slate-400">
-                          {card.label}
-                        </div>
-                        <div className="text-sm font-medium text-slate-200">
-                          {card.value}
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
+            ))}
           </div>
         ) : null,
       }}
@@ -262,7 +273,13 @@ export default function RoutingCallDetail() {
               }
             : null,
       }}
-      // Similar panel (empty for now - could show similar patterns)
+      // Trace panel
+      traceProps={{
+        callId: call.call_id,
+        conversationId: call.conversation_id,
+        storyType: 'routing',  // ADD THIS
+      }}
+      // Similar panel
       similarProps={{
         groupOptions: [
           { id: "operation", label: "Same Operation", filterFn: null },

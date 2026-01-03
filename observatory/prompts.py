@@ -501,6 +501,7 @@ def create_prompt_breakdown(
     system_prompt_tokens: Optional[int] = None,
     chat_history: Optional[List[Dict]] = None,
     chat_history_tokens: Optional[int] = None,
+    chat_history_count: Optional[int] = None,
     user_message: Optional[str] = None,
     user_message_tokens: Optional[int] = None,
     response_text: Optional[str] = None,
@@ -543,6 +544,10 @@ def create_prompt_breakdown(
     system_ratio = (system_prompt_tokens or 0) / total_input if total_input > 0 else 0.0
     history_ratio = (chat_history_tokens or 0) / total_input if total_input > 0 else 0.0
     context_ratio = (conversation_context_tokens or 0) / total_input if total_input > 0 else 0.0
+
+    # Use provided count, or auto-calculate from chat_history
+    if chat_history_count is None:
+        chat_history_count = len(chat_history) if chat_history else 0
     
     return PromptBreakdown(
         # System prompt
@@ -552,7 +557,7 @@ def create_prompt_breakdown(
         # Chat history
         chat_history=chat_history,
         chat_history_tokens=chat_history_tokens,
-        chat_history_count=len(chat_history) if chat_history else 0,
+        chat_history_count=chat_history_count,  # ✅ Use variable, not inline calculation
         
         # User message
         user_message=user_message[:1000] if user_message else None,

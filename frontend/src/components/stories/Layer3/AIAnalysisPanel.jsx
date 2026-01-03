@@ -18,7 +18,7 @@ const safeRender = (value) => {
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', responseText = null }) {
+export default function AIAnalysisPanel({ callId, responseText = null }) {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -61,13 +61,13 @@ export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', respon
   
   if (!analysis && !loading && !error) {
     return (
-      <div className="bg-gradient-to-br from-purple-900/20 to-slate-900 rounded-xl border border-purple-500/30 p-6">
+      <div className="bg-gradient-to-br from-purple-900/20 to-gray-900 rounded-xl border border-purple-500/30 p-6">
         <div className="text-center">
           <div className="text-4xl mb-4">🤖</div>
           <h3 className="text-lg font-semibold text-purple-300 mb-2">
             AI-Powered Analysis
           </h3>
-          <p className="text-slate-400 text-sm mb-6 max-w-md mx-auto">
+          <p className="text-gray-400 text-sm mb-6 max-w-md mx-auto">
             Get tailored recommendations by analyzing your actual prompt and response.
             The AI will suggest specific changes based on your use case.
           </p>
@@ -79,7 +79,7 @@ export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', respon
             <span>Analyze This Call</span>
             <span className="text-purple-300 text-xs">(~$0.02)</span>
           </button>
-          <p className="text-xs text-slate-500 mt-3">
+          <p className="text-xs text-gray-500 mt-3">
             Uses GPT-4o to analyze your prompt, response, and metrics
           </p>
         </div>
@@ -93,11 +93,11 @@ export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', respon
   
   if (loading) {
     return (
-      <div className="bg-slate-900 rounded-xl border border-slate-700 p-8">
+      <div className="bg-gray-900 rounded-xl border border-gray-700 p-8">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
-          <div className="text-slate-300">Analyzing call with AI...</div>
-          <div className="text-xs text-slate-500">This may take 5-10 seconds</div>
+          <div className="text-gray-300">Analyzing call with AI...</div>
+          <div className="text-xs text-gray-500">This may take 5-10 seconds</div>
         </div>
       </div>
     );
@@ -114,7 +114,7 @@ export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', respon
           <span className="text-2xl">⚠️</span>
           <div>
             <h3 className="text-red-400 font-semibold mb-1">Analysis Failed</h3>
-            <p className="text-slate-300 text-sm">{safeRender(error)}</p>
+            <p className="text-gray-300 text-sm">{safeRender(error)}</p>
             <button
               onClick={handleAnalyze}
               className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm"
@@ -137,14 +137,14 @@ export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', respon
     <div className="space-y-6">
       
       {/* Analysis Summary */}
-      <div className="bg-slate-900 rounded-xl border border-slate-700 p-5">
+      <div className="bg-gray-900 rounded-xl border border-gray-700 p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-purple-300 flex items-center gap-2">
             <span>🤖</span>
             AI Analysis
           </h3>
           {analysis.from_cache && (
-            <span className="px-2 py-1 bg-slate-800 rounded text-xs text-slate-400">
+            <span className="px-2 py-1 bg-gray-800 rounded text-xs text-gray-400">
               Cached
             </span>
           )}
@@ -154,15 +154,15 @@ export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', respon
           <div className="space-y-4">
             {/* Purpose */}
             <div>
-              <div className="text-xs text-slate-500 uppercase mb-1">Purpose</div>
-              <p className="text-slate-300">{safeRender(callAnalysis.purpose)}</p>
+              <div className="text-xs text-gray-500 uppercase mb-1">Purpose</div>
+              <p className="text-gray-300">{safeRender(callAnalysis.purpose)}</p>
             </div>
             
             {/* Output Format Assessment */}
             {callAnalysis.output_format_assessment && (
               <div>
-                <div className="text-xs text-slate-500 uppercase mb-1">Output Format</div>
-                <p className="text-slate-300">{safeRender(callAnalysis.output_format_assessment)}</p>
+                <div className="text-xs text-gray-500 uppercase mb-1">Output Format</div>
+                <p className="text-gray-300">{safeRender(callAnalysis.output_format_assessment)}</p>
               </div>
             )}
             
@@ -170,7 +170,7 @@ export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', respon
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-xs text-green-500 uppercase mb-2">Essential Output</div>
-                <ul className="text-sm text-slate-400 space-y-1">
+                <ul className="text-sm text-gray-400 space-y-1">
                   {callAnalysis.essential_output?.map((item, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="text-green-500">✓</span>
@@ -181,7 +181,7 @@ export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', respon
               </div>
               <div>
                 <div className="text-xs text-yellow-500 uppercase mb-2">Redundant Output</div>
-                <ul className="text-sm text-slate-400 space-y-1">
+                <ul className="text-sm text-gray-400 space-y-1">
                   {callAnalysis.redundant_output?.map((item, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="text-yellow-500">−</span>
@@ -196,7 +196,7 @@ export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', respon
             {callAnalysis.prompt_issues?.length > 0 && (
               <div>
                 <div className="text-xs text-red-400 uppercase mb-2">Prompt Issues</div>
-                <ul className="text-sm text-slate-400 space-y-1">
+                <ul className="text-sm text-gray-400 space-y-1">
                   {callAnalysis.prompt_issues.map((issue, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="text-red-400">!</span>
@@ -212,7 +212,7 @@ export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', respon
 
       {/* Recommendations */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
+        <h3 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
           <span>💡</span>
           Recommendations
         </h3>
@@ -226,7 +226,6 @@ export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', respon
             onToggle={() => setExpandedRec(expandedRec === rec.id ? null : rec.id)}
             onCopyCode={(code) => handleCopyCode(code, rec.id)}
             isCopied={copiedId === rec.id}
-            themeColor={themeColor}
             responseText={responseText}
           />
         ))}
@@ -236,12 +235,12 @@ export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', respon
       <div className="text-center pt-4">
         <button
           onClick={handleAnalyze}
-          className="text-sm text-slate-500 hover:text-slate-300 underline"
+          className="text-sm text-gray-500 hover:text-gray-300 underline"
         >
           Re-analyze (clear cache)
         </button>
         {analysis.analysis_cost && (
-          <span className="text-xs text-slate-600 ml-2">
+          <span className="text-xs text-gray-600 ml-2">
             Analysis cost: ${analysis.analysis_cost}
           </span>
         )}
@@ -254,14 +253,13 @@ export default function AIAnalysisPanel({ callId, themeColor = '#ec4899', respon
 // RECOMMENDATION CARD
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RecommendationCard({ 
-  recommendation, 
-  index, 
-  isExpanded, 
-  onToggle, 
+function RecommendationCard({
+  recommendation,
+  index,
+  isExpanded,
+  onToggle,
   onCopyCode,
   isCopied,
-  themeColor,
   responseText,
 }) {
   const rec = recommendation;
@@ -279,11 +277,11 @@ function RecommendationCard({
   };
 
   return (
-    <div className="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
+    <div className="bg-gray-900 rounded-xl border border-gray-700 overflow-hidden">
       {/* Header - Always visible */}
       <div
         onClick={onToggle}
-        className="p-4 cursor-pointer hover:bg-slate-800/50 transition-colors"
+        className="p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -291,17 +289,17 @@ function RecommendationCard({
             <div className={`w-2 h-2 rounded-full ${priorityColors[rec.priority] || 'bg-gray-500'}`} />
             
             {/* Rank */}
-            <span className="text-2xl font-bold text-slate-600">#{index + 1}</span>
+            <span className="text-2xl font-bold text-gray-600">#{index + 1}</span>
             
             {/* Title */}
             <div>
-              <h4 className="font-semibold text-slate-200">{safeRender(rec.title)}</h4>
+              <h4 className="font-semibold text-gray-200">{safeRender(rec.title)}</h4>
               <div className="flex items-center gap-3 text-xs mt-1">
-                <span className={effortColors[rec.effort] || 'text-slate-400'}>
+                <span className={effortColors[rec.effort] || 'text-gray-400'}>
                   {safeRender(rec.effort)} effort
                 </span>
-                <span className="text-slate-500">•</span>
-                <span className="text-slate-400">
+                <span className="text-gray-500">•</span>
+                <span className="text-gray-400">
                   {Math.round((rec.confidence || 0) * 100)}% confidence
                 </span>
               </div>
@@ -315,7 +313,7 @@ function RecommendationCard({
                 -{rec.estimated_impact.cost_reduction_pct}% cost
               </span>
             )}
-            <span className="text-slate-400 text-lg">
+            <span className="text-gray-400 text-lg">
               {isExpanded ? '▼' : '▶'}
             </span>
           </div>
@@ -324,24 +322,24 @@ function RecommendationCard({
       
       {/* Expanded content */}
       {isExpanded && (
-        <div className="border-t border-slate-700 p-4 space-y-4">
+        <div className="border-t border-gray-700 p-4 space-y-4">
           
           {/* Problem & Solution */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="text-xs text-red-400 uppercase mb-2">Problem</div>
-              <p className="text-sm text-slate-300">{safeRender(rec.problem)}</p>
+              <p className="text-sm text-gray-300">{safeRender(rec.problem)}</p>
             </div>
             <div>
               <div className="text-xs text-green-400 uppercase mb-2">Solution</div>
-              <p className="text-sm text-slate-300">{safeRender(rec.solution)}</p>
+              <p className="text-sm text-gray-300">{safeRender(rec.solution)}</p>
             </div>
           </div>
           
           {/* Impact metrics */}
           {rec.estimated_impact && (
             <div>
-              <div className="text-xs text-slate-500 uppercase mb-2">Estimated Impact</div>
+              <div className="text-xs text-gray-500 uppercase mb-2">Estimated Impact</div>
               <div className="grid grid-cols-3 gap-4">
                 <ImpactMetric
                   label="Tokens"
@@ -373,7 +371,7 @@ function RecommendationCard({
                   {isCopied ? '✓ Copied!' : 'Copy Prompt'}
                 </button>
               </div>
-              <pre className="bg-slate-800 rounded-lg p-4 text-sm text-slate-300 overflow-x-auto max-h-64 whitespace-pre-wrap">
+              <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-300 overflow-x-auto max-h-64 whitespace-pre-wrap">
                 {safeRender(rec.new_prompt)}
               </pre>
             </div>
@@ -382,7 +380,7 @@ function RecommendationCard({
           {/* Output Before/After Comparison */}
           {(responseText || rec.expected_output_example) && (
             <div>
-              <div className="text-xs text-slate-500 uppercase mb-2">📤 Output Comparison</div>
+              <div className="text-xs text-gray-500 uppercase mb-2">📤 Output Comparison</div>
               
               {responseText && rec.expected_output_example ? (
                 // Side-by-side comparison when both are available
@@ -390,13 +388,13 @@ function RecommendationCard({
                   <div>
                     <div className="text-xs text-red-400 mb-2 flex items-center gap-2">
                       <span>BEFORE</span>
-                      <span className="text-slate-500">(Current Output)</span>
+                      <span className="text-gray-500">(Current Output)</span>
                     </div>
-                    <pre className="bg-slate-800 rounded-lg p-4 text-sm text-slate-400 overflow-x-auto max-h-48 whitespace-pre-wrap border border-red-900/50">
+                    <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-400 overflow-x-auto max-h-48 whitespace-pre-wrap border border-red-900/50">
                       {safeRender(responseText).substring(0, 1000)}{responseText?.length > 1000 ? '...' : ''}
                     </pre>
                     {responseText?.length > 1000 && (
-                      <div className="text-xs text-slate-500 mt-1">
+                      <div className="text-xs text-gray-500 mt-1">
                         Showing first 1000 chars of {responseText.length.toLocaleString()} total
                       </div>
                     )}
@@ -404,9 +402,9 @@ function RecommendationCard({
                   <div>
                     <div className="text-xs text-green-400 mb-2 flex items-center gap-2">
                       <span>AFTER</span>
-                      <span className="text-slate-500">(Expected with fix)</span>
+                      <span className="text-gray-500">(Expected with fix)</span>
                     </div>
-                    <pre className="bg-slate-800 rounded-lg p-4 text-sm text-slate-300 overflow-x-auto max-h-48 whitespace-pre-wrap border border-green-900/50">
+                    <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-300 overflow-x-auto max-h-48 whitespace-pre-wrap border border-green-900/50">
                       {safeRender(rec.expected_output_example)}
                     </pre>
                   </div>
@@ -415,15 +413,15 @@ function RecommendationCard({
                 // Only expected output available
                 <div>
                   <div className="text-xs text-green-400 mb-2">Expected Output (After Fix)</div>
-                  <pre className="bg-slate-800 rounded-lg p-4 text-sm text-slate-300 overflow-x-auto max-h-40 whitespace-pre-wrap border border-green-900/50">
+                  <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-300 overflow-x-auto max-h-40 whitespace-pre-wrap border border-green-900/50">
                     {safeRender(rec.expected_output_example)}
                   </pre>
                 </div>
               ) : responseText ? (
                 // Only current output available
                 <div>
-                  <div className="text-xs text-slate-400 mb-2">Current Output</div>
-                  <pre className="bg-slate-800 rounded-lg p-4 text-sm text-slate-400 overflow-x-auto max-h-40 whitespace-pre-wrap">
+                  <div className="text-xs text-gray-400 mb-2">Current Output</div>
+                  <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-400 overflow-x-auto max-h-40 whitespace-pre-wrap">
                     {safeRender(responseText).substring(0, 500)}{responseText?.length > 500 ? '...' : ''}
                   </pre>
                 </div>
@@ -436,7 +434,7 @@ function RecommendationCard({
             {rec.preserves?.length > 0 && (
               <div>
                 <div className="text-xs text-green-500 uppercase mb-2">Preserves</div>
-                <ul className="text-sm text-slate-400 space-y-1">
+                <ul className="text-sm text-gray-400 space-y-1">
                   {rec.preserves.map((item, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="text-green-500">✓</span>
@@ -449,7 +447,7 @@ function RecommendationCard({
             {rec.tradeoffs?.length > 0 && (
               <div>
                 <div className="text-xs text-yellow-500 uppercase mb-2">Trade-offs</div>
-                <ul className="text-sm text-slate-400 space-y-1">
+                <ul className="text-sm text-gray-400 space-y-1">
                   {rec.tradeoffs.map((item, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="text-yellow-500">⚠</span>
@@ -492,13 +490,13 @@ function ImpactMetric({ label, before, after, change }) {
   };
   
   return (
-    <div className="bg-slate-800 rounded-lg p-3">
-      <div className="text-xs text-slate-500 mb-1">{label}</div>
+    <div className="bg-gray-800 rounded-lg p-3">
+      <div className="text-xs text-gray-500 mb-1">{label}</div>
       {before != null && after != null ? (
         <div className="text-sm">
-          <span className="text-slate-400">{safeRender(before)}</span>
-          <span className="text-slate-600 mx-1">→</span>
-          <span className="text-slate-200">{safeRender(after)}</span>
+          <span className="text-gray-400">{safeRender(before)}</span>
+          <span className="text-gray-600 mx-1">→</span>
+          <span className="text-gray-200">{safeRender(after)}</span>
         </div>
       ) : null}
       {change != null && (

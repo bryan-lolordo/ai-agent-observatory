@@ -235,6 +235,7 @@ class MetricsCollector:
         system_prompt_tokens: Optional[int] = None,
         user_message_tokens: Optional[int] = None,
         chat_history_tokens: Optional[int] = None,
+        chat_history_count: Optional[int] = None, 
         conversation_context_tokens: Optional[int] = None,
         tool_definitions_tokens: Optional[int] = None,
         
@@ -261,6 +262,9 @@ class MetricsCollector:
         trace_id: Optional[str] = None,
         request_id: Optional[str] = None,
         environment: Optional[str] = None,
+
+        # NEW: Prefix hash for cache detection
+        prompt_prefix_hash: Optional[str] = None,
         
         # NEW: Experiment tracking
         experiment_id: Optional[str] = None,
@@ -393,9 +397,29 @@ class MetricsCollector:
         if prompt:
             content_hash = compute_content_hash(prompt)
         
+        # Auto-extract token breakdown fields from prompt_breakdown if not provided
+        if prompt_breakdown:
+            if chat_history_count is None:
+                chat_history_count = prompt_breakdown.chat_history_count
+            
+            if chat_history_tokens is None:
+                chat_history_tokens = prompt_breakdown.chat_history_tokens
+            
+            if system_prompt_tokens is None:
+                system_prompt_tokens = prompt_breakdown.system_prompt_tokens
+            
+            if user_message_tokens is None:
+                user_message_tokens = prompt_breakdown.user_message_tokens
+            
+            if conversation_context_tokens is None:
+                conversation_context_tokens = prompt_breakdown.conversation_context_tokens
+            
+            if tool_definitions_tokens is None:
+                tool_definitions_tokens = prompt_breakdown.tool_definitions_tokens
+        
         # Create the LLM call record
         llm_call = LLMCall(
-            id=str(uuid.uuid4()),
+            id=request_id if request_id else str(uuid.uuid4()),
             session_id=target_session.id,
             timestamp=datetime.utcnow(),
             call_type=call_type,
@@ -441,6 +465,7 @@ class MetricsCollector:
             system_prompt_tokens=system_prompt_tokens,
             user_message_tokens=user_message_tokens,
             chat_history_tokens=chat_history_tokens,
+            chat_history_count=chat_history_count,
             conversation_context_tokens=conversation_context_tokens,
             tool_definitions_tokens=tool_definitions_tokens,
             # NEW: Tool tracking
@@ -462,6 +487,8 @@ class MetricsCollector:
             trace_id=trace_id,
             request_id=request_id,
             environment=environment,
+            # NEW: Prefix hash
+            prompt_prefix_hash=prompt_prefix_hash,
             # NEW: Experiment tracking
             experiment_id=experiment_id,
             control_group=control_group,

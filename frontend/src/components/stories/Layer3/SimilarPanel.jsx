@@ -115,7 +115,7 @@ export default function SimilarPanel({
             className={`px-4 py-2 rounded-lg text-sm transition-colors ${
               activeGroup === option.id
                 ? 'bg-orange-600/30 text-orange-400 border border-orange-600'
-                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:text-slate-200'
+                : 'bg-gray-800 text-gray-400 border border-gray-700 hover:text-gray-200'
             }`}
           >
             {option.label} ({groupCounts[option.id] || 0})
@@ -132,12 +132,12 @@ export default function SimilarPanel({
           {displayStats.map((stat, idx) => (
             <div
               key={idx}
-              className="bg-slate-800 border border-slate-700 rounded-lg p-4 text-center"
+              className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center"
             >
               <div className={`text-2xl font-bold ${stat.color || 'text-orange-400'}`}>
                 {stat.value}
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-gray-500">
                 {stat.icon && <span className="mr-1">{stat.icon}</span>}
                 {stat.label}
               </div>
@@ -147,15 +147,15 @@ export default function SimilarPanel({
       )}
 
       {/* Items Table */}
-      <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-        <div className="flex justify-between items-center p-4 border-b border-slate-700">
-          <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide">
+      <div className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+        <div className="flex justify-between items-center p-4 border-b border-gray-700">
+          <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide">
             {filteredItems.length} Similar Calls
           </h3>
           {onExport && (
             <button
               onClick={onExport}
-              className="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded"
+              className="text-xs px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
             >
               Export CSV
             </button>
@@ -164,8 +164,8 @@ export default function SimilarPanel({
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-900">
-              <tr className="text-left text-slate-500">
+            <thead className="bg-gray-900">
+              <tr className="text-left text-gray-500">
                 {columns.map(col => (
                   <th key={col.key} className="px-4 py-3">
                     {col.label}
@@ -184,14 +184,14 @@ export default function SimilarPanel({
                     <tr
                       key={itemId || idx}
                       onClick={() => handleRowClick(item)}
-                      className={`border-t border-slate-700 transition-colors ${
+                      className={`border-t border-gray-700 transition-colors ${
                         isCurrent
                           ? 'bg-orange-900/20'
-                          : 'hover:bg-slate-700/50 cursor-pointer'
+                          : 'hover:bg-gray-700/50 cursor-pointer'
                       }`}
                     >
                       {columns.map(col => (
-                        <td key={col.key} className="px-4 py-3 text-slate-300">
+                        <td key={col.key} className="px-4 py-3 text-gray-300">
                           {isCurrent && col.key === 'id' && (
                             <span className="text-orange-400 mr-2">●</span>
                           )}
@@ -214,7 +214,7 @@ export default function SimilarPanel({
                 })
               ) : (
                 <tr>
-                  <td colSpan={columns.length + 1} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={columns.length + 1} className="px-4 py-8 text-center text-gray-500">
                     No items match the current filter
                   </td>
                 </tr>
@@ -223,7 +223,7 @@ export default function SimilarPanel({
           </table>
         </div>
 
-        <div className="p-3 border-t border-slate-700 text-center text-sm text-slate-500">
+        <div className="p-3 border-t border-gray-700 text-center text-sm text-gray-500">
           <span className="text-orange-400">●</span> = Current call • Click any row to view details
         </div>
       </div>

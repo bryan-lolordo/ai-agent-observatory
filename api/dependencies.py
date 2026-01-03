@@ -3,21 +3,50 @@ FastAPI Dependencies
 Location: api/dependencies.py
 
 Shared dependencies for FastAPI routes.
-
-NOTE: Currently not used - our architecture uses direct function calls.
-This file is a placeholder for future enhancements like:
-- Database session management
-- Authentication
-- Rate limiting
-- Common query parameters
 """
 
-from typing import Optional
+from typing import Optional, Generator
 from fastapi import Query
+from sqlalchemy.orm import Session
+
+from observatory.storage import ObservatoryStorage
 
 
 # =============================================================================
-# COMMON QUERY PARAMETERS (Not currently used)
+# DATABASE SESSION DEPENDENCY
+# =============================================================================
+
+def get_db() -> Generator[Session, None, None]:
+    """
+    Database session dependency for FastAPI.
+    
+    Yields a SQLAlchemy session and ensures it's closed after use.
+    
+    Usage:
+        @router.get("/endpoint")
+        def my_endpoint(db: Session = Depends(get_db)):
+            # Use db here
+            from observatory.storage import LLMCallDB
+            calls = db.query(LLMCallDB).all()
+    
+    Example:
+        from fastapi import Depends
+        from sqlalchemy.orm import Session
+        from api.dependencies import get_db
+        
+        @router.get("/calls")
+        def get_calls(db: Session = Depends(get_db)):
+            return db.query(LLMCallDB).all()
+    """
+    db = ObservatoryStorage.SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+# =============================================================================
+# COMMON QUERY PARAMETERS (Optional - for future refactoring)
 # =============================================================================
 
 class CommonQueryParams:
@@ -41,28 +70,13 @@ class CommonQueryParams:
 
 
 # =============================================================================
-# DATABASE SESSION (Not currently used - we use singleton Storage)
-# =============================================================================
-
-# Future: If we want to use dependency injection for database
-# from fastapi import Depends
-# 
-# def get_db():
-#     """Get database session."""
-#     db = get_storage()
-#     try:
-#         yield db
-#     finally:
-#         # Cleanup if needed
-#         pass
-
-
-# =============================================================================
 # AUTHENTICATION (Not implemented)
 # =============================================================================
 
 # Future: Add API key or JWT authentication
 # 
+# from fastapi import Header, HTTPException
+#
 # async def verify_api_key(api_key: str = Header(None)):
 #     if api_key != "expected_key":
 #         raise HTTPException(status_code=401, detail="Invalid API key")

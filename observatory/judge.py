@@ -668,6 +668,14 @@ Return ONLY valid JSON (no markdown, no code blocks):
         """Parse judge response and create QualityEvaluation."""
         try:
             data = self._parse_json_response(result_text)
+
+            # ADD THIS SAFETY NET - Ensure score is 0-10
+            score = data.get('score', 0)
+            if score > 10:
+                print(f"⚠️ Normalizing judge score: {score} → {score/10.0}")
+                score = round(score / 10.0, 1)
+            data['score'] = min(10.0, max(0.0, score))  # Clamp to 0-10
+            # END ADDITION
             
             # Update statistics
             self._total_evaluated += 1
