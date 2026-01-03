@@ -11,6 +11,8 @@ import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import { formatNumber, truncateText } from '../../../utils/formatters';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Sector } from 'recharts';
+import { BASE_THEME } from '../../../utils/themeUtils';
+import PageContainer from '../../../components/layout/PageContainer';
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#6b7280'];
 
@@ -120,13 +122,13 @@ export default function CostAnalysis() {
   
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-950 p-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-red-900/20 border border-red-500 rounded-lg p-6">
-            <h2 className="text-xl font-bold text-red-400 mb-2">Error Loading Data</h2>
-            <p className="text-gray-300">{error}</p>
+      <div className={`min-h-screen ${BASE_THEME.container.tertiary} p-8`}>
+        <PageContainer>
+          <div className={`${BASE_THEME.status.error.bg} border ${BASE_THEME.status.error.border} rounded-lg p-6`}>
+            <h2 className={`text-xl font-bold ${BASE_THEME.status.error.textBold} mb-2`}>Error Loading Data</h2>
+            <p className={BASE_THEME.text.secondary}>{error}</p>
           </div>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -155,10 +157,10 @@ export default function CostAnalysis() {
   const hasActiveFilters = agentFilter !== 'all' || operationFilter !== 'all';
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
+    <div className={`min-h-screen ${BASE_THEME.container.tertiary} ${BASE_THEME.text.primary}`}>
       <StoryNavTabs activeStory="cost" />
 
-      <div className="max-w-7xl mx-auto p-6">
+      <PageContainer>
         
         {/* Page Header */}
         <div className="mb-8">
@@ -305,16 +307,16 @@ export default function CostAnalysis() {
           </div>
           
           <div className="overflow-x-auto overflow-y-auto max-h-80">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
               <thead className="bg-gray-800/50">
                 <tr className="border-b border-gray-700">
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Status</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Agent</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Operation</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Cost</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">% Total</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Calls</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Avg/Call</th>
+                  <th style={{ width: '5%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Status</th>
+                  <th style={{ width: '16%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Agent</th>
+                  <th style={{ width: '37%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Operation</th>
+                  <th style={{ width: '11%' }} className="text-right py-3 px-4 text-gray-400 font-medium">Cost</th>
+                  <th style={{ width: '11%' }} className="text-right py-3 px-4 text-gray-400 font-medium">% Total</th>
+                  <th style={{ width: '9%' }} className="text-right py-3 px-4 text-gray-400 font-medium">Calls</th>
+                  <th style={{ width: '11%' }} className="text-right py-3 px-4 text-gray-400 font-medium">Avg/Call</th>
                 </tr>
               </thead>
               <tbody>
@@ -432,7 +434,7 @@ export default function CostAnalysis() {
           </div>
         )}
 
-      </div>
+      </PageContainer>
     </div>
   );
 }

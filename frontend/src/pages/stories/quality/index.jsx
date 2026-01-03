@@ -167,17 +167,17 @@ export default function Quality() {
           </div>
           
           <div className="overflow-x-auto overflow-y-auto max-h-80">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
               <thead className={BASE_THEME.container.secondary}>
                 <tr className={`border-b ${BASE_THEME.border.default}`}>
-                  <th className={`text-left py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Status</th>
-                  <th className={`text-left py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Agent</th>
-                  <th className={`text-left py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Operation</th>
-                  <th className={`text-center py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Avg Score</th>
-                  <th className={`text-center py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Min</th>
-                  <th className={`text-center py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Errors</th>
-                  <th className={`text-center py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Halluc.</th>
-                  <th className={`text-right py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Calls</th>
+                  <th style={{ width: '4%' }} className={`text-left py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Status</th>
+                  <th style={{ width: '14%' }} className={`text-left py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Agent</th>
+                  <th style={{ width: '34%' }} className={`text-left py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Operation</th>
+                  <th style={{ width: '12%' }} className={`text-center py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Avg Score</th>
+                  <th style={{ width: '9%' }} className={`text-center py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Min</th>
+                  <th style={{ width: '9%' }} className={`text-center py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Errors</th>
+                  <th style={{ width: '9%' }} className={`text-center py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Halluc.</th>
+                  <th style={{ width: '9%' }} className={`text-right py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Calls</th>
                 </tr>
               </thead>
               <tbody>

@@ -1,9 +1,14 @@
-// src/components/stories/Layer3/shared/TraceTree.jsx
+/**
+ * TraceTree - Shows call trace hierarchy with pattern analysis
+ *
+ * UPDATED: Uses theme system - no hardcoded colors!
+ */
+
 import React, { useState, useEffect } from 'react';
-import { 
-  ChevronRight, 
-  ChevronDown, 
-  Clock, 
+import {
+  ChevronRight,
+  ChevronDown,
+  Clock,
   DollarSign,
   MessageSquare,
   Wrench,
@@ -15,9 +20,11 @@ import {
   Flame,
   Lightbulb
 } from 'lucide-react';
+import { BASE_THEME, getSeverityColors } from '../../../../utils/themeUtils';
+import { STORY_THEMES } from '../../../../config/theme';
 
 // ===========================================================================
-// AGENT ROLE ICONS
+// AGENT ROLE ICONS - Using theme colors
 // ===========================================================================
 
 const AgentRoleIcon = ({ role }) => {
@@ -28,18 +35,19 @@ const AgentRoleIcon = ({ role }) => {
     reviewer: AlertCircle,
     planner: Wrench,
   };
-  
+
+  // Map roles to story themes
   const colors = {
-    orchestrator: 'text-blue-400',
-    retriever: 'text-green-400',
-    analyst: 'text-purple-400',
-    reviewer: 'text-orange-400',
-    planner: 'text-pink-400',
+    orchestrator: BASE_THEME.status.info.text,
+    retriever: STORY_THEMES.optimization.text,
+    analyst: STORY_THEMES.routing.text,
+    reviewer: STORY_THEMES.latency.text,
+    planner: STORY_THEMES.cache.text,
   };
-  
+
   const Icon = icons[role] || Wrench;
-  const colorClass = colors[role] || 'text-gray-400';
-  
+  const colorClass = colors[role] || BASE_THEME.text.secondary;
+
   return <Icon className={`w-4 h-4 ${colorClass}`} />;
 };
 
@@ -49,10 +57,10 @@ const AgentRoleIcon = ({ role }) => {
 
 function groupCallsByFunction(children) {
   const groups = {};
-  
+
   children.forEach(child => {
     const key = `${child.call.agent_name}_${child.call.operation}`;
-    
+
     if (!groups[key]) {
       groups[key] = {
         agent_name: child.call.agent_name,
@@ -65,14 +73,14 @@ function groupCallsByFunction(children) {
         has_errors: false,
       };
     }
-    
+
     groups[key].calls.push(child);
     groups[key].total_latency += child.call.latency_ms || 0;
     groups[key].total_cost += child.call.total_cost || 0;
     groups[key].total_tokens += child.call.total_tokens || 0;
     if (!child.call.success) groups[key].has_errors = true;
   });
-  
+
   return Object.values(groups);
 }
 
@@ -83,18 +91,17 @@ function groupCallsByFunction(children) {
 function analyzePattern(group) {
   const count = group.calls.length;
   const avgLatency = group.total_latency / count;
-  
+
   // Expensive thresholds
   const isExpensive = group.total_cost > 0.05 || group.total_latency > 5000;
   const isSlow = avgLatency > 1000;
   const isHighVolume = count > 10;
-  
+
   const suggestions = [];
   let severity = 'info'; // info, warning, critical
-  
+
   // Pattern detection
   if (count > 1) {
-    // Check if calls are similar (potential duplicates or loop)
     if (count > 5) {
       suggestions.push(`${count} sequential calls detected - consider batching or parallelizing`);
       severity = 'warning';
@@ -103,17 +110,17 @@ function analyzePattern(group) {
       severity = 'info';
     }
   }
-  
+
   if (isExpensive && isHighVolume) {
     suggestions.push(`High cost from volume (${count} calls × $${(group.total_cost / count).toFixed(4)})`);
     severity = 'critical';
   }
-  
+
   if (isSlow && count > 1) {
     suggestions.push(`Slow execution - avg ${(avgLatency / 1000).toFixed(1)}s per call`);
     severity = severity === 'critical' ? 'critical' : 'warning';
   }
-  
+
   return { suggestions, severity };
 }
 
@@ -124,40 +131,40 @@ function analyzePattern(group) {
 const GroupedCallNode = ({ group, depth = 0 }) => {
   const [showAll, setShowAll] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
-  
+
   const count = group.calls.length;
   const indent = depth * 24;
-  
+
   // Format metrics
   const latencySeconds = (group.total_latency / 1000).toFixed(1);
   const cost = group.total_cost.toFixed(4);
   const tokens = group.total_tokens;
-  
+
   // Analyze pattern
   const { suggestions, severity } = analyzePattern(group);
-  
-  // Severity colors
-  const severityColors = {
-    critical: 'text-red-400 bg-red-900/20 border-red-700',
-    warning: 'text-orange-400 bg-orange-900/20 border-orange-700',
-    info: 'text-blue-400 bg-blue-900/20 border-blue-700',
+
+  // Get severity colors from theme
+  const severityColorsMap = {
+    critical: getSeverityColors('critical'),
+    warning: getSeverityColors('warning'),
+    info: getSeverityColors('info'),
   };
-  
-  const severityColor = severityColors[severity] || severityColors.info;
-  
+
+  const severityTheme = severityColorsMap[severity] || severityColorsMap.info;
+
   return (
     <div className="font-mono text-sm">
       {/* Group header */}
-      <div 
+      <div
         className={`
-          flex items-center gap-2 py-2 px-3 
-          hover:bg-gray-800/50
+          flex items-center gap-2 py-2 px-3
+          ${BASE_THEME.state.hover}
           cursor-pointer
           transition-colors
-          ${depth > 0 ? 'border-l-2 border-gray-700' : ''}
-          ${severity === 'critical' ? 'bg-red-900/10' : ''}
-          ${severity === 'warning' ? 'bg-orange-900/10' : ''}
-          ${group.has_errors ? 'border-red-700' : ''}
+          ${depth > 0 ? `border-l-2 ${BASE_THEME.border.default}` : ''}
+          ${severity === 'critical' ? BASE_THEME.status.error.bg : ''}
+          ${severity === 'warning' ? BASE_THEME.status.warning.bg : ''}
+          ${group.has_errors ? BASE_THEME.status.error.border : ''}
         `}
         style={{ paddingLeft: `${indent + 12}px` }}
         onClick={() => setShowAll(!showAll)}
@@ -165,45 +172,45 @@ const GroupedCallNode = ({ group, depth = 0 }) => {
         {/* Expand/collapse chevron */}
         {count > 1 ? (
           showAll ? (
-            <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <ChevronDown className={`w-4 h-4 ${BASE_THEME.text.secondary} flex-shrink-0`} />
           ) : (
-            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <ChevronRight className={`w-4 h-4 ${BASE_THEME.text.secondary} flex-shrink-0`} />
           )
         ) : (
           <div className="w-4 h-4 flex-shrink-0" />
         )}
-        
+
         {/* Severity indicator */}
-        {severity === 'critical' && <Flame className="w-4 h-4 text-red-400 flex-shrink-0" />}
-        {severity === 'warning' && <AlertTriangle className="w-4 h-4 text-orange-400 flex-shrink-0" />}
-        {severity === 'info' && <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />}
-        
+        {severity === 'critical' && <Flame className={`w-4 h-4 ${BASE_THEME.status.error.text} flex-shrink-0`} />}
+        {severity === 'warning' && <AlertTriangle className={`w-4 h-4 ${BASE_THEME.status.warning.text} flex-shrink-0`} />}
+        {severity === 'info' && <CheckCircle className={`w-4 h-4 ${BASE_THEME.status.success.text} flex-shrink-0`} />}
+
         {/* Agent role icon */}
         <AgentRoleIcon role={group.agent_role} />
-        
+
         {/* Agent name & operation */}
-        <span className="font-semibold text-gray-200">
+        <span className={`font-semibold ${BASE_THEME.text.primary}`}>
           {group.agent_name || 'Unknown'}
         </span>
-        <span className="text-gray-500">→</span>
-        <span className="text-gray-300">{group.operation}</span>
-        
+        <span className={BASE_THEME.text.muted}>→</span>
+        <span className={BASE_THEME.text.secondary}>{group.operation}</span>
+
         {/* Call count badge */}
         {count > 1 && (
-          <span className={`ml-2 px-2 py-0.5 text-xs rounded border ${severityColor}`}>
+          <span className={`ml-2 px-2 py-0.5 text-xs rounded border ${severityTheme.text} ${severityTheme.bg} ${severityTheme.border}`}>
             ×{count}
           </span>
         )}
-        
+
         {/* Error indicator */}
         {group.has_errors && (
-          <span className="ml-2 px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded border border-red-500/30">
+          <span className={`ml-2 px-2 py-0.5 ${BASE_THEME.status.error.bg} ${BASE_THEME.status.error.text} text-xs rounded border ${BASE_THEME.status.error.border}`}>
             ERRORS
           </span>
         )}
-        
+
         {/* Metrics (right-aligned) */}
-        <div className="ml-auto flex items-center gap-6 text-xs text-gray-400 flex-shrink-0">
+        <div className={`ml-auto flex items-center gap-6 text-xs ${BASE_THEME.text.secondary} flex-shrink-0`}>
           <span className="w-14 text-center" title="Number of calls">
             {count}
           </span>
@@ -218,18 +225,18 @@ const GroupedCallNode = ({ group, depth = 0 }) => {
           </span>
         </div>
       </div>
-      
+
       {/* Suggestions */}
       {suggestions.length > 0 && showSuggestions && (
-        <div 
-          className={`ml-12 mr-3 mt-1 mb-2 p-2 rounded border text-xs ${severityColor}`}
+        <div
+          className={`ml-12 mr-3 mt-1 mb-2 p-2 rounded border text-xs ${severityTheme.text} ${severityTheme.bg} ${severityTheme.border}`}
           style={{ marginLeft: `${indent + 48}px` }}
         >
           <div className="flex items-start gap-2">
             <Lightbulb className="w-3 h-3 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               {suggestions.map((suggestion, idx) => (
-                <div key={idx} className="text-gray-300">
+                <div key={idx} className={BASE_THEME.text.secondary}>
                   {suggestion}
                 </div>
               ))}
@@ -239,21 +246,21 @@ const GroupedCallNode = ({ group, depth = 0 }) => {
                 e.stopPropagation();
                 setShowSuggestions(false);
               }}
-              className="text-gray-500 hover:text-gray-300"
+              className={`${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary}`}
             >
               ✕
             </button>
           </div>
         </div>
       )}
-      
+
       {/* Individual calls (expanded) */}
       {showAll && count > 1 && (
-        <div className="border-l-2 border-gray-700 ml-6" style={{ marginLeft: `${indent + 24}px` }}>
+        <div className={`border-l-2 ${BASE_THEME.border.default} ml-6`} style={{ marginLeft: `${indent + 24}px` }}>
           {group.calls.map((child, idx) => (
-            <IndividualCallNode 
-              key={child.call.call_id} 
-              nodeData={child} 
+            <IndividualCallNode
+              key={child.call.call_id}
+              nodeData={child}
               depth={depth + 1}
               index={idx + 1}
             />
@@ -271,38 +278,38 @@ const GroupedCallNode = ({ group, depth = 0 }) => {
 const IndividualCallNode = ({ nodeData, depth = 0, index = null }) => {
   const call = nodeData.call;
   const indent = depth * 24;
-  
+
   // Format metrics
   const latencySeconds = ((call.latency_ms || 0) / 1000).toFixed(1);
   const cost = (call.total_cost || 0).toFixed(4);
   const tokens = call.total_tokens || 0;
-  
+
   return (
-    <div 
+    <div
       className={`
-        flex items-center gap-2 py-2 px-3 
-        text-xs text-gray-400
-        ${!call.success ? 'bg-red-900/20 border-red-700' : ''}
+        flex items-center gap-2 py-2 px-3
+        text-xs ${BASE_THEME.text.secondary}
+        ${!call.success ? `${BASE_THEME.status.error.bg} ${BASE_THEME.status.error.border}` : ''}
       `}
       style={{ paddingLeft: `${indent + 12}px` }}
     >
       {/* Call number */}
       {index && (
-        <span className="text-gray-600 w-6">#{index}</span>
+        <span className={`${BASE_THEME.text.muted} w-6`}>#{index}</span>
       )}
-      
+
       {/* Success/Error indicator */}
       {call.success ? (
-        <CheckCircle className="w-3 h-3 text-green-500 flex-shrink-0" />
+        <CheckCircle className={`w-3 h-3 ${BASE_THEME.status.success.text} flex-shrink-0`} />
       ) : (
-        <XCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
+        <XCircle className={`w-3 h-3 ${BASE_THEME.status.error.text} flex-shrink-0`} />
       )}
-      
+
       {/* Timestamp or ID */}
-      <span className="text-gray-500 flex-1">
+      <span className={`${BASE_THEME.text.muted} flex-1`}>
         {call.call_id?.substring(0, 8)}...
       </span>
-      
+
       {/* Metrics */}
       <div className="flex items-center gap-6 flex-shrink-0">
         <span className="w-14 text-center">-</span>
@@ -323,15 +330,15 @@ export default function TraceTree({ callId, conversationId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState('single');
-  
+
   useEffect(() => {
     fetchTrace();
   }, [callId, conversationId]);
-  
+
   const fetchTrace = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       let url;
       if (conversationId) {
@@ -343,12 +350,12 @@ export default function TraceTree({ callId, conversationId }) {
       } else {
         throw new Error('Either callId or conversationId is required');
       }
-      
+
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch trace: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
       setTrace(data);
     } catch (err) {
@@ -358,49 +365,49 @@ export default function TraceTree({ callId, conversationId }) {
       setLoading(false);
     }
   };
-  
+
   // Loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-        <span className="ml-3 text-gray-400">Loading trace...</span>
+        <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${BASE_THEME.status.info.border}`} />
+        <span className={`ml-3 ${BASE_THEME.text.secondary}`}>Loading trace...</span>
       </div>
     );
   }
-  
+
   // Error state
   if (error) {
     return (
-      <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-        <div className="flex items-center gap-2 text-red-400">
+      <div className={`${BASE_THEME.status.error.bg} border ${BASE_THEME.status.error.border} rounded-lg p-4`}>
+        <div className={`flex items-center gap-2 ${BASE_THEME.status.error.text}`}>
           <AlertCircle className="w-5 h-5" />
           <span className="font-semibold">Failed to load trace</span>
         </div>
-        <p className="mt-2 text-sm text-red-300">{error}</p>
+        <p className={`mt-2 text-sm ${BASE_THEME.status.error.text}`}>{error}</p>
       </div>
     );
   }
-  
+
   // No data
   if (!trace) {
     return (
-      <div className="text-center p-8 text-gray-500">
+      <div className={`text-center p-8 ${BASE_THEME.text.muted}`}>
         No trace data available
       </div>
     );
   }
-  
+
   // ===========================================================================
   // RENDER: Conversation View (with grouping)
   // ===========================================================================
-  
+
   if (viewMode === 'conversation' && trace.turns) {
     return (
       <div className="space-y-4">
         {/* Column Headers */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2">
-          <div className="flex items-center gap-2 text-xs font-medium text-gray-400 uppercase tracking-wide">
+        <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg px-3 py-2`}>
+          <div className={`flex items-center gap-2 text-xs font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide`}>
             <div className="flex-1 flex items-center gap-2">
               <div className="w-4" />
               <div className="w-4" />
@@ -421,53 +428,49 @@ export default function TraceTree({ callId, conversationId }) {
             </div>
           </div>
         </div>
-        
+
         {/* Turns */}
         <div className="space-y-4">
           {trace.turns.map((turn) => {
             const turnTimeSeconds = ((turn.total_latency_ms || 0) / 1000).toFixed(1);
-            
-            // User message should come from the ChatAgent call in this turn
-            // Backend should query: SELECT user_message FROM llm_calls WHERE turn_number = X AND agent_name = 'ChatAgent'
+
             const userMessage = turn.user_message || "[No user message recorded]";
-            const displayMessage = userMessage.length > 100 
-              ? userMessage.substring(0, 100) + '...' 
+            const displayMessage = userMessage.length > 100
+              ? userMessage.substring(0, 100) + '...'
               : userMessage;
-            
-            // Group children by function
+
             const groups = groupCallsByFunction(turn.children || []);
-            
-            // Determine turn severity
+
             const hasExpensiveCalls = turn.total_cost > 0.5 || turn.total_latency_ms > 10000;
-            const turnSeverity = hasExpensiveCalls ? 'bg-red-900/10' : '';
-            
+            const turnSeverity = hasExpensiveCalls ? BASE_THEME.status.error.bg : '';
+
             return (
-              <div key={turn.turn_number} className={`border border-gray-700 rounded-lg overflow-hidden bg-gray-900 ${turnSeverity}`}>
+              <div key={turn.turn_number} className={`border ${BASE_THEME.border.default} rounded-lg overflow-hidden ${BASE_THEME.container.primary} ${turnSeverity}`}>
                 {/* Turn header */}
-                <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3 border-b border-gray-700">
+                <div className={`bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3 border-b ${BASE_THEME.border.default}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <span className="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded flex-shrink-0">
+                      <span className={`${BASE_THEME.status.info.bg} text-white text-xs font-bold px-2 py-1 rounded flex-shrink-0`}>
                         Turn {turn.turn_number}
                       </span>
-                      <span className="text-sm text-gray-300 font-medium truncate">
+                      <span className={`text-sm ${BASE_THEME.text.secondary} font-medium truncate`}>
                         "{displayMessage}"
                       </span>
                       {hasExpensiveCalls && (
-                        <span className="flex items-center gap-1 text-xs text-red-400">
+                        <span className={`flex items-center gap-1 text-xs ${BASE_THEME.status.error.text}`}>
                           <Flame className="w-3 h-3" />
                           EXPENSIVE
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-gray-400 flex-shrink-0 ml-4">
+                    <div className={`flex items-center gap-4 text-xs ${BASE_THEME.text.secondary} flex-shrink-0 ml-4`}>
                       <span>{turn.total_calls} calls</span>
                       <span>{turnTimeSeconds}s</span>
                       <span>${(turn.total_cost || 0).toFixed(4)}</span>
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Grouped calls */}
                 <div>
                   {groups.map((group, idx) => (
@@ -481,25 +484,25 @@ export default function TraceTree({ callId, conversationId }) {
       </div>
     );
   }
-  
+
   // ===========================================================================
   // RENDER: Single Call View (with grouping)
   // ===========================================================================
-  
+
   if (viewMode === 'single' && trace.root_call) {
     const hasConversation = trace.conversation_turns && trace.conversation_turns.length > 1;
     const groups = groupCallsByFunction(trace.children || []);
-    
+
     return (
       <div className="space-y-4">
         {/* View toggle */}
         {hasConversation && (
-          <div className="flex gap-2 border-b border-gray-700 pb-2">
-            <button className="px-4 py-2 rounded-t font-medium bg-blue-600 text-white" disabled>
+          <div className={`flex gap-2 border-b ${BASE_THEME.border.default} pb-2`}>
+            <button className={`px-4 py-2 rounded-t font-medium ${BASE_THEME.status.info.bg} text-white`} disabled>
               This Call Only
             </button>
             <button
-              className="px-4 py-2 rounded-t font-medium bg-gray-800 text-gray-300 hover:bg-gray-700"
+              className={`px-4 py-2 rounded-t font-medium ${BASE_THEME.container.secondary} ${BASE_THEME.text.secondary} hover:bg-gray-700`}
               onClick={() => {
                 window.location.href = `/api/calls/conversations/${trace.root_call.conversation_id}/tree`;
               }}
@@ -508,10 +511,10 @@ export default function TraceTree({ callId, conversationId }) {
             </button>
           </div>
         )}
-        
+
         {/* Column Headers */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2">
-          <div className="flex items-center gap-2 text-xs font-medium text-gray-400 uppercase tracking-wide">
+        <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg px-3 py-2`}>
+          <div className={`flex items-center gap-2 text-xs font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide`}>
             <div className="flex-1 flex items-center gap-2">
               <div className="w-4" />
               <div className="w-4" />
@@ -532,9 +535,9 @@ export default function TraceTree({ callId, conversationId }) {
             </div>
           </div>
         </div>
-        
+
         {/* Grouped calls */}
-        <div className="border border-gray-700 rounded-lg overflow-hidden bg-gray-900">
+        <div className={`border ${BASE_THEME.border.default} rounded-lg overflow-hidden ${BASE_THEME.container.primary}`}>
           {groups.map((group, idx) => (
             <GroupedCallNode key={idx} group={group} depth={0} />
           ))}
@@ -542,6 +545,6 @@ export default function TraceTree({ callId, conversationId }) {
       </div>
     );
   }
-  
-  return <div className="text-gray-500 p-8">Invalid trace data</div>;
+
+  return <div className={`${BASE_THEME.text.muted} p-8`}>Invalid trace data</div>;
 }

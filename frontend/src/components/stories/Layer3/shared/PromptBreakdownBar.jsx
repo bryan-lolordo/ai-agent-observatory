@@ -1,17 +1,23 @@
 /**
  * PromptBreakdownBar - Visual breakdown of prompt token composition
+ *
+ * UPDATED: Uses theme system - no hardcoded colors!
  */
 
+import { BASE_THEME } from '../../../../utils/themeUtils';
+import { STORY_THEMES } from '../../../../config/theme';
+
+// Use story theme colors for the breakdown parts
 const DEFAULT_PARTS = [
-  { key: 'system', label: 'System', color: 'bg-purple-500' },
-  { key: 'user', label: 'User', color: 'bg-blue-500' },
-  { key: 'history', label: 'History', color: 'bg-orange-500' },
-  { key: 'tools', label: 'Tools', color: 'bg-green-500' },
+  { key: 'system', label: 'System', color: STORY_THEMES.routing.bg },  // Purple
+  { key: 'user', label: 'User', color: STORY_THEMES.quality.bg },      // Blue (using info color)
+  { key: 'history', label: 'History', color: STORY_THEMES.latency.bg }, // Orange
+  { key: 'tools', label: 'Tools', color: STORY_THEMES.optimization.bg }, // Green
 ];
 
 export default function PromptBreakdownBar({ breakdown, parts = DEFAULT_PARTS }) {
   const total = breakdown.total || Object.values(breakdown).reduce((a, b) => a + (b || 0), 0);
-  
+
   if (!total) return null;
 
   const activeParts = parts
@@ -23,9 +29,9 @@ export default function PromptBreakdownBar({ breakdown, parts = DEFAULT_PARTS })
     .filter(p => p.value > 0);
 
   return (
-    <div className="bg-gray-900 rounded-lg p-4">
+    <div className={`${BASE_THEME.container.primary} rounded-lg p-4`}>
       {/* Header */}
-      <div className="text-sm text-gray-400 mb-3">
+      <div className={`text-sm ${BASE_THEME.text.secondary} mb-3`}>
         Prompt Composition ({total.toLocaleString()} tokens)
       </div>
 
@@ -46,7 +52,7 @@ export default function PromptBreakdownBar({ breakdown, parts = DEFAULT_PARTS })
         {activeParts.map(part => (
           <span key={part.key} className="flex items-center gap-2">
             <span className={`w-3 h-3 rounded-full ${part.color}`} />
-            <span className="text-gray-400">
+            <span className={BASE_THEME.text.secondary}>
               {part.label}: {part.value.toLocaleString()} ({part.percentage.toFixed(0)}%)
             </span>
           </span>

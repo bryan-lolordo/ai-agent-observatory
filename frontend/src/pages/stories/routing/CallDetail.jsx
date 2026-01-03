@@ -10,6 +10,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { STORY_THEMES } from "../../../config/theme";
+import { BASE_THEME } from "../../../utils/themeUtils";
+import PageContainer from "../../../components/layout/PageContainer";
 import Layer3Shell from "../../../components/stories/Layer3";
 import routingConfig from "../../../config/layer3/routing";
 
@@ -54,7 +56,7 @@ export default function RoutingCallDetail() {
         storyId={STORY_ID}
         storyLabel="Model Routing"
         storyIcon={theme.emoji}
-        themeColor={theme.color}
+        theme={theme}
         loading={true}
       />
     );
@@ -63,27 +65,27 @@ export default function RoutingCallDetail() {
   // Error state
   if (error || !call) {
     return (
-      <div className="min-h-screen bg-gray-950 p-8">
-        <div className="max-w-7xl mx-auto">
+      <div className={`min-h-screen ${BASE_THEME.container.tertiary} p-8`}>
+        <PageContainer>
           <button
             onClick={() => navigate("/stories/routing/calls")}
             className={`mb-6 flex items-center gap-2 text-sm ${theme.text} hover:underline`}
           >
             ← Back to Routing Patterns
           </button>
-          <div className="bg-red-900/20 border border-red-500 rounded-lg p-6">
-            <h2 className="text-xl font-bold text-red-400 mb-2">
+          <div className={`${BASE_THEME.status.error.bg} border ${BASE_THEME.status.error.border} rounded-lg p-6`}>
+            <h2 className={`text-xl font-bold ${BASE_THEME.status.error.textBold} mb-2`}>
               Error Loading Call
             </h2>
-            <p className="text-gray-300">{error || "Call not found"}</p>
+            <p className={BASE_THEME.text.secondary}>{error || "Call not found"}</p>
             <button
               onClick={fetchCallDetail}
-              className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
+              className={`mt-4 px-4 py-2 ${BASE_THEME.status.error.bgSolid} hover:bg-red-700 text-white rounded-lg`}
             >
               Retry
             </button>
           </div>
-        </div>
+        </PageContainer>
       </div>
     );
   }

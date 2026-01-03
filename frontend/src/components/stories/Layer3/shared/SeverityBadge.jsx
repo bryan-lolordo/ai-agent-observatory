@@ -1,33 +1,38 @@
 /**
  * SeverityBadge - Displays severity level with icon and color
- * 
- * UPDATED: WARNING badge uses outlined style (variation 1.2), larger font
+ *
+ * UPDATED:
+ * - WARNING badge uses outlined style (variation 1.2), larger font
+ * - Uses theme system via getSeverityColors from themeUtils
  */
 
+import { getSeverityColors, BASE_THEME } from '../../../../utils/themeUtils';
+
+// Severity styles mapping using theme system
 const SEVERITY_STYLES = {
   critical: {
-    bg: 'bg-red-900/50',
-    text: 'text-red-300',
-    border: 'border-red-700',
+    bg: BASE_THEME.status.error.bg,
+    text: BASE_THEME.status.error.text,
+    border: BASE_THEME.status.error.border,
     icon: '🔴',
   },
   warning: {
     // Variation 1.2: Outlined style
     bg: 'bg-transparent',
-    text: 'text-yellow-400',
-    border: 'border-yellow-400 border-2',
+    text: BASE_THEME.status.warning.text,
+    border: `${BASE_THEME.status.warning.border} border-2`,
     icon: '🟡',
   },
   info: {
-    bg: 'bg-blue-900/50',
-    text: 'text-blue-300',
-    border: 'border-blue-700',
+    bg: BASE_THEME.status.info.bg,
+    text: BASE_THEME.status.info.text,
+    border: BASE_THEME.status.info.border,
     icon: '🔵',
   },
   ok: {
-    bg: 'bg-green-900/50',
-    text: 'text-green-300',
-    border: 'border-green-700',
+    bg: BASE_THEME.status.success.bg,
+    text: BASE_THEME.status.success.text,
+    border: BASE_THEME.status.success.border,
     icon: '🟢',
   },
 };

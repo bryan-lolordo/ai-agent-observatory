@@ -7,6 +7,8 @@ import { useStory } from '../../../hooks/useStories';
 import { STORY_THEMES } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
+import { BASE_THEME } from '../../../utils/themeUtils';
+import PageContainer from '../../../components/layout/PageContainer';
 
 export default function OptimizationImpact() {
   const navigate = useNavigate();
@@ -17,13 +19,13 @@ export default function OptimizationImpact() {
   
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-950 p-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-red-900/20 border border-red-500 rounded-lg p-6">
-            <h2 className="text-xl font-bold text-red-400 mb-2">Error Loading Data</h2>
-            <p className="text-gray-300">{error}</p>
+      <div className={`min-h-screen ${BASE_THEME.container.tertiary} p-8`}>
+        <PageContainer>
+          <div className={`${BASE_THEME.status.error.bg} border ${BASE_THEME.status.error.border} rounded-lg p-6`}>
+            <h2 className={`text-xl font-bold ${BASE_THEME.status.error.textBold} mb-2`}>Error Loading Data</h2>
+            <p className={BASE_THEME.text.secondary}>{error}</p>
           </div>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -92,10 +94,10 @@ export default function OptimizationImpact() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
+    <div className={`min-h-screen ${BASE_THEME.container.tertiary} ${BASE_THEME.text.primary}`}>
       <StoryNavTabs activeStory="optimization" />
 
-      <div className="max-w-7xl mx-auto p-6">
+      <PageContainer>
         
         {/* Page Header */}
         <div className="mb-8">
@@ -178,15 +180,15 @@ export default function OptimizationImpact() {
           </div>
           
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
               <thead className="bg-gray-800/50">
                 <tr className="border-b border-gray-700">
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Metric</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Current</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Target</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Gap</th>
-                  <th className="text-center py-3 px-4 text-gray-400 font-medium">Status</th>
-                  <th className="text-center py-3 px-4 text-gray-400 font-medium">Priority</th>
+                  <th style={{ width: '30%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Metric</th>
+                  <th style={{ width: '15%' }} className="text-right py-3 px-4 text-gray-400 font-medium">Current</th>
+                  <th style={{ width: '15%' }} className="text-right py-3 px-4 text-gray-400 font-medium">Target</th>
+                  <th style={{ width: '15%' }} className="text-right py-3 px-4 text-gray-400 font-medium">Gap</th>
+                  <th style={{ width: '10%' }} className="text-center py-3 px-4 text-gray-400 font-medium">Status</th>
+                  <th style={{ width: '15%' }} className="text-center py-3 px-4 text-gray-400 font-medium">Priority</th>
                 </tr>
               </thead>
               <tbody>
@@ -232,15 +234,15 @@ export default function OptimizationImpact() {
           </div>
           
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
               <thead className="bg-gray-800/50">
                 <tr className="border-b border-gray-700">
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Story</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Target</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Issue</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Recommendation</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Expected Impact</th>
-                  <th className="text-center py-3 px-4 text-gray-400 font-medium">Status</th>
+                  <th style={{ width: '14%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Story</th>
+                  <th style={{ width: '14%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Target</th>
+                  <th style={{ width: '22%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Issue</th>
+                  <th style={{ width: '26%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Recommendation</th>
+                  <th style={{ width: '14%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Expected Impact</th>
+                  <th style={{ width: '10%' }} className="text-center py-3 px-4 text-gray-400 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -286,7 +288,7 @@ export default function OptimizationImpact() {
           </p>
         </div>
 
-      </div>
+      </PageContainer>
     </div>
   );
 }

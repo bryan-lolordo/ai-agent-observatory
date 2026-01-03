@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 
 import Layer3Shell from '../../../components/stories/Layer3';
 import { PromptBreakdownBar } from '../../../components/stories/Layer3/shared';
+import { STORY_THEMES } from '../../../config/theme';
 
 import {
   PROMPT_STORY,
@@ -359,7 +360,7 @@ export default function PromptCallDetail() {
         storyId={PROMPT_STORY.id}
         storyLabel={PROMPT_STORY.label}
         storyIcon={PROMPT_STORY.icon}
-        themeColor={PROMPT_STORY.color}
+        theme={STORY_THEMES.system_prompt}
         loading={true}
       />
     );
@@ -411,7 +412,7 @@ export default function PromptCallDetail() {
       storyId={PROMPT_STORY.id}
       storyLabel={PROMPT_STORY.label}
       storyIcon={PROMPT_STORY.icon}
-      themeColor={PROMPT_STORY.color}
+      theme={STORY_THEMES.system_prompt}
       
       // Entity info
       entityId={call.call_id}

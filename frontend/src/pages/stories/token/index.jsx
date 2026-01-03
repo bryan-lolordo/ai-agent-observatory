@@ -9,6 +9,8 @@ import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import { formatNumber, truncateText } from '../../../utils/formatters';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BASE_THEME } from '../../../utils/themeUtils';
+import PageContainer from '../../../components/layout/PageContainer';
 
 export default function TokenImbalance() {
   const navigate = useNavigate();
@@ -19,13 +21,13 @@ export default function TokenImbalance() {
   
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-950 p-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-red-900/20 border border-red-500 rounded-lg p-6">
-            <h2 className="text-xl font-bold text-red-400 mb-2">Error Loading Data</h2>
-            <p className="text-gray-300">{error}</p>
+      <div className={`min-h-screen ${BASE_THEME.container.tertiary} p-8`}>
+        <PageContainer>
+          <div className={`${BASE_THEME.status.error.bg} border ${BASE_THEME.status.error.border} rounded-lg p-6`}>
+            <h2 className={`text-xl font-bold ${BASE_THEME.status.error.textBold} mb-2`}>Error Loading Data</h2>
+            <p className={BASE_THEME.text.secondary}>{error}</p>
           </div>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -59,10 +61,10 @@ export default function TokenImbalance() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
+    <div className={`min-h-screen ${BASE_THEME.container.tertiary} ${BASE_THEME.text.primary}`}>
       <StoryNavTabs activeStory="token_imbalance" />
 
-      <div className="max-w-7xl mx-auto p-6">
+      <PageContainer>
         
         {/* Page Header */}
         <div className="mb-8">
@@ -161,17 +163,17 @@ export default function TokenImbalance() {
           </div>
           
           <div className="overflow-x-auto overflow-y-auto max-h-80">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
               <thead className="bg-gray-800/50">
                 <tr className="border-b border-gray-700">
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Status</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Agent</th>
-                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Operation</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Prompt</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Completion</th>
-                  <th className="text-center py-3 px-4 text-gray-400 font-medium">Ratio</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Cost</th>
-                  <th className="text-right py-3 px-4 text-gray-400 font-medium">Calls</th>
+                  <th style={{ width: '4%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Status</th>
+                  <th style={{ width: '14%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Agent</th>
+                  <th style={{ width: '30%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Operation</th>
+                  <th style={{ width: '11%' }} className="text-right py-3 px-4 text-gray-400 font-medium">Prompt</th>
+                  <th style={{ width: '13%' }} className="text-right py-3 px-4 text-gray-400 font-medium">Completion</th>
+                  <th style={{ width: '10%' }} className="text-center py-3 px-4 text-gray-400 font-medium">Ratio</th>
+                  <th style={{ width: '10%' }} className="text-right py-3 px-4 text-gray-400 font-medium">Cost</th>
+                  <th style={{ width: '8%' }} className="text-right py-3 px-4 text-gray-400 font-medium">Calls</th>
                 </tr>
               </thead>
               <tbody>
@@ -288,7 +290,7 @@ export default function TokenImbalance() {
           </div>
         </div>
 
-      </div>
+      </PageContainer>
     </div>
   );
 }

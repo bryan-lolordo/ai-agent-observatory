@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 import { useTimeRange } from '../../../context/TimeRangeContext';
 
 import Layer3Shell from '../../../components/stories/Layer3';
+import { STORY_THEMES } from '../../../config/theme';
 
 import {
   COST_STORY,
@@ -267,7 +268,7 @@ export default function CostCallDetail() {
         storyId={COST_STORY.id}
         storyLabel={COST_STORY.label}
         storyIcon={COST_STORY.icon}
-        themeColor={COST_STORY.color}
+        theme={STORY_THEMES.cost}
         loading={true}
       />
     );
@@ -318,7 +319,7 @@ export default function CostCallDetail() {
       storyId={COST_STORY.id}
       storyLabel={COST_STORY.label}
       storyIcon={COST_STORY.icon}
-      themeColor={COST_STORY.color}
+      theme={STORY_THEMES.cost}
       
       // Entity info
       entityId={call.call_id}

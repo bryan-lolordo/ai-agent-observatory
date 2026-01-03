@@ -9,6 +9,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 
 import Layer3Shell from '../../../components/stories/Layer3';
+import { STORY_THEMES } from '../../../config/theme';
 
 import {
   TOKEN_STORY,
@@ -294,7 +295,7 @@ export default function TokenCallDetail() {
         storyId={TOKEN_STORY.id}
         storyLabel={TOKEN_STORY.label}
         storyIcon={TOKEN_STORY.icon}
-        themeColor={TOKEN_STORY.color}
+        theme={STORY_THEMES.token_imbalance}
         loading={true}
       />
     );
@@ -342,7 +343,7 @@ export default function TokenCallDetail() {
       storyId={TOKEN_STORY.id}
       storyLabel={TOKEN_STORY.label}
       storyIcon={TOKEN_STORY.icon}
-      themeColor={TOKEN_STORY.color}
+      theme={STORY_THEMES.token_imbalance}
       
       // Entity info
       entityId={call.call_id}

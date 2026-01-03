@@ -27,14 +27,14 @@ export default function FilterBar({
   
   return (
     <div className="flex items-center gap-3">
-      <span className="text-xs text-gray-500 font-semibold w-24 flex-shrink-0">
+      <span className="text-sm text-gray-500 font-semibold w-28 flex-shrink-0">
         FILTERS
       </span>
       <div className="flex items-center gap-2">
         {columns.map(colKey => {
           const colDef = getColumn(colKey);
           if (!colDef) return null;
-          
+
           return (
             <FilterDropdown
               key={colKey}
@@ -46,12 +46,12 @@ export default function FilterBar({
             />
           );
         })}
-        
+
         {/* Single Clear button for column filters */}
         {hasColumnFilters && (
           <button
             onClick={handleClearColumnFilters}
-            className="px-2 py-1.5 text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg transition-colors"
+            className="px-3 py-2 text-sm text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg transition-colors"
           >
             Clear
           </button>
@@ -112,15 +112,15 @@ function FilterDropdown({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          px-3 py-1.5 rounded-lg text-xs
-          flex items-center gap-1.5 transition-all
-          ${hasSelection 
-            ? `${theme.bgLight} ${theme.text} border ${theme.border}` 
+          px-4 py-2 rounded-lg text-sm
+          flex items-center gap-2 transition-all
+          ${hasSelection
+            ? `${theme.bgLight} ${theme.text} border ${theme.border}`
             : 'bg-gray-800 text-gray-400 border border-gray-700 hover:border-gray-600'
           }
         `}
       >
-        <span>{emoji}</span>
+        <span className="text-base">{emoji}</span>
         <span>{column.label}</span>
         {hasSelection && (
           <span className={`px-1.5 py-0.5 rounded text-xs ${theme.bg} text-white ml-1`}>

@@ -25,6 +25,9 @@ import SimilarPanel from './SimilarPanel';
 import RawPanel from './RawPanel';
 import FixPanel from './FixPanel';
 import TracePanel from './TracePanel';
+import StoryNavTabs from '../StoryNavTabs';
+import { BASE_THEME } from '../../../utils/themeUtils';
+import { STORY_THEMES } from '../../../config/theme';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BREADCRUMB NAVIGATION
@@ -35,11 +38,11 @@ function Breadcrumbs({ items, theme }) {
     <nav className="flex items-center gap-2 text-sm">
       {items.map((item, idx) => (
         <span key={idx} className="flex items-center gap-2">
-          {idx > 0 && <span className="text-gray-600">›</span>}
+          {idx > 0 && <span className={BASE_THEME.text.muted}>›</span>}
           {item.href ? (
             <Link
               to={item.href}
-              className="text-gray-400 hover:text-gray-200 transition-colors"
+              className={`${BASE_THEME.text.secondary} hover:${BASE_THEME.text.primary} transition-colors`}
             >
               {item.icon && <span className="mr-1">{item.icon}</span>}
               {item.label}
@@ -66,8 +69,8 @@ function TabButton({ active, onClick, children, badge, theme }) {
       onClick={onClick}
       className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
         active
-          ? `bg-gray-800/50 ${theme.text} ${theme.border}`
-          : 'text-gray-400 border-transparent hover:text-gray-200 hover:border-gray-600'
+          ? `${BASE_THEME.container.secondary}/50 ${theme.text} ${theme.border}`
+          : `${BASE_THEME.text.secondary} border-transparent hover:${BASE_THEME.text.primary} hover:${BASE_THEME.border.light}`
       }`}
     >
       {children}
@@ -86,16 +89,8 @@ function TabButton({ active, onClick, children, badge, theme }) {
 // MAIN SHELL COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Default theme fallback (orange/latency)
-const DEFAULT_THEME = {
-  color: '#f97316',
-  text: 'text-orange-400',
-  bg: 'bg-orange-600',
-  bgLight: 'bg-orange-900/30',
-  border: 'border-orange-500',
-  borderLight: 'border-orange-500/30',
-  dividerGlow: 'shadow-[0_0_10px_rgba(249,115,22,0.5)]',
-};
+// Use latency theme from STORY_THEMES as default fallback (no hardcoded colors!)
+const DEFAULT_THEME = STORY_THEMES.latency;
 
 export default function Layer3Shell({
   // Story config
@@ -207,16 +202,19 @@ export default function Layer3Shell({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-gray-800 rounded w-1/3" />
-            <div className="grid grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map(i => (
-                <div key={i} className="h-24 bg-gray-800 rounded-lg" />
-              ))}
+      <div className={`min-h-screen ${BASE_THEME.container.tertiary} ${BASE_THEME.text.primary}`}>
+        <StoryNavTabs activeStory={storyId} />
+        <div className="p-6">
+          <div className="w-full px-6" style={{ maxWidth: '90%', margin: '0 auto' }}>
+            <div className="animate-pulse space-y-6">
+              <div className={`h-8 ${BASE_THEME.container.secondary} rounded w-1/3`} />
+              <div className="grid grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className={`h-24 ${BASE_THEME.container.secondary} rounded-lg`} />
+                ))}
+              </div>
+              <div className={`h-64 ${BASE_THEME.container.secondary} rounded-lg`} />
             </div>
-            <div className="h-64 bg-gray-800 rounded-lg" />
           </div>
         </div>
       </div>
@@ -224,8 +222,10 @@ export default function Layer3Shell({
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className={`min-h-screen ${BASE_THEME.container.tertiary} ${BASE_THEME.text.primary}`}>
+      <StoryNavTabs activeStory={storyId} />
+      <div className="p-6">
+        <div className="w-full px-6" style={{ maxWidth: '90%', margin: '0 auto' }}>
         
         {/* Top Navigation Bar - Breadcrumbs + Queue Button */}
         <div className="flex justify-between items-center mb-6">
@@ -233,7 +233,7 @@ export default function Layer3Shell({
 
           <Link
             to="/optimization"
-            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-sm transition-colors"
+            className={`flex items-center gap-2 px-4 py-2 ${BASE_THEME.container.secondary} hover:bg-gray-700 border ${BASE_THEME.border.default} rounded-lg text-sm transition-colors`}
           >
             <span>🔧</span>
             <span>Queue</span>
@@ -251,20 +251,20 @@ export default function Layer3Shell({
             <div>
               <h1 className={`text-3xl font-bold flex items-center gap-3 ${theme.text}`}>
                 <span className="text-4xl">{storyIcon}</span>
-                {storyIcon} {storyLabel}
+                {storyLabel}
               </h1>
               {entityLabel && (
-                <p className="text-gray-400 font-mono mt-1">{entityLabel}</p>
+                <p className={`${BASE_THEME.text.secondary} font-mono mt-1`}>{entityLabel}</p>
               )}
               {(entitySubLabel || entityMeta) && (
-                <p className="text-gray-500 text-sm mt-1">
+                <p className={`${BASE_THEME.text.muted} text-sm mt-1`}>
                   {entitySubLabel}
                   {entitySubLabel && entityMeta && ' • '}
                   {entityMeta}
                 </p>
               )}
             </div>
-            <code className="text-sm text-gray-500 bg-gray-900 px-3 py-2 rounded-lg">
+            <code className={`text-sm ${BASE_THEME.text.muted} ${BASE_THEME.container.primary} px-3 py-2 rounded-lg`}>
               {entityId?.substring(0, 12)}...
             </code>
           </div>
@@ -283,7 +283,7 @@ export default function Layer3Shell({
         <div className={`h-1 rounded-full mb-6 ${theme.bg} ${theme.dividerGlow}`} />
 
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-gray-700 mb-6">
+        <div className={`flex gap-1 border-b ${BASE_THEME.border.default} mb-6`}>
           {tabs.map(tab => (
             <TabButton
               key={tab.id}
@@ -298,31 +298,34 @@ export default function Layer3Shell({
         </div>
 
         {/* Panel Content */}
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+        <div className={`${BASE_THEME.container.primary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
           {activeTab === 'diagnose' && (
             <DiagnosePanel
               {...diagnoseProps}
+              theme={theme}
               onViewFix={() => setActiveTab('fix')}
             />
           )}
           {activeTab === 'attribute' && (
-            <AttributePanel {...attributeProps} />
+            <AttributePanel {...attributeProps} theme={theme} />
           )}
           {activeTab === 'trace' && (
-            <TracePanel 
+            <TracePanel
               {...traceProps}
               storyType={storyId}
               data={data}
+              theme={theme}
             />
           )}
           {activeTab === 'similar' && (
-            <SimilarPanel 
-              {...similarProps} 
+            <SimilarPanel
+              {...similarProps}
               storyId={storyId}
+              theme={theme}
             />
           )}
           {activeTab === 'raw' && (
-            <RawPanel {...rawProps} />
+            <RawPanel {...rawProps} theme={theme} />
           )}
           {activeTab === 'fix' && (
             <FixPanel
@@ -331,6 +334,7 @@ export default function Layer3Shell({
               currentState={currentState}
               onMarkImplemented={handleMarkImplemented}
               similarCount={similarProps?.items?.length || 0}
+              theme={theme}
               // Pass entity info for AI Analysis
               entityId={entityId}
               entityType={entityType}
@@ -340,6 +344,7 @@ export default function Layer3Shell({
               aiCallId={aiCallId}
             />
           )}
+        </div>
         </div>
       </div>
     </div>

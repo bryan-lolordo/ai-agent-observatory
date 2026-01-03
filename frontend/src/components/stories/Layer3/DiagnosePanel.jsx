@@ -1,10 +1,11 @@
 /**
  * DiagnosePanel - Universal diagnosis view for Layer 3
- * 
- * UPDATED: 
+ *
+ * UPDATED:
  * - Removed PRIMARY ISSUE section (redundant with Root Causes)
  * - Reordered: Root Causes → Time Attribution → Comparison Benchmarks
  * - Uses BenchmarksDisplay component for dynamic metric display
+ * - Uses theme system - no hardcoded colors!
  */
 
 import { SeverityBadge } from './shared';
@@ -12,6 +13,8 @@ import { TimeAttributionTree } from './shared/TimeBreakdownBar';
 import RootCausesTable from './shared/RootCausesTable';
 import ChatHistoryBreakdown from './shared/ChatHistoryBreakdown';
 import BenchmarksDisplay from './shared/BenchmarksDisplay';
+import { BASE_THEME } from '../../../utils/themeUtils';
+import { STORY_THEMES } from '../../../config/theme';
 
 export default function DiagnosePanel({
   // Primary diagnosis data
@@ -45,9 +48,11 @@ export default function DiagnosePanel({
   onViewFix,
   
   // Theme
-  theme = {},
+  theme = STORY_THEMES.latency,
 }) {
   const primary = primaryFactor || factors[0];
+  // Use passed theme or default to latency theme for accent colors
+  const accentTheme = theme || STORY_THEMES.latency;
 
   // Default benchmark config for Latency story
   const defaultBenchmarkConfig = {
@@ -63,59 +68,59 @@ export default function DiagnosePanel({
       
       {/* HEALTHY STATE (if no issues) */}
       {isHealthy && (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-          <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wide mb-4 flex items-center gap-2">
+        <div className={`${BASE_THEME.container.primary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
+          <h3 className={`text-sm font-bold ${accentTheme.text} uppercase tracking-wide mb-4 flex items-center gap-2`}>
             <span className="text-lg">✅</span> HEALTH STATUS
           </h3>
-          <div className="bg-green-900/20 border-l-4 border-green-500 rounded-lg p-5">
-            <h4 className="text-xl font-semibold text-green-400 mb-2">
+          <div className={`${BASE_THEME.status.success.bg} border-l-4 ${BASE_THEME.status.success.border} rounded-lg p-5`}>
+            <h4 className={`text-xl font-semibold ${BASE_THEME.status.success.text} mb-2`}>
               No Issues Detected
             </h4>
-            <p className="text-base text-gray-300">{healthyMessage}</p>
+            <p className={`text-base ${BASE_THEME.text.secondary}`}>{healthyMessage}</p>
           </div>
         </div>
       )}
 
       {/* 1. ROOT CAUSES TABLE (FIRST - Most Important) */}
       {!isHealthy && factors.length > 0 && (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-          <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wide mb-4 flex items-center gap-2">
+        <div className={`${BASE_THEME.container.primary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
+          <h3 className={`text-sm font-bold ${accentTheme.text} uppercase tracking-wide mb-4 flex items-center gap-2`}>
             <span className="text-lg">🔍</span> ROOT CAUSES ({factors.length})
           </h3>
-          <RootCausesTable causes={factors} onViewFix={onViewFix} />
+          <RootCausesTable causes={factors} onViewFix={onViewFix} theme={accentTheme} />
         </div>
       )}
 
       {/* 2. TIME ATTRIBUTION TREE (for latency) */}
       {timeAttribution && (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-          <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wide mb-6 flex items-center gap-2">
+        <div className={`${BASE_THEME.container.primary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
+          <h3 className={`text-sm font-bold ${accentTheme.text} uppercase tracking-wide mb-6 flex items-center gap-2`}>
             <span className="text-lg">⏱️</span> TIME ATTRIBUTION
           </h3>
-          <TimeAttributionTree {...timeAttribution} />
+          <TimeAttributionTree {...timeAttribution} theme={accentTheme} />
         </div>
       )}
 
       {/* Legacy Breakdown (if provided) */}
       {breakdownComponent && !timeAttribution && (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-          <h3 className="text-xs font-bold text-orange-400 uppercase tracking-wide mb-4">
+        <div className={`${BASE_THEME.container.primary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
+          <h3 className={`text-xs font-bold ${accentTheme.text} uppercase tracking-wide mb-4`}>
             {breakdownTitle}
           </h3>
           {breakdownComponent}
           {breakdownSubtext && (
-            <div className="mt-4 text-sm text-gray-500">{breakdownSubtext}</div>
+            <div className={`mt-4 text-sm ${BASE_THEME.text.muted}`}>{breakdownSubtext}</div>
           )}
         </div>
       )}
 
       {/* Chat History Breakdown (for multi-turn conversations) */}
       {chatHistoryBreakdown && chatHistoryBreakdown.messages && chatHistoryBreakdown.messages.length > 0 && (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-          <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wide mb-4 flex items-center gap-2">
+        <div className={`${BASE_THEME.container.primary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
+          <h3 className={`text-sm font-bold ${accentTheme.text} uppercase tracking-wide mb-4 flex items-center gap-2`}>
             <span className="text-lg">💬</span> CHAT HISTORY BREAKDOWN
           </h3>
-          <p className="text-base text-gray-400 mb-4">
+          <p className={`text-base ${BASE_THEME.text.secondary} mb-4`}>
             Visualization of how conversation history accumulates across turns, highlighting optimization opportunities.
           </p>
           <ChatHistoryBreakdown {...chatHistoryBreakdown} />
@@ -124,9 +129,9 @@ export default function DiagnosePanel({
 
       {/* Additional Breakdown (e.g., Prompt composition) */}
       {additionalBreakdown && (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+        <div className={`${BASE_THEME.container.primary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
           {additionalBreakdownTitle && (
-            <h3 className="text-xs font-bold text-orange-400 uppercase tracking-wide mb-4">
+            <h3 className={`text-xs font-bold ${accentTheme.text} uppercase tracking-wide mb-4`}>
               {additionalBreakdownTitle}
             </h3>
           )}
@@ -136,10 +141,11 @@ export default function DiagnosePanel({
 
       {/* 3. COMPARISON BENCHMARKS - DYNAMIC (LAST) */}
       {comparisonBenchmarks && comparisonBenchmarks.available && (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-          <BenchmarksDisplay 
+        <div className={`${BASE_THEME.container.primary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
+          <BenchmarksDisplay
             benchmarks={comparisonBenchmarks}
             config={benchmarkConfig || defaultBenchmarkConfig}
+            theme={accentTheme}
           />
         </div>
       )}

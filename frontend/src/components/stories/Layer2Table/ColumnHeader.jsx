@@ -1,11 +1,12 @@
 /**
  * ColumnHeader - Individual column header
- * 
+ *
  * Features:
  * - Drag handle (⠿) for reordering
  * - Click name to sort
  * - Filter dropdown (▼) for multi-select
  * - Delete button (✕) on hover
+ * - Resize handle for adjustable column widths
  */
 
 import { useState, useRef, useEffect } from 'react';
@@ -30,11 +31,16 @@ export default function ColumnHeader({
   theme,
   storyId,
   primaryMetric,
+  columnWidth,
+  onResize,
 }) {
   const [isHovered, setIsHovered] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   const filterRef = useRef(null);
-  
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(0);
+
   // Close filter on click outside
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -42,13 +48,49 @@ export default function ColumnHeader({
         setShowFilter(false);
       }
     };
-    
+
     if (showFilter) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showFilter]);
-  
+
+  // Handle resize mouse events
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing) return;
+      const diff = e.clientX - resizeStartX.current;
+      const newWidth = Math.max(80, resizeStartWidth.current + diff);
+      onResize?.(column.key, newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, column.key, onResize]);
+
+  const handleResizeStart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(true);
+    resizeStartX.current = e.clientX;
+    resizeStartWidth.current = columnWidth || 150;
+  };
+
   // Toggle value in filter
   const toggleFilterValue = (value) => {
     if (filterValues.includes(value)) {
@@ -57,26 +99,25 @@ export default function ColumnHeader({
       onFilterChange([...filterValues, value]);
     }
   };
-  
+
   // Is this the primary metric column for the story?
   const isPrimaryMetric = column.key === primaryMetric;
-  
+
   // Header text color
   const textColor = isSorted || isPrimaryMetric ? theme.text : 'text-gray-500';
-  
+
   return (
     <th
       className={`
-        py-3 px-4 text-left text-xs font-semibold relative select-none
+        py-3 px-4 text-center text-sm font-semibold relative select-none
         ${isDragging ? 'opacity-50' : ''}
         ${isDragOver ? `border-l-2 ${theme.border}` : ''}
-        ${column.align === 'right' ? 'text-right' : ''}
-        ${column.align === 'center' ? 'text-center' : ''}
       `}
+      style={{ width: columnWidth ? `${columnWidth}px` : 'auto', minWidth: '80px' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="flex items-center gap-1">
+      <div className="flex items-center justify-center gap-1">
         {/* Drag Handle */}
         <span
           draggable
@@ -88,7 +129,7 @@ export default function ColumnHeader({
         >
           ⠿
         </span>
-        
+
         {/* Column Name (click to sort) */}
         <button
           onClick={onSort}
@@ -97,14 +138,14 @@ export default function ColumnHeader({
           <span>{column.label}</span>
           {column.sortable && (
             <span className={isSorted ? theme.text : 'text-gray-600'}>
-              {isSorted 
+              {isSorted
                 ? (sortDirection === 'desc' ? '↓' : '↑')
                 : '↕'
               }
             </span>
           )}
         </button>
-        
+
         {/* Filter Button (if filterable) */}
         {column.filterable && (
           <div className="relative" ref={filterRef}>
@@ -121,7 +162,7 @@ export default function ColumnHeader({
                 <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${theme.bg}`} />
               )}
             </button>
-            
+
             {/* Filter Dropdown */}
             {showFilter && (
               <div className="absolute top-full left-0 mt-1 w-48 bg-gray-900 rounded-lg border border-gray-700 shadow-xl z-50 overflow-hidden">
@@ -167,16 +208,13 @@ export default function ColumnHeader({
             )}
           </div>
         )}
-        
-        {/* Spacer to push delete to right */}
-        <span className="flex-1" />
-        
+
         {/* Delete Button (on hover) */}
         {canRemove && (
           <button
             onClick={onRemove}
             className={`
-              text-gray-600 hover:text-red-400 transition-opacity
+              text-gray-600 hover:text-red-400 transition-opacity ml-1
               ${isHovered ? 'opacity-100' : 'opacity-0'}
             `}
             title="Remove column"
@@ -185,6 +223,17 @@ export default function ColumnHeader({
           </button>
         )}
       </div>
+
+      {/* Resize Handle */}
+      <div
+        onMouseDown={handleResizeStart}
+        className={`
+          absolute top-0 right-0 w-1 h-full cursor-col-resize
+          hover:bg-gray-500 transition-colors
+          ${isResizing ? 'bg-gray-400' : 'bg-transparent'}
+        `}
+        title="Drag to resize"
+      />
     </th>
   );
 }

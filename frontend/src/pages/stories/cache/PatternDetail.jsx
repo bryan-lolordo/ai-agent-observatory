@@ -9,7 +9,10 @@
 
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { useTimeRange } from '../../../context/TimeRangeContext'; 
+import { useTimeRange } from '../../../context/TimeRangeContext';
+import { BASE_THEME } from '../../../utils/themeUtils';
+import { STORY_THEMES } from '../../../config/theme';
+import PageContainer from '../../../components/layout/PageContainer';
 
 import Layer3Shell from '../../../components/stories/Layer3';
 
@@ -20,6 +23,8 @@ import {
   getCacheFixes,
   CACHE_SIMILAR_CONFIG,
 } from '../../../config/layer3/cache';
+
+const theme = STORY_THEMES.cache;
 
 export default function CachePatternDetail() {
   const { agent, operation, groupId } = useParams();
@@ -79,7 +84,7 @@ export default function CachePatternDetail() {
         storyId={CACHE_STORY.id}
         storyLabel={CACHE_STORY.label}
         storyIcon={CACHE_STORY.icon}
-        themeColor={CACHE_STORY.color}
+        theme={theme}
         loading={true}
       />
     );
@@ -88,19 +93,19 @@ export default function CachePatternDetail() {
   // Error state
   if (error || !pattern) {
     return (
-      <div className="min-h-screen bg-gray-950 p-8">
-        <div className="max-w-7xl mx-auto">
+      <div className={`min-h-screen ${BASE_THEME.container.tertiary} p-8`}>
+        <PageContainer>
           <button
             onClick={() => navigate(`/stories/cache/operations/${encodeURIComponent(agent)}/${encodeURIComponent(operation)}`)}
             className="mb-6 flex items-center gap-2 text-sm text-pink-400 hover:underline"
           >
             ← Back to {operation}
           </button>
-          <div className="bg-red-900/20 border border-red-500 rounded-lg p-6">
-            <h2 className="text-xl font-bold text-red-400 mb-2">Error Loading Pattern</h2>
-            <p className="text-gray-300">{error || 'Pattern not found'}</p>
+          <div className={`${BASE_THEME.status.error.bg} border ${BASE_THEME.status.error.border} rounded-lg p-6`}>
+            <h2 className={`text-xl font-bold ${BASE_THEME.status.error.textBold} mb-2`}>Error Loading Pattern</h2>
+            <p className={BASE_THEME.text.secondary}>{error || 'Pattern not found'}</p>
           </div>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -145,7 +150,7 @@ export default function CachePatternDetail() {
       storyId={CACHE_STORY.id}
       storyLabel={CACHE_STORY.label}
       storyIcon={CACHE_STORY.icon}
-      themeColor={CACHE_STORY.color}
+      theme={theme}
       
       // Entity info (pattern, not call)
       entityId={group_id || groupId}

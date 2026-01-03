@@ -12,7 +12,7 @@
  * - Active filters display
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { STORY_THEMES } from '../../../config/theme';
 import { ALL_COLUMNS, getColumn, getColumnsByCategory } from '../../../config/columnDefinitions';
@@ -56,10 +56,25 @@ export default function Layer2Table({
   // Drag state
   const [draggedColumn, setDraggedColumn] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState(null);
-  
+
   // Add column dropdown state
   const [showAddColumn, setShowAddColumn] = useState(false);
-  
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  // Column widths state (for resizable columns)
+  const [columnWidths, setColumnWidths] = useState({});
+
+  // Handle column resize
+  const handleColumnResize = useCallback((columnKey, newWidth) => {
+    setColumnWidths(prev => ({
+      ...prev,
+      [columnKey]: newWidth,
+    }));
+  }, []);
+
   // ─────────────────────────────────────────────────────────────────────────────
   // COLUMN MANAGEMENT
   // ─────────────────────────────────────────────────────────────────────────────
@@ -229,7 +244,62 @@ export default function Layer2Table({
     
     return result;
   }, [data, activeQuickFilter, columnFilters, sortConfig, config]);
-  
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeQuickFilter, columnFilters]);
+
+  // Paginated data
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return processedData.slice(startIndex, endIndex);
+  }, [processedData, currentPage, pageSize]);
+
+  // Total pages
+  const totalPages = useMemo(() => {
+    return Math.ceil(processedData.length / pageSize);
+  }, [processedData.length, pageSize]);
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      // Always show first page
+      pages.push(1);
+
+      // Calculate range around current page
+      let start = Math.max(2, currentPage - 1);
+      let end = Math.min(totalPages - 1, currentPage + 1);
+
+      // Adjust if at edges
+      if (currentPage <= 2) {
+        end = 4;
+      } else if (currentPage >= totalPages - 1) {
+        start = totalPages - 3;
+      }
+
+      // Add ellipsis if needed before
+      if (start > 2) pages.push('...');
+
+      // Add middle pages
+      for (let i = start; i <= end; i++) pages.push(i);
+
+      // Add ellipsis if needed after
+      if (end < totalPages - 1) pages.push('...');
+
+      // Always show last page
+      if (totalPages > 1) pages.push(totalPages);
+    }
+
+    return pages;
+  };
+
   // Helper function to apply a single filter
   function applyFilter(data, filter) {
     const { field, op, value } = filter;
@@ -364,7 +434,7 @@ export default function Layer2Table({
           TABLE
           ═══════════════════════════════════════════════════════════════════════ */}
       <div className={`overflow-x-auto min-h-[400px] story-scrollbar-thin ${storyId}`}>
-        <table className="w-full text-sm">
+        <table className="w-full text-lg">
           
           {/* Table Header */}
           <thead className="bg-gray-800">
@@ -391,6 +461,8 @@ export default function Layer2Table({
                   theme={theme}
                   storyId={storyId}
                   primaryMetric={config?.primaryMetric}
+                  columnWidth={columnWidths[col.key]}
+                  onResize={handleColumnResize}
                 />
               ))}
               
@@ -429,8 +501,8 @@ export default function Layer2Table({
                   <td className="py-3 px-2" />
                 </tr>
               ))
-            ) : processedData.length > 0 ? (
-              processedData.map((row, idx) => (
+            ) : paginatedData.length > 0 ? (
+              paginatedData.map((row, idx) => (
                 <TableRow
                   key={row.call_id || idx}
                   row={row}
@@ -439,6 +511,7 @@ export default function Layer2Table({
                   theme={theme}
                   storyId={storyId}
                   primaryMetric={config?.primaryMetric}
+                  columnWidths={columnWidths}
                 />
               ))
             ) : (
@@ -453,21 +526,111 @@ export default function Layer2Table({
       </div>
       
       {/* ═══════════════════════════════════════════════════════════════════════
-          FOOTER
+          FOOTER WITH PAGINATION
           ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="bg-gray-800/50 px-4 py-3 text-xs text-gray-500 flex justify-between items-center border-t border-gray-700">
+      <div className="bg-gray-800/50 px-4 py-3 text-sm text-gray-500 flex justify-between items-center border-t border-gray-700">
+        {/* Left: Count info */}
         <span>
-          Showing <span className={`font-semibold ${theme.text}`}>{processedData.length}</span>
+          Showing <span className={`font-semibold ${theme.text}`}>
+            {Math.min((currentPage - 1) * pageSize + 1, processedData.length)}
+          </span>
+          {processedData.length > 0 && (
+            <>
+              –<span className={`font-semibold ${theme.text}`}>
+                {Math.min(currentPage * pageSize, processedData.length)}
+              </span>
+            </>
+          )}
+          {' '}of <span className="text-gray-300">{processedData.length}</span>
           {processedData.length !== data.length && (
-            <> of <span className="text-gray-300">{data.length}</span></>
+            <> (filtered from {data.length})</>
           )} calls
         </span>
+
+        {/* Center: Pagination controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1">
+            {/* Previous button */}
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className={`px-3 py-1.5 rounded-lg transition-colors ${
+                currentPage === 1
+                  ? 'text-gray-600 cursor-not-allowed'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
+              }`}
+            >
+              ← Prev
+            </button>
+
+            {/* Page numbers */}
+            <div className="flex items-center gap-1 mx-2">
+              {getPageNumbers().map((page, idx) => (
+                page === '...' ? (
+                  <span key={`ellipsis-${idx}`} className="px-2 text-gray-600">...</span>
+                ) : (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`min-w-[36px] px-2 py-1.5 rounded-lg transition-colors ${
+                      currentPage === page
+                        ? `${theme.bg} text-white font-semibold`
+                        : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                )
+              ))}
+            </div>
+
+            {/* Next button */}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className={`px-3 py-1.5 rounded-lg transition-colors ${
+                currentPage === totalPages
+                  ? 'text-gray-600 cursor-not-allowed'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
+              }`}
+            >
+              Next →
+            </button>
+          </div>
+        )}
+
+        {/* Right: Page size selector and column info */}
         <div className="flex items-center gap-4">
+          {/* Page size selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500">Show:</span>
+            {[20, 50, 100].map(size => (
+              <button
+                key={size}
+                onClick={() => {
+                  setPageSize(size);
+                  setCurrentPage(1);
+                }}
+                className={`px-2 py-1 rounded transition-colors ${
+                  pageSize === size
+                    ? `${theme.bg} text-white font-semibold`
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+
+          <span className="text-gray-600">|</span>
           <span>{visibleColumns.length} columns</span>
           {sortConfig.key && (
-            <span>
-              Sort: {getColumn(sortConfig.key)?.label} {sortConfig.direction === 'desc' ? '↓' : '↑'}
-            </span>
+            <>
+              <span className="text-gray-600">|</span>
+              <span>
+                Sort: {getColumn(sortConfig.key)?.label} {sortConfig.direction === 'desc' ? '↓' : '↑'}
+              </span>
+            </>
           )}
         </div>
       </div>

@@ -1,11 +1,14 @@
 /**
  * AIAnalysisPanel - LLM-Powered Fix Recommendations
- * 
+ *
  * Displays contextual, AI-generated recommendations for optimizing an LLM call.
  * Used in Layer 3 to replace or augment static rule-based fixes.
+ *
+ * UPDATED: Uses theme system - no hardcoded colors or glows!
  */
 
 import { useState } from 'react';
+import { BASE_THEME } from '../../../utils/themeUtils';
 
 // Helper to safely render any value (handles objects)
 const safeRender = (value) => {
@@ -61,13 +64,13 @@ export default function AIAnalysisPanel({ callId, responseText = null }) {
   
   if (!analysis && !loading && !error) {
     return (
-      <div className="bg-gradient-to-br from-purple-900/20 to-gray-900 rounded-xl border border-purple-500/30 p-6">
+      <div className={`${BASE_THEME.container.secondary} rounded-xl border ${BASE_THEME.border.default} p-6`}>
         <div className="text-center">
           <div className="text-4xl mb-4">🤖</div>
-          <h3 className="text-lg font-semibold text-purple-300 mb-2">
+          <h3 className={`text-lg font-semibold ${BASE_THEME.text.secondary} mb-2`}>
             AI-Powered Analysis
           </h3>
-          <p className="text-gray-400 text-sm mb-6 max-w-md mx-auto">
+          <p className={`${BASE_THEME.text.muted} text-sm mb-6 max-w-md mx-auto`}>
             Get tailored recommendations by analyzing your actual prompt and response.
             The AI will suggest specific changes based on your use case.
           </p>
@@ -79,7 +82,7 @@ export default function AIAnalysisPanel({ callId, responseText = null }) {
             <span>Analyze This Call</span>
             <span className="text-purple-300 text-xs">(~$0.02)</span>
           </button>
-          <p className="text-xs text-gray-500 mt-3">
+          <p className={`text-xs ${BASE_THEME.text.muted} mt-3`}>
             Uses GPT-4o to analyze your prompt, response, and metrics
           </p>
         </div>

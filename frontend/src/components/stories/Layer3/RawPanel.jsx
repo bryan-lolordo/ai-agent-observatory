@@ -1,6 +1,6 @@
 /**
  * RawPanel - Universal raw data view for Layer 3
- * 
+ *
  * Shows expandable sections for:
  * - System prompt
  * - User message
@@ -11,11 +11,14 @@
  * - Cost details
  * - Timing details
  * - Full JSON
- * 
- * UPDATED: Added qualityEvaluation prop for judge JSON display
+ *
+ * UPDATED:
+ * - Added qualityEvaluation prop for judge JSON display
+ * - Uses theme system - no hardcoded colors!
  */
 
 import { useState } from 'react';
+import { BASE_THEME } from '../../../utils/themeUtils';
 
 function ExpandableSection({ title, tokens, content, defaultExpanded = false, highlight = false }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -26,35 +29,35 @@ function ExpandableSection({ title, tokens, content, defaultExpanded = false, hi
   };
 
   return (
-    <div className={`bg-gray-800 border rounded-lg overflow-hidden ${highlight ? 'border-yellow-600' : 'border-gray-700'}`}>
+    <div className={`${BASE_THEME.container.secondary} border rounded-lg overflow-hidden ${highlight ? BASE_THEME.status.warning.border : BASE_THEME.border.default}`}>
       <div
-        className="flex justify-between items-center p-4 cursor-pointer hover:bg-gray-700/50 transition-colors"
+        className={`flex justify-between items-center p-4 cursor-pointer ${BASE_THEME.state.hover} transition-colors`}
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-3">
-          <span className="text-gray-400">{expanded ? '▼' : '▶'}</span>
-          <span className="font-medium text-gray-300">{title}</span>
+          <span className={BASE_THEME.text.secondary}>{expanded ? '▼' : '▶'}</span>
+          <span className={`font-medium ${BASE_THEME.text.secondary}`}>{title}</span>
           {tokens && (
-            <span className="text-sm text-gray-500">
+            <span className={`text-sm ${BASE_THEME.text.muted}`}>
               ({typeof tokens === 'number' ? tokens.toLocaleString() : tokens} tokens)
             </span>
           )}
           {highlight && (
-            <span className="text-xs px-2 py-0.5 bg-yellow-900/50 text-yellow-400 rounded">
+            <span className={`text-xs px-2 py-0.5 ${BASE_THEME.status.warning.bg} ${BASE_THEME.status.warning.text} rounded`}>
               Judge Output
             </span>
           )}
         </div>
         <button
           onClick={handleCopy}
-          className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
+          className={`text-xs px-2 py-1 ${BASE_THEME.container.primary} hover:bg-gray-600 ${BASE_THEME.text.secondary} rounded`}
         >
           Copy
         </button>
       </div>
       {expanded && content && (
-        <div className="p-4 border-t border-gray-700 bg-gray-900">
-          <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono overflow-x-auto max-h-96 overflow-y-auto">
+        <div className={`p-4 border-t ${BASE_THEME.border.default} ${BASE_THEME.container.primary}`}>
+          <pre className={`text-sm ${BASE_THEME.text.secondary} whitespace-pre-wrap font-mono overflow-x-auto max-h-96 overflow-y-auto`}>
             {typeof content === 'string' ? content : JSON.stringify(content, null, 2)}
           </pre>
         </div>
@@ -132,8 +135,8 @@ export default function RawPanel({
 
   if (allSections.length === 0) {
     return (
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 text-center">
-        <div className="text-gray-500">No raw data available</div>
+      <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-6 text-center`}>
+        <div className={BASE_THEME.text.muted}>No raw data available</div>
       </div>
     );
   }

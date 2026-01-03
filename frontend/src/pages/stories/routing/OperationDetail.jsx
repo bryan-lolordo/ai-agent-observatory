@@ -14,6 +14,8 @@ import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import { formatNumber, formatCurrency } from '../../../utils/formatters';
 import { useRoutingPatterns } from '../../../hooks/useCalls';
+import { BASE_THEME } from '../../../utils/themeUtils';
+import PageContainer from '../../../components/layout/PageContainer';
 
 const STORY_ID = 'routing';
 const theme = STORY_THEMES.routing;
@@ -180,25 +182,25 @@ export default function RoutingOperationDetail() {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-950 p-8">
-        <div className="max-w-7xl mx-auto">
+      <div className={`min-h-screen ${BASE_THEME.container.tertiary} p-8`}>
+        <PageContainer>
           <button
             onClick={handleBack}
             className={`mb-6 flex items-center gap-2 text-sm ${theme.text} hover:underline`}
           >
             ← Back to Model Routing Overview
           </button>
-          <div className="bg-red-900/20 border border-red-500 rounded-lg p-6">
-            <h2 className="text-xl font-bold text-red-400 mb-2">Error Loading Data</h2>
-            <p className="text-gray-300">{error}</p>
+          <div className={`${BASE_THEME.status.error.bg} border ${BASE_THEME.status.error.border} rounded-lg p-6`}>
+            <h2 className={`text-xl font-bold ${BASE_THEME.status.error.textBold} mb-2`}>Error Loading Data</h2>
+            <p className={BASE_THEME.text.secondary}>{error}</p>
             <button
               onClick={refetch}
-              className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
+              className={`mt-4 px-4 py-2 ${BASE_THEME.status.error.bgSolid} hover:bg-red-700 text-white rounded-lg`}
             >
               Retry
             </button>
           </div>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -206,12 +208,12 @@ export default function RoutingOperationDetail() {
   const hasActiveFilters = agentFilter.length > 0 || operationFilter.length > 0 || modelFilter.length > 0;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
+    <div className={`min-h-screen ${BASE_THEME.container.tertiary} ${BASE_THEME.text.primary}`}>
       {/* Story Navigation */}
       <StoryNavTabs activeStory={STORY_ID} />
 
-      <div className="max-w-7xl mx-auto p-6">
-        
+      <PageContainer>
+
         {/* Back Button */}
         <button
           onClick={handleBack}
@@ -489,7 +491,7 @@ export default function RoutingOperationDetail() {
           </div>
         </div>
 
-      </div>
+      </PageContainer>
     </div>
   );
 }
@@ -499,11 +501,11 @@ export default function RoutingOperationDetail() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function StatBadge({ label, value, theme, color }) {
-  const textColor = color || (theme ? theme.text : 'text-gray-300');
-  
+  const textColor = color || (theme ? theme.text : BASE_THEME.text.secondary);
+
   return (
-    <div className="px-4 py-2 bg-gray-900 rounded-lg border border-gray-700">
-      <span className="text-xs text-gray-500">{label}: </span>
+    <div className={`px-4 py-2 ${BASE_THEME.container.secondary} rounded-lg border ${BASE_THEME.border.default}`}>
+      <span className={`text-xs ${BASE_THEME.text.muted}`}>{label}: </span>
       <span className={`font-semibold ${textColor}`}>{value}</span>
     </div>
   );

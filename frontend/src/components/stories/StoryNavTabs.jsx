@@ -10,6 +10,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { STORY_THEMES } from '../../config/theme';
+import { BASE_THEME } from '../../utils/themeUtils';
 
 export default function StoryNavTabs() {
   const navigate = useNavigate();
@@ -30,40 +31,37 @@ export default function StoryNavTabs() {
   const currentStory = stories.find(id => location.pathname.includes(id));
   
   return (
-    <div className="bg-gray-900/50 border-b border-gray-800">
+    <div className={`${BASE_THEME.container.secondary}/50 border-b ${BASE_THEME.border.default}`}>
       {/* Centered container matching header */}
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="flex gap-1 overflow-x-auto py-2 default-scrollbar">
+      <div className="w-full px-6" style={{ maxWidth: '90%', margin: '0 auto' }}>
+        <div className="flex py-2">
 
           {/* Dashboard Button */}
           <button
             onClick={() => navigate('/')}
-            className="px-4 py-2.5 rounded-lg transition-all whitespace-nowrap
-                       flex items-center gap-2 text-sm font-medium
-                       bg-gray-800/50 text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+            className={`flex-1 py-2.5 rounded-lg transition-all whitespace-nowrap
+                       flex items-center justify-center gap-2 text-sm font-medium
+                       ${BASE_THEME.container.tertiary}/50 ${BASE_THEME.text.muted} hover:${BASE_THEME.text.primary} hover:${BASE_THEME.container.tertiary}`}
           >
             <span className="text-base">🏠</span>
-            <span>Dashboard</span>
+            <span className="hidden sm:inline">Dashboard</span>
           </button>
-
-          {/* Separator */}
-          <div className="w-px bg-gray-700 mx-1 self-stretch" />
 
           {/* Story Tabs */}
           {stories.map(storyId => {
             const theme = STORY_THEMES[storyId];
             const isActive = currentStory === storyId;
-            
+
             return (
               <button
                 key={storyId}
                 onClick={() => navigate(`/stories/${storyId}`)}
                 className={`
-                  px-3 py-2.5 rounded-lg transition-all whitespace-nowrap
-                  flex items-center gap-2 text-sm font-medium
-                  ${isActive 
-                    ? `bg-gradient-to-br ${theme.gradient} ${theme.text} shadow-lg` 
-                    : `bg-gray-800/50 text-gray-400 hover:text-gray-200 hover:bg-gray-800`
+                  flex-1 py-2.5 rounded-lg transition-all whitespace-nowrap
+                  flex items-center justify-center gap-2 text-sm font-medium
+                  ${isActive
+                    ? `bg-gradient-to-br ${theme.gradient} ${theme.text} shadow-lg`
+                    : `${BASE_THEME.container.tertiary}/50 ${BASE_THEME.text.muted} hover:${BASE_THEME.text.primary} hover:${BASE_THEME.container.tertiary}`
                   }
                 `}
               >
@@ -72,6 +70,20 @@ export default function StoryNavTabs() {
               </button>
             );
           })}
+
+          {/* Optimization Queue Button */}
+          <button
+            onClick={() => navigate('/optimization')}
+            className={`flex-1 py-2.5 rounded-lg transition-all whitespace-nowrap
+                       flex items-center justify-center gap-2 text-sm font-medium
+                       ${location.pathname === '/optimization'
+                         ? 'bg-orange-600/30 text-orange-400 border border-orange-600'
+                         : `${BASE_THEME.container.tertiary}/50 ${BASE_THEME.text.muted} hover:${BASE_THEME.text.primary} hover:${BASE_THEME.container.tertiary}`
+                       }`}
+          >
+            <span className="text-base">🔧</span>
+            <span className="hidden sm:inline">Queue</span>
+          </button>
         </div>
       </div>
     </div>
