@@ -184,6 +184,27 @@ export const STORY_THEMES = {
     dividerGlow: 'shadow-[0_0_10px_rgba(34,197,94,0.5)]',
     rowHover: 'hover:bg-green-500/5',
   },
+  queue: {
+    id: 'queue',
+    name: 'Optimization Queue',
+    emoji: '📋',
+    color: '#3b82f6', // blue-500
+    colorRgb: '59, 130, 246',
+    gradient: 'from-blue-900/50 to-gray-900',
+    border: 'border-blue-500',
+    borderLight: 'border-blue-500/30',
+    borderHover: 'hover:border-blue-400',
+    text: 'text-blue-400',
+    textLight: 'text-blue-300',
+    bg: 'bg-blue-600',
+    bgHover: 'hover:bg-blue-500',
+    bgLight: 'bg-blue-900/30',
+    bgSubtle: 'bg-blue-500/10',
+    badgeBg: 'bg-blue-500/30',
+    badgeBorder: 'border-blue-500',
+    dividerGlow: 'shadow-[0_0_10px_rgba(59,130,246,0.5)]',
+    rowHover: 'hover:bg-blue-500/5',
+  },
 };
 
 // =============================================================================

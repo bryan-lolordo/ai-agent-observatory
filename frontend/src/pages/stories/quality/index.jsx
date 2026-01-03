@@ -160,7 +160,7 @@ export default function Quality() {
         <div className={`mb-8 rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} overflow-hidden`}>
           <div className={`h-1 ${theme.bg}`} />
           <div className={`p-4 border-b ${BASE_THEME.border.default}`}>
-            <h3 className={`text-xs font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide`}>
+            <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide`}>
               📊 Operations
               <span className={`${BASE_THEME.text.muted} normal-case ml-2 font-normal`}>Click row to drill down</span>
             </h3>
@@ -242,7 +242,7 @@ export default function Quality() {
         <div className={`rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} overflow-hidden`}>
           <div className={`h-1 ${theme.bg}`} />
           <div className="p-6">
-            <h3 className={`text-xs font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide mb-6`}>
+            <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide mb-6`}>
               📊 Quality Score Distribution
             </h3>
             

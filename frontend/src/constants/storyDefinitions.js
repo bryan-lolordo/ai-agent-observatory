@@ -15,6 +15,7 @@ export const STORY_IDS = {
   PROMPT: 'system_prompt',
   COST: 'cost',
   OPTIMIZATION: 'optimization',
+  QUEUE: 'queue',
 };
 
 export const STORY_METADATA = {
@@ -105,6 +106,17 @@ export const STORY_METADATA = {
     route: '/stories/optimization',
     priority: 8,
     question: 'Did my optimizations work? What\'s the before/after comparison?',
+  },
+  [STORY_IDS.QUEUE]: {
+    id: 'queue',
+    title: 'Optimization Queue',
+    emoji: '📋',
+    description: 'View pending optimizations from all stories',
+    color: 'blue',
+    gradient: 'from-blue-500 to-blue-600',
+    route: '/optimization',
+    priority: 9,
+    question: 'What optimizations are pending and what should I fix next?',
   },
 };
 

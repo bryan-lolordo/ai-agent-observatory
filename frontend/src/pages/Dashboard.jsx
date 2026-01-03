@@ -1,13 +1,15 @@
 /**
  * Dashboard - Main Observatory Overview
- * 
- * Displays all 8 stories as opportunity-focused cards.
+ *
+ * Displays all 9 stories as opportunity-focused cards.
  * Each card shows: health, description, hero metric, and opportunity.
- * 
+ *
  * Location: src/pages/Dashboard.jsx
  */
 
+import { useState, useEffect } from 'react';
 import { useStories } from '../hooks/useStories';
+import { useTimeRange } from '../context/TimeRangeContext';
 import { getAllStories } from '../constants/storyDefinitions';
 import StoryCard from '../components/stories/StoryCard';
 import { DashboardSkeleton } from '../components/common/Loading';
@@ -16,8 +18,37 @@ import PageContainer from '../components/layout/PageContainer';
 
 export default function Dashboard() {
   // Fetch all stories data
-  const { data, loading, error, timeRange } = useStories();
-  
+  const { data, loading, error } = useStories();
+  const { timeRange } = useTimeRange();
+  const [queueData, setQueueData] = useState(null);
+
+  // Fetch optimization queue data separately
+  useEffect(() => {
+    async function fetchQueueData() {
+      try {
+        const params = new URLSearchParams({ days: String(timeRange), limit: '100' });
+        const response = await fetch(`/api/optimization/opportunities?${params}`);
+        if (response.ok) {
+          const result = await response.json();
+          const opportunities = result.opportunities || [];
+          const quickWins = opportunities.filter(o => o.effort === 'Low').length;
+          const totalSavings = opportunities.reduce((sum, o) => sum + (o.impactValue || 0), 0);
+
+          setQueueData({
+            hero_metric: opportunities.length,
+            hero_label: 'opportunities found',
+            issue_count: quickWins,
+            issue_label: 'quick wins',
+            savings: totalSavings > 0 ? `$${totalSavings.toFixed(2)} potential savings` : null,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch queue data:', err);
+      }
+    }
+    fetchQueueData();
+  }, [timeRange]);
+
   // Get story metadata (has description, emoji, color, route)
   const stories = getAllStories();
 
@@ -55,20 +86,13 @@ export default function Dashboard() {
     <div className={`min-h-screen ${BASE_THEME.container.tertiary} ${BASE_THEME.text.primary} p-6`}>
       <PageContainer>
 
-        {/* Page Header */}
-        <div className="mb-8">
-          <h1 className={`text-3xl font-bold ${BASE_THEME.text.primary} mb-2`}>
-            🔭 AI Agent Observatory
-          </h1>
-          <p className={BASE_THEME.text.muted}>
-            Monitor and optimize your LLM application performance
-          </p>
-        </div>
-
         {/* Story Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {stories.map((story) => {
-            const apiData = storyData[story.id] || {};
+            // Use queue-specific data for the queue card
+            const apiData = story.id === 'queue'
+              ? queueData || {}
+              : storyData[story.id] || {};
 
             return (
               <StoryCard
@@ -78,11 +102,6 @@ export default function Dashboard() {
               />
             );
           })}
-        </div>
-
-        {/* Footer Info */}
-        <div className={`mt-8 text-center text-sm ${BASE_THEME.text.muted}`}>
-          Showing data from the last {timeRange} days • {data?.total_calls || 0} total calls analyzed
         </div>
 
       </PageContainer>

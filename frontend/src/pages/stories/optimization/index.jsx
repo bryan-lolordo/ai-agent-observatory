@@ -174,7 +174,7 @@ export default function OptimizationImpact() {
         <div className="mb-8 rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
           <div className={`h-1 ${theme.bg}`} />
           <div className="p-4 border-b border-gray-700">
-            <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wide">
+            <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide`}>
               📊 Baseline Metrics vs Targets
             </h3>
           </div>
@@ -227,7 +227,7 @@ export default function OptimizationImpact() {
         <div className="rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
           <div className={`h-1 ${theme.bg}`} />
           <div className="p-4 border-b border-gray-700">
-            <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wide">
+            <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide`}>
               🎯 Pending Optimizations
               <span className="text-gray-500 normal-case ml-2 font-normal">from Stories 1-7</span>
             </h3>

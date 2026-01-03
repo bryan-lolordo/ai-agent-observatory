@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTimeRange } from '../context/TimeRangeContext';
 import { BASE_THEME } from '../utils/themeUtils';
 import PageContainer from '../components/layout/PageContainer';
+import StoryNavTabs from '../components/stories/StoryNavTabs';
 
 // Story configuration
 const STORIES = [
@@ -143,13 +144,16 @@ export default function OptimizationQueue() {
   }, [processedOpportunities]);
 
   return (
-    <div className={`min-h-screen ${BASE_THEME.container.tertiary} ${BASE_THEME.text.primary} p-6`}>
-      <PageContainer>
+    <div className={`min-h-screen ${BASE_THEME.container.tertiary} ${BASE_THEME.text.primary}`}>
+      <StoryNavTabs activeStory="queue" />
+
+      <PageContainer className="p-6">
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className={`text-3xl font-bold ${BASE_THEME.text.primary} flex items-center gap-3`}>
-            🔧 Optimization Queue
+          <h1 className={`text-3xl font-bold text-blue-400 flex items-center gap-3`}>
+            <span className="text-4xl">📋</span>
+            Optimization Queue
           </h1>
           <p className={`${BASE_THEME.text.muted} mt-2`}>
             All optimization opportunities across your LLM operations

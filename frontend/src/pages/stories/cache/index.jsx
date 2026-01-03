@@ -159,7 +159,7 @@ export default function Cache() {
         <div className="mb-8 rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
           <div className={`h-1 ${theme.bg}`} />
           <div className="p-4 border-b border-gray-700">
-            <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wide">
+            <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide`}>
               📊 Operations by Cache Opportunity
               <span className="text-gray-500 normal-case ml-2 font-normal">Click row to drill down</span>
             </h3>
@@ -247,7 +247,7 @@ export default function Cache() {
           <div className="rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
             <div className={`h-1 ${theme.bg}`} />
             <div className="p-6">
-              <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wide mb-6">
+              <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide mb-6`}>
                 💸 Savings by Operation
               </h3>
               
@@ -313,7 +313,7 @@ export default function Cache() {
           <div className="rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
             <div className={`h-1 ${theme.bg}`} />
             <div className="p-6">
-              <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wide mb-6">
+              <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide mb-6`}>
                 📊 Cacheable vs Unique Calls
               </h3>
               
@@ -364,7 +364,7 @@ export default function Cache() {
         <div className="rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
           <div className={`h-1 ${theme.bg}`} />
           <div className="p-6">
-            <h4 className="text-xs font-medium text-gray-300 uppercase tracking-wide mb-4">Cache Types</h4>
+            <h4 className={`text-sm font-medium ${theme.text} uppercase tracking-wide mb-4`}>Cache Types</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">🎯</span>

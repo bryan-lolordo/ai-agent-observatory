@@ -121,7 +121,7 @@ export default function PromptComposition() {
           <div className="mb-8 rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
             <div className={`h-1 ${theme.bg}`} />
             <div className="p-6">
-              <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wide mb-4">
+              <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide mb-4`}>
                 📊 Prompt Composition Overview
               </h3>
               
@@ -167,7 +167,7 @@ export default function PromptComposition() {
         <div className="rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
           <div className={`h-1 ${theme.bg}`} />
           <div className="p-4 border-b border-gray-700">
-            <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wide">
+            <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide`}>
               📊 Operations
               <span className="text-gray-500 normal-case ml-2 font-normal">Click row to analyze</span>
             </h3>

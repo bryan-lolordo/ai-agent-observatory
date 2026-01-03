@@ -163,7 +163,7 @@ export default function Latency() {
         <div className="mb-8 rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
           <div className={`h-1 ${theme.bg}`} />
           <div className="p-4 border-b border-gray-700">
-            <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wide">
+            <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide`}>
               📊 Operations
               <span className="text-gray-500 normal-case ml-2 font-normal">Click row to drill down</span>
             </h3>
@@ -222,7 +222,7 @@ export default function Latency() {
         <div className="rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
           <div className={`h-1 ${theme.bg}`} />
           <div className="p-6">
-            <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wide mb-6">
+            <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide mb-6`}>
               📊 Latency Distribution
             </h3>
             
