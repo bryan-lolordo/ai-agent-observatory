@@ -17,9 +17,10 @@ const STORIES = [
   { id: 'latency', label: 'Latency', icon: '🌐', color: '#f97316' },
   { id: 'cache', label: 'Cache', icon: '💾', color: '#ec4899' },
   { id: 'cost', label: 'Cost', icon: '💰', color: '#10b981' },
-  { id: 'quality', label: 'Quality', icon: '📊', color: '#8b5cf6' },
+  { id: 'quality', label: 'Quality', icon: '⭐', color: '#8b5cf6' },
   { id: 'routing', label: 'Routing', icon: '🔀', color: '#3b82f6' },
-  { id: 'token', label: 'Token', icon: '🔢', color: '#f59e0b' },
+  { id: 'token', label: 'Token', icon: '⚖️', color: '#f59e0b' },
+  { id: 'system_prompt', label: 'Prompt', icon: '📝', color: '#06b6d4' },
 ];
 
 // Quick filter presets

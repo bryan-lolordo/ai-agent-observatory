@@ -12,6 +12,7 @@ Issue Detection:
 - Quality: low judge scores, errors, hallucinations, short responses
 - Routing: model selection opportunities (upgrade/downgrade)
 - Token: imbalanced ratios, large prompts
+- Prompt Composition: high system prompt %, large chat history, dynamic system prompts
 """
 
 from typing import List, Dict, Any, Optional
@@ -48,6 +49,11 @@ ROUTING_SIMPLE_TASK_MAX_TOKENS = 200  # Short output = maybe doesn't need premiu
 # Token thresholds
 TOKEN_IMBALANCED_RATIO = 5.0  # Prompt:completion ratio > 5:1 is imbalanced
 TOKEN_HIGH_PROMPT = 2000  # Prompts over 2000 tokens
+
+# Prompt composition thresholds
+PROMPT_SYSTEM_HIGH_PCT = 50.0  # System prompt > 50% of total is high
+PROMPT_HISTORY_HIGH_PCT = 40.0  # Chat history > 40% is concerning
+PROMPT_VARIABILITY_HIGH = 0.20  # >20% variation = dynamic (not cacheable)
 
 
 # =============================================================================
@@ -279,7 +285,7 @@ def detect_quality_issues(calls: List[Any]) -> List[Dict]:
             opportunities.append({
                 'id': f'quality-critical-{op_key}',
                 'storyId': 'quality',
-                'storyIcon': '📊',
+                'storyIcon': '⭐',
                 'agent': agent,
                 'operation': operation,
                 'issue': f'Critical quality score ({avg_score:.1f}/10)',
@@ -294,7 +300,7 @@ def detect_quality_issues(calls: List[Any]) -> List[Dict]:
             opportunities.append({
                 'id': f'quality-low-{op_key}',
                 'storyId': 'quality',
-                'storyIcon': '📊',
+                'storyIcon': '⭐',
                 'agent': agent,
                 'operation': operation,
                 'issue': f'Low quality score ({avg_score:.1f}/10)',
@@ -317,7 +323,7 @@ def detect_quality_issues(calls: List[Any]) -> List[Dict]:
             opportunities.append({
                 'id': f'quality-errors-{op_key}',
                 'storyId': 'quality',
-                'storyIcon': '📊',
+                'storyIcon': '⭐',
                 'agent': agent,
                 'operation': operation,
                 'issue': f'High error rate ({error_rate:.0f}%)',
@@ -338,7 +344,7 @@ def detect_quality_issues(calls: List[Any]) -> List[Dict]:
             opportunities.append({
                 'id': f'quality-hallucination-{op_key}',
                 'storyId': 'quality',
-                'storyIcon': '📊',
+                'storyIcon': '⭐',
                 'agent': agent,
                 'operation': operation,
                 'issue': 'Hallucinations detected',
@@ -359,7 +365,7 @@ def detect_quality_issues(calls: List[Any]) -> List[Dict]:
             opportunities.append({
                 'id': f'quality-short-{op_key}',
                 'storyId': 'quality',
-                'storyIcon': '📊',
+                'storyIcon': '⭐',
                 'agent': agent,
                 'operation': operation,
                 'issue': 'Unusually short responses (<10 tokens)',
@@ -478,7 +484,7 @@ def detect_token_issues(calls: List[Any]) -> List[Dict]:
             opportunities.append({
                 'id': f'token-imbalanced-{op_key}',
                 'storyId': 'token',
-                'storyIcon': '🔢',
+                'storyIcon': '⚖️',
                 'agent': agent,
                 'operation': operation,
                 'issue': f'Imbalanced ratio ({avg_ratio:.1f}:1 prompt:completion)',
@@ -504,7 +510,7 @@ def detect_token_issues(calls: List[Any]) -> List[Dict]:
             opportunities.append({
                 'id': f'token-large-prompt-{op_key}',
                 'storyId': 'token',
-                'storyIcon': '🔢',
+                'storyIcon': '⚖️',
                 'agent': agent,
                 'operation': operation,
                 'issue': f'Large prompts ({avg_prompt:.0f} avg tokens)',
@@ -514,7 +520,148 @@ def detect_token_issues(calls: List[Any]) -> List[Dict]:
                 'callCount': len(large_prompts),
                 'callId': large_prompts[0].id,
             })
-    
+
+    return opportunities
+
+
+def detect_prompt_issues(calls: List[Any]) -> List[Dict]:
+    """Detect prompt composition optimization opportunities.
+
+    Analyzes:
+    - High system prompt percentage (>50% of total prompt)
+    - Large chat history (>40% of prompt tokens)
+    - Dynamic system prompts (not cache-ready)
+    """
+    opportunities = []
+
+    # Group by operation
+    by_operation = defaultdict(list)
+    for call in calls:
+        agent = getattr(call, 'agent_name', None) or 'Unknown'
+        operation = getattr(call, 'operation', None) or 'unknown'
+        op_key = f"{agent}.{operation}"
+        by_operation[op_key].append(call)
+
+    for op_key, op_calls in by_operation.items():
+        agent, operation = op_key.split('.', 1) if '.' in op_key else ('Unknown', op_key)
+
+        # Collect token breakdowns
+        system_tokens_list = []
+        user_tokens_list = []
+        history_tokens_list = []
+        total_costs = []
+
+        for call in op_calls:
+            system_tokens = getattr(call, 'system_prompt_tokens', 0) or 0
+            user_tokens = getattr(call, 'user_message_tokens', 0) or 0
+            history_tokens = getattr(call, 'chat_history_tokens', 0) or 0
+
+            # Try prompt_breakdown JSON if columns are empty
+            if not system_tokens and not user_tokens:
+                prompt_breakdown = getattr(call, 'prompt_breakdown', None)
+                if isinstance(prompt_breakdown, dict):
+                    system_tokens = prompt_breakdown.get('system_prompt_tokens', 0) or 0
+                    user_tokens = prompt_breakdown.get('user_message_tokens', 0) or 0
+                    history_tokens = prompt_breakdown.get('chat_history_tokens', 0) or 0
+
+            system_tokens_list.append(system_tokens)
+            user_tokens_list.append(user_tokens)
+            history_tokens_list.append(history_tokens)
+            total_costs.append(getattr(call, 'total_cost', 0) or 0)
+
+        if not system_tokens_list:
+            continue
+
+        # Calculate averages
+        avg_system = sum(system_tokens_list) / len(system_tokens_list)
+        avg_user = sum(user_tokens_list) / len(user_tokens_list)
+        avg_history = sum(history_tokens_list) / len(history_tokens_list)
+        total_avg = avg_system + avg_user + avg_history
+
+        if total_avg == 0:
+            continue
+
+        system_pct = (avg_system / total_avg) * 100
+        history_pct = (avg_history / total_avg) * 100
+
+        # Calculate system prompt variability (coefficient of variation)
+        if len(system_tokens_list) >= 2 and avg_system > 0:
+            variance = sum((x - avg_system) ** 2 for x in system_tokens_list) / len(system_tokens_list)
+            std = variance ** 0.5
+            system_variability = std / avg_system
+        else:
+            system_variability = 0
+
+        total_cost = sum(total_costs)
+
+        # Detection 1: High system prompt percentage
+        high_system_calls = [
+            c for i, c in enumerate(op_calls)
+            if total_avg > 0 and system_tokens_list[i] > 0
+            and (system_tokens_list[i] / (system_tokens_list[i] + user_tokens_list[i] + history_tokens_list[i] + 0.001)) > (PROMPT_SYSTEM_HIGH_PCT / 100)
+        ]
+
+        if len(high_system_calls) >= 3:
+            # Estimate savings from prompt optimization (reduce system prompt by 30%)
+            potential_savings = total_cost * 0.15
+
+            opportunities.append({
+                'id': f'prompt-high-system-{op_key}',
+                'storyId': 'system_prompt',
+                'storyIcon': '📝',
+                'agent': agent,
+                'operation': operation,
+                'issue': f'High system prompt ({system_pct:.0f}% of tokens)',
+                'impact': f'${potential_savings:.2f}',
+                'impactValue': potential_savings,
+                'effort': 'Medium',
+                'callCount': len(high_system_calls),
+                'callId': high_system_calls[0].id,
+            })
+
+        # Detection 2: Large chat history
+        high_history_calls = [
+            c for i, c in enumerate(op_calls)
+            if history_tokens_list[i] > 0
+            and total_avg > 0
+            and (history_tokens_list[i] / (system_tokens_list[i] + user_tokens_list[i] + history_tokens_list[i] + 0.001)) > (PROMPT_HISTORY_HIGH_PCT / 100)
+        ]
+
+        if len(high_history_calls) >= 3:
+            # Estimate savings from history pruning (reduce by 40%)
+            potential_savings = total_cost * 0.25
+
+            opportunities.append({
+                'id': f'prompt-large-history-{op_key}',
+                'storyId': 'system_prompt',
+                'storyIcon': '📝',
+                'agent': agent,
+                'operation': operation,
+                'issue': f'Large chat history ({history_pct:.0f}% of tokens)',
+                'impact': f'${potential_savings:.2f}',
+                'impactValue': potential_savings,
+                'effort': 'Low',
+                'callCount': len(high_history_calls),
+                'callId': high_history_calls[0].id,
+            })
+
+        # Detection 3: Dynamic system prompts (not cache-ready)
+        if avg_system > 100 and system_variability > PROMPT_VARIABILITY_HIGH and len(op_calls) >= 3:
+            # High variability means system prompt changes between calls - not cacheable
+            opportunities.append({
+                'id': f'prompt-dynamic-system-{op_key}',
+                'storyId': 'system_prompt',
+                'storyIcon': '📝',
+                'agent': agent,
+                'operation': operation,
+                'issue': f'Dynamic system prompt ({system_variability*100:.0f}% variation)',
+                'impact': 'Cache blocked',
+                'impactValue': total_cost * 0.1,  # Lower priority but still valuable
+                'effort': 'High',
+                'callCount': len(op_calls),
+                'callId': op_calls[0].id,
+            })
+
     return opportunities
 
 
@@ -570,7 +717,7 @@ def get_optimization_opportunities(
     Args:
         project: Optional project filter
         days: Number of days to analyze
-        story_filter: Optional story ID to filter by (latency, cache, cost, quality, routing, token)
+        story_filter: Optional story ID to filter by (latency, cache, cost, quality, routing, token, system_prompt)
         limit: Max opportunities to return
     
     Returns:
@@ -618,7 +765,10 @@ def get_optimization_opportunities(
     
     if not story_filter or story_filter == 'token':
         all_opportunities.extend(detect_token_issues(calls))
-    
+
+    if not story_filter or story_filter == 'system_prompt':
+        all_opportunities.extend(detect_prompt_issues(calls))
+
     # Sort by impact (descending)
     all_opportunities.sort(key=lambda x: x['impactValue'], reverse=True)
     

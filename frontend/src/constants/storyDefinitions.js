@@ -55,7 +55,7 @@ export const STORY_METADATA = {
   [STORY_IDS.QUALITY]: {
     id: 'quality',
     title: 'Quality Monitoring',
-    emoji: '❌',
+    emoji: '⭐',
     description: 'Track errors, hallucinations, and quality scores',
     color: 'red',
     gradient: 'from-red-500 to-red-600',
