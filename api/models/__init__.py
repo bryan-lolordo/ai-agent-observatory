@@ -98,21 +98,30 @@ from .responses import (
 # =============================================================================
 
 from .optimization import (
-    # Simple models (used by optimization_service NOW)
-    OptimizationSummary,
-    BaselineMetrics,
-    OptimizationImpactSimple,
-    OptimizationStoryResponse,
-    
-    # Complex models (for future use)
-    OptimizationRecord,
-    BeforeAfterMetrics,
-    OptimizationImpact,
-    OptimizationListResponse,
-    OptimizationDetailResponse,
+    # Story metadata
+    STORY_METADATA,
+
+    # Core models
+    AppliedFix,
+    AppliedFixCreate,
+    CallReference,
+    OptimizationStory,
+    OptimizationStoryCreate,
+    OptimizationStoryUpdate,
+
+    # Hierarchy models
+    OperationNode,
+    AgentNode,
+    OptimizationHierarchy,
+
+    # Response models
     OptimizationSummaryResponse,
-    CreateOptimizationRequest,
-    UpdateOptimizationRequest,
+    OptimizationDetailResponse,
+
+    # Helper functions
+    format_metric,
+    format_improvement,
+    get_story_metadata,
 )
 
 # =============================================================================
@@ -317,18 +326,21 @@ __all__ = [
     "AllStoriesResponse",
     
     # Optimization
-    "OptimizationSummary",           
-    "BaselineMetrics",               
-    "OptimizationImpactSimple",      
-    "OptimizationStoryResponse",     
-    "OptimizationRecord",
-    "BeforeAfterMetrics",
-    "OptimizationImpact",
-    "OptimizationListResponse",
-    "OptimizationDetailResponse",
+    "STORY_METADATA",
+    "AppliedFix",
+    "AppliedFixCreate",
+    "CallReference",
+    "OptimizationStory",
+    "OptimizationStoryCreate",
+    "OptimizationStoryUpdate",
+    "OperationNode",
+    "AgentNode",
+    "OptimizationHierarchy",
     "OptimizationSummaryResponse",
-    "CreateOptimizationRequest",
-    "UpdateOptimizationRequest",
+    "OptimizationDetailResponse",
+    "format_metric",
+    "format_improvement",
+    "get_story_metadata",
     
     # Analytics
     "TimeSeriesDataPoint",

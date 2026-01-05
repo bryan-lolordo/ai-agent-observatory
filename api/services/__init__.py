@@ -62,6 +62,10 @@ from .cost_service import (
 # Story 8 - Optimization Impact
 from .optimization_service import (
     get_summary as get_optimization_summary,
+    get_optimization_detail,
+    update_story_status,
+    add_applied_fix,
+    delete_fix,
 )
 
 # Optimization Queue (cross-story analysis)
@@ -115,6 +119,10 @@ __all__ = [
     
     # Story 8 - Optimization Impact
     "get_optimization_summary",
+    "get_optimization_detail",
+    "update_story_status",
+    "add_applied_fix",
+    "delete_fix",
 
     # Optimization Queue
     "get_optimization_opportunities",

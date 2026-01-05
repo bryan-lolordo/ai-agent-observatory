@@ -863,12 +863,12 @@ class Storage:
     def get_llm_call_by_id(self, call_id: str) -> Optional[LLMCall]:
         """
         Get a single LLM call by its ID.
-        
+
         Used by Layer 3 (Call Detail) to fetch complete call information.
-        
+
         Args:
             call_id: Unique identifier for the LLM call
-            
+
         Returns:
             LLMCall model if found, None otherwise
         """
@@ -878,6 +878,288 @@ class Storage:
             return self._from_llm_call_db(llm_call_db) if llm_call_db else None
         finally:
             db.close()
+
+    # =========================================================================
+    # OPTIMIZATION STORY METHODS (Story 8)
+    # =========================================================================
+
+    def save_optimization_story(self, story: Dict[str, Any]) -> None:
+        """Save or update an optimization story."""
+        db: DBSession = self.SessionLocal()
+        try:
+            story_db = OptimizationStoryDB(**story)
+            db.merge(story_db)
+            db.commit()
+        finally:
+            db.close()
+
+    def get_optimization_story(self, story_id: str) -> Optional[Dict[str, Any]]:
+        """Get an optimization story by ID."""
+        db: DBSession = self.SessionLocal()
+        try:
+            story_db = db.query(OptimizationStoryDB).filter(
+                OptimizationStoryDB.id == story_id
+            ).first()
+            if story_db:
+                return {
+                    "id": story_db.id,
+                    "agent_name": story_db.agent_name,
+                    "operation": story_db.operation,
+                    "story_id": story_db.story_id,
+                    "call_count": story_db.call_count,
+                    "call_ids": story_db.call_ids or [],
+                    "baseline_value": story_db.baseline_value,
+                    "baseline_unit": story_db.baseline_unit,
+                    "baseline_p95": story_db.baseline_p95,
+                    "baseline_date": story_db.baseline_date,
+                    "baseline_call_count": story_db.baseline_call_count,
+                    "current_value": story_db.current_value,
+                    "current_date": story_db.current_date,
+                    "improvement_pct": story_db.improvement_pct,
+                    "status": story_db.status,
+                    "skip_reason": story_db.skip_reason,
+                    "created_at": story_db.created_at,
+                    "updated_at": story_db.updated_at,
+                }
+            return None
+        finally:
+            db.close()
+
+    def get_all_optimization_stories(
+        self,
+        agent_name: Optional[str] = None,
+        operation: Optional[str] = None,
+        story_id: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get all optimization stories with optional filters."""
+        db: DBSession = self.SessionLocal()
+        try:
+            query = db.query(OptimizationStoryDB)
+
+            if agent_name:
+                query = query.filter(OptimizationStoryDB.agent_name == agent_name)
+            if operation:
+                query = query.filter(OptimizationStoryDB.operation == operation)
+            if story_id:
+                query = query.filter(OptimizationStoryDB.story_id == story_id)
+            if status:
+                query = query.filter(OptimizationStoryDB.status == status)
+
+            query = query.order_by(
+                OptimizationStoryDB.agent_name,
+                OptimizationStoryDB.operation,
+                OptimizationStoryDB.story_id
+            )
+
+            stories = []
+            for story_db in query.all():
+                stories.append({
+                    "id": story_db.id,
+                    "agent_name": story_db.agent_name,
+                    "operation": story_db.operation,
+                    "story_id": story_db.story_id,
+                    "call_count": story_db.call_count,
+                    "call_ids": story_db.call_ids or [],
+                    "baseline_value": story_db.baseline_value,
+                    "baseline_unit": story_db.baseline_unit,
+                    "baseline_p95": story_db.baseline_p95,
+                    "baseline_date": story_db.baseline_date,
+                    "baseline_call_count": story_db.baseline_call_count,
+                    "current_value": story_db.current_value,
+                    "current_date": story_db.current_date,
+                    "improvement_pct": story_db.improvement_pct,
+                    "status": story_db.status,
+                    "skip_reason": story_db.skip_reason,
+                    "created_at": story_db.created_at,
+                    "updated_at": story_db.updated_at,
+                })
+            return stories
+        finally:
+            db.close()
+
+    def update_optimization_story_status(
+        self,
+        story_id: str,
+        status: str,
+        skip_reason: Optional[str] = None,
+        current_value: Optional[float] = None,
+    ) -> bool:
+        """Update the status of an optimization story."""
+        db: DBSession = self.SessionLocal()
+        try:
+            story_db = db.query(OptimizationStoryDB).filter(
+                OptimizationStoryDB.id == story_id
+            ).first()
+            if story_db:
+                story_db.status = status
+                if skip_reason:
+                    story_db.skip_reason = skip_reason
+                if current_value is not None:
+                    story_db.current_value = current_value
+                    story_db.current_date = datetime.utcnow()
+                    if story_db.baseline_value and story_db.baseline_value != 0:
+                        story_db.improvement_pct = (
+                            (story_db.baseline_value - current_value) / story_db.baseline_value
+                        ) * 100
+                story_db.updated_at = datetime.utcnow()
+                db.commit()
+                return True
+            return False
+        finally:
+            db.close()
+
+    def delete_optimization_story(self, story_id: str) -> bool:
+        """Delete an optimization story and its applied fixes."""
+        db: DBSession = self.SessionLocal()
+        try:
+            # Delete applied fixes first
+            db.query(AppliedFixDB).filter(
+                AppliedFixDB.optimization_story_id == story_id
+            ).delete()
+            # Delete the story
+            result = db.query(OptimizationStoryDB).filter(
+                OptimizationStoryDB.id == story_id
+            ).delete()
+            db.commit()
+            return result > 0
+        finally:
+            db.close()
+
+    # =========================================================================
+    # APPLIED FIX METHODS (Story 8)
+    # =========================================================================
+
+    def save_applied_fix(self, fix: Dict[str, Any]) -> None:
+        """Save an applied fix."""
+        db: DBSession = self.SessionLocal()
+        try:
+            fix_db = AppliedFixDB(**fix)
+            db.merge(fix_db)
+            db.commit()
+        finally:
+            db.close()
+
+    def get_applied_fixes(
+        self,
+        optimization_story_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get applied fixes, optionally filtered by optimization story."""
+        db: DBSession = self.SessionLocal()
+        try:
+            query = db.query(AppliedFixDB)
+
+            if optimization_story_id:
+                query = query.filter(
+                    AppliedFixDB.optimization_story_id == optimization_story_id
+                )
+
+            query = query.order_by(AppliedFixDB.applied_date.asc())
+
+            fixes = []
+            for fix_db in query.all():
+                fixes.append({
+                    "id": fix_db.id,
+                    "optimization_story_id": fix_db.optimization_story_id,
+                    "fix_type": fix_db.fix_type,
+                    "before_value": fix_db.before_value,
+                    "after_value": fix_db.after_value,
+                    "improvement_pct": fix_db.improvement_pct,
+                    "applied_date": fix_db.applied_date,
+                    "git_commit": fix_db.git_commit,
+                    "notes": fix_db.notes,
+                    "created_at": fix_db.created_at,
+                })
+            return fixes
+        finally:
+            db.close()
+
+    def delete_applied_fix(self, fix_id: str) -> bool:
+        """Delete an applied fix."""
+        db: DBSession = self.SessionLocal()
+        try:
+            result = db.query(AppliedFixDB).filter(
+                AppliedFixDB.id == fix_id
+            ).delete()
+            db.commit()
+            return result > 0
+        finally:
+            db.close()
+
+
+# =============================================================================
+# OPTIMIZATION TRACKING TABLES (Story 8)
+# =============================================================================
+
+class OptimizationStoryDB(Base):
+    """
+    Tracks optimization opportunities at the (Agent, Operation, Story) level.
+    This is the main tracking unit for the hierarchical view.
+    """
+    __tablename__ = "optimization_stories"
+
+    id = Column(String, primary_key=True)  # e.g., "ResumeMatching_deep_analyze_latency"
+
+    # Hierarchy identifiers
+    agent_name = Column(String, index=True)  # "ResumeMatching"
+    operation = Column(String, index=True)   # "deep_analyze_job"
+    story_id = Column(String, index=True)    # "latency", "cache", "cost", etc.
+
+    # Call information
+    call_count = Column(Integer, default=0)  # Number of affected calls
+    call_ids = Column(JSON, default=[])      # Sample call IDs that triggered this
+
+    # Baseline metrics (before any fixes)
+    baseline_value = Column(Float)           # Original metric (e.g., 12.5 for seconds)
+    baseline_unit = Column(String)           # "s", "$", "ratio", "%"
+    baseline_p95 = Column(Float, nullable=True)  # 95th percentile
+    baseline_date = Column(DateTime)         # When baseline was captured
+    baseline_call_count = Column(Integer)    # Calls in baseline window
+
+    # Current metrics (after fixes applied)
+    current_value = Column(Float, nullable=True)  # Latest metric
+    current_date = Column(DateTime, nullable=True)  # When measured
+    improvement_pct = Column(Float, nullable=True)  # Calculated change %
+
+    # Status tracking
+    status = Column(String, default="pending")  # pending, in_progress, complete, skipped
+    skip_reason = Column(String, nullable=True)  # If skipped, why
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Composite index for hierarchy queries
+    __table_args__ = (
+        Index('idx_optimization_hierarchy', 'agent_name', 'operation', 'story_id'),
+    )
+
+
+class AppliedFixDB(Base):
+    """
+    Tracks individual fixes applied to an optimization story.
+    Multiple fixes can be applied to the same (Agent, Operation, Story).
+    """
+    __tablename__ = "applied_fixes"
+
+    id = Column(String, primary_key=True)  # UUID
+    optimization_story_id = Column(String, index=True)  # FK to optimization_stories
+
+    # Fix details
+    fix_type = Column(String)  # "max_tokens", "truncate_hist", "semantic_cache", etc.
+
+    # Before/After for THIS fix (chained metrics)
+    before_value = Column(Float)  # Metric before this fix
+    after_value = Column(Float, nullable=True)  # Metric after this fix
+    improvement_pct = Column(Float, nullable=True)  # This fix's contribution
+
+    # Tracking
+    applied_date = Column(DateTime)  # When implemented
+    git_commit = Column(String, nullable=True)  # Optional commit hash
+    notes = Column(Text, nullable=True)  # Optional notes
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 # Singleton instance for easy access
