@@ -17,6 +17,7 @@ import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import { BASE_THEME } from '../../../utils/themeUtils';
 import PageContainer from '../../../components/layout/PageContainer';
 import OptimizationHierarchy from '../../../components/stories/OptimizationHierarchy';
+import { Code2, Table } from 'lucide-react';
 
 export default function OptimizationImpact() {
   const navigate = useNavigate();
@@ -90,6 +91,22 @@ export default function OptimizationImpact() {
               <span className="text-4xl">{theme.emoji}</span>
               {theme.name}
             </h1>
+            <div className="flex items-center gap-2">
+              {/* View Toggle */}
+              <button
+                className={`px-3 py-1.5 rounded text-sm ${theme.bg} text-white flex items-center gap-1.5`}
+              >
+                <Table className="w-4 h-4" />
+                Table View
+              </button>
+              <button
+                onClick={() => navigate('/stories/optimization/code-view')}
+                className="px-3 py-1.5 rounded text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors flex items-center gap-1.5"
+              >
+                <Code2 className="w-4 h-4" />
+                Code View
+              </button>
+            </div>
             <div className="flex items-center gap-4">
               <div className="px-4 py-2 rounded-full border border-gray-700 bg-gray-900">
                 <span className={`text-sm font-semibold ${theme.text}`}>

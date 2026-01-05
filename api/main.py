@@ -17,6 +17,7 @@ from api.routers import stories_router, metadata_router
 from api.routers.calls import router as calls_router
 from api.routers.optimization_queue import router as optimization_queue_router
 from api.routers.analysis import router as analysis_router
+from api.routers.chat import router as chat_router
 
 
 # =============================================================================
@@ -56,6 +57,7 @@ app.include_router(metadata_router)
 app.include_router(calls_router, prefix="/api")
 app.include_router(optimization_queue_router)  # Optimization Queue
 app.include_router(analysis_router, prefix="/api")  # LLM-powered analysis
+app.include_router(chat_router)  # Chat feedback for Code-Centric View
 
 
 # =============================================================================

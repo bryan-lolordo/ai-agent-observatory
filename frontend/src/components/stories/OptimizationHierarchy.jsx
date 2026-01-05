@@ -5,13 +5,13 @@
  *
  * Features:
  * - Expandable rows at each level
+ * - Inline metrics in columns (Before, After, Delta%)
  * - Status badges and progress indicators
- * - Inline baseline info and fix history
- * - Click to mark fixes as complete
+ * - Click to expand for fixes and sample calls
  */
 
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, Check, Clock, XCircle, Plus } from 'lucide-react';
+import { ChevronRight, ChevronDown, Check, Plus } from 'lucide-react';
 import { STORY_THEMES } from '../../config/theme';
 
 // Story color mapping
@@ -80,10 +80,11 @@ const AgentRow = ({ agent, expanded, onToggle, onStoryClick }) => {
         <td className="py-3 px-4 text-right text-gray-400">{agent.call_count}</td>
         <td className="py-3 px-4"></td>
         <td className="py-3 px-4"></td>
+        <td className="py-3 px-4"></td>
+        <td className="py-3 px-4"></td>
         <td className="py-3 px-4">
           <ProgressIndicator complete={agent.complete_count} total={agent.total_stories} />
         </td>
-        <td className="py-3 px-4"></td>
       </tr>
 
       {expanded && agent.operations.map((operation) => (
@@ -121,10 +122,11 @@ const OperationRows = ({ operation, agentName, onStoryClick }) => {
         <td className="py-2.5 px-4 text-right text-gray-500">{operation.call_count}</td>
         <td className="py-2.5 px-4"></td>
         <td className="py-2.5 px-4"></td>
+        <td className="py-2.5 px-4"></td>
+        <td className="py-2.5 px-4"></td>
         <td className="py-2.5 px-4">
           <ProgressIndicator complete={operation.complete_count} total={operation.total_stories} />
         </td>
-        <td className="py-2.5 px-4"></td>
       </tr>
 
       {expanded && operation.stories.map((story) => (
@@ -148,9 +150,11 @@ const StoryRows = ({ story, onStoryClick }) => {
   return (
     <>
       <tr
+        onClick={() => setExpanded(!expanded)}
         className={`border-b border-gray-800 cursor-pointer transition-colors bg-gray-900/50 ${storyTheme.rowHover}`}
       >
-        <td className="py-2.5 px-4 pl-16" onClick={() => setExpanded(!expanded)}>
+        {/* Story Name */}
+        <td className="py-2.5 px-4 pl-16">
           <div className="flex items-center gap-2">
             {expanded ? (
               <ChevronDown className="w-4 h-4 text-gray-500" />
@@ -163,30 +167,27 @@ const StoryRows = ({ story, onStoryClick }) => {
             </span>
           </div>
         </td>
-        <td className="py-2.5 px-4 text-right text-gray-500" onClick={() => setExpanded(!expanded)}>
+
+        {/* Calls */}
+        <td className="py-2.5 px-4 text-right text-gray-500">
           {story.call_count}
         </td>
-        <td className="py-2.5 px-4" onClick={() => setExpanded(!expanded)}>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-300">{story.baseline_value_formatted}</span>
-            {hasImprovement && (
-              <>
-                <span className="text-gray-600">→</span>
-                <span className={storyTheme.text}>{story.current_value_formatted}</span>
-              </>
-            )}
-          </div>
+
+        {/* Before (Baseline) */}
+        <td className="py-2.5 px-4 text-right">
+          <span className="text-gray-300">{story.baseline_value_formatted}</span>
         </td>
-        <td className="py-2.5 px-4 text-center" onClick={() => setExpanded(!expanded)}>
-          {story.fix_count > 0 ? (
-            <span className="text-green-400">{story.fix_count} fix{story.fix_count > 1 ? 'es' : ''}</span>
+
+        {/* After (Current) */}
+        <td className="py-2.5 px-4 text-right">
+          {hasImprovement ? (
+            <span className={storyTheme.text}>{story.current_value_formatted}</span>
           ) : (
-            <span className="text-gray-600">0 fixes</span>
+            <span className="text-gray-600">—</span>
           )}
         </td>
-        <td className="py-2.5 px-4" onClick={() => setExpanded(!expanded)}>
-          <StatusBadge status={story.status} />
-        </td>
+
+        {/* Delta % */}
         <td className="py-2.5 px-4 text-right">
           {hasImprovement ? (
             <span className="text-green-400 font-medium">{story.improvement_formatted}</span>
@@ -194,47 +195,32 @@ const StoryRows = ({ story, onStoryClick }) => {
             <span className="text-gray-600">—</span>
           )}
         </td>
+
+        {/* Fixes */}
+        <td className="py-2.5 px-4 text-center">
+          {story.fix_count > 0 ? (
+            <span className="text-green-400">{story.fix_count}</span>
+          ) : (
+            <span className="text-gray-600">0</span>
+          )}
+        </td>
+
+        {/* Status */}
+        <td className="py-2.5 px-4">
+          <StatusBadge status={story.status} />
+        </td>
       </tr>
 
-      {/* Expanded content: Baseline + Fixes + Calls */}
+      {/* Expanded content: Applied Fixes + Sample Calls + Actions */}
       {expanded && (
         <tr className="border-b border-gray-800 bg-gray-950">
-          <td colSpan={6} className="p-0">
+          <td colSpan={7} className="p-0">
             <div className="pl-20 pr-4 py-3 space-y-3">
-              {/* Baseline info */}
-              <div className={`p-3 rounded border ${storyTheme.borderLight} bg-gray-900/50`}>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Baseline</div>
-                <div className="flex gap-6 text-sm">
-                  <div>
-                    <span className="text-gray-500">Avg: </span>
-                    <span className="text-gray-300">{story.baseline_value_formatted}</span>
-                  </div>
-                  {story.baseline_p95_formatted && (
-                    <div>
-                      <span className="text-gray-500">P95: </span>
-                      <span className="text-gray-300">{story.baseline_p95_formatted}</span>
-                    </div>
-                  )}
-                  <div>
-                    <span className="text-gray-500">Calls: </span>
-                    <span className="text-gray-300">{story.baseline_call_count}</span>
-                  </div>
-                  {story.baseline_date && (
-                    <div>
-                      <span className="text-gray-500">Captured: </span>
-                      <span className="text-gray-300">
-                        {new Date(story.baseline_date).toLocaleDateString()}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* Applied Fixes */}
               {story.fixes && story.fixes.length > 0 && (
                 <div className="space-y-2">
                   <div className="text-xs text-gray-500 uppercase tracking-wide">Applied Fixes</div>
-                  {story.fixes.map((fix, idx) => (
+                  {story.fixes.map((fix) => (
                     <div
                       key={fix.id}
                       className="flex items-center gap-4 p-2 rounded bg-gray-900/30 border border-gray-800"
@@ -272,7 +258,10 @@ const StoryRows = ({ story, onStoryClick }) => {
                     {story.calls.slice(0, 5).map((call) => (
                       <div
                         key={call.id}
-                        onClick={() => onStoryClick && onStoryClick(story, call)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onStoryClick && onStoryClick(story, call);
+                        }}
                         className="px-2 py-1 rounded bg-gray-800 border border-gray-700 text-xs cursor-pointer hover:bg-gray-700 transition-colors"
                       >
                         <span className="font-mono text-gray-400">{call.id?.slice(0, 8)}...</span>
@@ -291,7 +280,10 @@ const StoryRows = ({ story, onStoryClick }) => {
               {/* Action buttons */}
               <div className="flex gap-2 pt-2">
                 <button
-                  onClick={() => onStoryClick && onStoryClick(story)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStoryClick && onStoryClick(story);
+                  }}
                   className={`px-3 py-1.5 rounded text-xs font-medium ${storyTheme.bg} text-white hover:opacity-80 transition-opacity`}
                 >
                   <Plus className="w-3 h-3 inline mr-1" />
@@ -299,6 +291,7 @@ const StoryRows = ({ story, onStoryClick }) => {
                 </button>
                 {story.status === 'pending' && (
                   <button
+                    onClick={(e) => e.stopPropagation()}
                     className="px-3 py-1.5 rounded text-xs font-medium bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
                   >
                     Mark In Progress
@@ -306,6 +299,7 @@ const StoryRows = ({ story, onStoryClick }) => {
                 )}
                 {story.status !== 'complete' && story.status !== 'skipped' && (
                   <button
+                    onClick={(e) => e.stopPropagation()}
                     className="px-3 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors"
                   >
                     Skip
@@ -322,7 +316,14 @@ const StoryRows = ({ story, onStoryClick }) => {
 
 // Main component
 export default function OptimizationHierarchy({ hierarchy, onStoryClick }) {
-  const [expandedAgents, setExpandedAgents] = useState({});
+  // Initialize all agents as expanded by default
+  const [expandedAgents, setExpandedAgents] = useState(() => {
+    if (!hierarchy?.agents) return {};
+    return hierarchy.agents.reduce((acc, agent) => {
+      acc[agent.agent_name] = true; // Start expanded
+      return acc;
+    }, {});
+  });
 
   const toggleAgent = (agentName) => {
     setExpandedAgents(prev => ({
@@ -348,10 +349,11 @@ export default function OptimizationHierarchy({ hierarchy, onStoryClick }) {
               Agent / Operation / Story
             </th>
             <th className="text-right py-3 px-4 text-gray-400 font-medium w-20">Calls</th>
-            <th className="text-left py-3 px-4 text-gray-400 font-medium w-40">Metric</th>
-            <th className="text-center py-3 px-4 text-gray-400 font-medium w-24">Fixes</th>
-            <th className="text-left py-3 px-4 text-gray-400 font-medium w-32">Status</th>
-            <th className="text-right py-3 px-4 text-gray-400 font-medium w-24">Impact</th>
+            <th className="text-right py-3 px-4 text-gray-400 font-medium w-24">Before</th>
+            <th className="text-right py-3 px-4 text-gray-400 font-medium w-24">After</th>
+            <th className="text-right py-3 px-4 text-gray-400 font-medium w-20">Δ%</th>
+            <th className="text-center py-3 px-4 text-gray-400 font-medium w-16">Fixes</th>
+            <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Status</th>
           </tr>
         </thead>
         <tbody>

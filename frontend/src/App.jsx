@@ -61,6 +61,7 @@ import CostCallDetail from './pages/stories/cost/CallDetail';
 // Pages - Optimization Story (Layers 1 & 2)
 import Optimization from './pages/stories/optimization';
 import OptimizationComparisonDetail from './pages/stories/optimization/ComparisonDetail';
+import CodeCentricPage from './pages/stories/optimization/CodeCentricPage';
 
 function App() {
   // Global filter state
@@ -171,6 +172,7 @@ function App() {
               {/* OPTIMIZATION IMPACT STORY - Layers 1 & 2      */}
               {/* ============================================= */}
               <Route path="/stories/optimization" element={<Optimization />} />
+              <Route path="/stories/optimization/code-view" element={<CodeCentricPage />} />
               <Route path="/stories/optimization/calls" element={<OptimizationComparisonDetail />} />
               <Route path="/stories/optimization/comparisons/:comparisonId" element={<OptimizationComparisonDetail />} />
               
