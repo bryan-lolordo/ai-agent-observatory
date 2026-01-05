@@ -5,19 +5,25 @@ src/
 ├── App.jsx
 ├── main.jsx
 ├── assets/
-│   ├── fonts/
 │   └── images/
 │       ├── empty-state.svg
 │       └── logo.svg
 ├── components/
 │   ├── common/
+│   │   ├── AlertBox.jsx
+│   │   ├── BackButton.jsx
+│   │   ├── ErrorDisplay.jsx
 │   │   ├── KPICard.jsx
 │   │   ├── Loading.jsx
+│   │   ├── PageHeader.jsx
 │   │   ├── ScrollToTop.jsx
+│   │   ├── SectionCard.jsx
+│   │   ├── StatBadge.jsx
 │   │   └── StatusBadge.jsx
 │   ├── layout/
 │   │   ├── Footer.jsx
 │   │   ├── Header.jsx
+│   │   ├── PageContainer.jsx
 │   │   └── Sidebar.jsx
 │   ├── stories/
 │   │   ├── Layer2Table/
@@ -38,12 +44,14 @@ src/
 │   │   │   ├── SimilarPanel.jsx
 │   │   │   ├── TracePanel.jsx
 │   │   │   └── shared/
+│   │   │       ├── BenchmarksDisplay.jsx
+│   │   │       ├── CacheablePromptView.jsx
 │   │   │       ├── ChatHistoryBreakdown.jsx
-│   │   │       ├── ComparisonBenchmarks.jsx
 │   │   │       ├── index.js
 │   │   │       ├── KPICard.jsx
 │   │   │       ├── PromptBreakdownBar.jsx
 │   │   │       ├── RootCausesTable.jsx
+│   │   │       ├── RoutingTraceView.jsx
 │   │   │       ├── SeverityBadge.jsx
 │   │   │       ├── TimeBreakdownBar.jsx
 │   │   │       └── TraceTree.jsx
@@ -56,12 +64,17 @@ src/
 │       └── table.jsx
 ├── config/
 │   ├── columnDefinitions.js
+│   ├── fixes/
+│   │   ├── index.js
+│   │   ├── matcher.js
+│   │   ├── priorities.js
+│   │   └── repository.js
 │   ├── layer3/
 │   │   ├── cache.js
 │   │   ├── cost.js
 │   │   ├── latency.js
 │   │   ├── prompt.js
-│   │   ├── quality.js
+│   │   ├── quality.jsx
 │   │   ├── routing.js
 │   │   └── token.js
 │   ├── storyDefinitions.js
@@ -119,5 +132,6 @@ src/
 └── utils/
     ├── formatters.js
     ├── helpers.js
+    ├── themeUtils.js
     └── validators.js
 ```

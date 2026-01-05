@@ -13,6 +13,7 @@ import { useTimeRange } from '../../../context/TimeRangeContext';
 import { BASE_THEME } from '../../../utils/themeUtils';
 import { STORY_THEMES } from '../../../config/theme';
 import PageContainer from '../../../components/layout/PageContainer';
+import { getFixesForCall } from '../../../config/fixes';
 
 import Layer3Shell from '../../../components/stories/Layer3';
 
@@ -53,18 +54,6 @@ export default function CachePatternDetail() {
         }
         
         const data = await response.json();
-        
-        // ADD THIS DEBUG LOG HERE
-        console.log('🔵 PatternDetail: Loaded data:', {
-          hasSystemPrompt: !!data.system_prompt,
-          systemPromptTokens: data.system_prompt_tokens,
-          hasPrompt: !!data.prompt,
-          promptLength: data.prompt?.length,
-          hasInsights: !!data.insights,
-          insightsCount: data.insights?.length,
-          cacheableTokens: data.cacheable_tokens,
-        });
-        
         setPattern(data);
       } catch (err) {
         console.error('Failed to load pattern data:', err);
@@ -136,7 +125,7 @@ export default function CachePatternDetail() {
 
   // Analyze the pattern
   const factors = analyzeCacheFactors(pattern);
-  const fixes = getCacheFixes(pattern);
+  const fixes = getFixesForCall(pattern, 'cache', factors);
 
   // Back path
   const backPath = `/stories/cache/operations/${encodeURIComponent(agent)}/${encodeURIComponent(operation)}`;

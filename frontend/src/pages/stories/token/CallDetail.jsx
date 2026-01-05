@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 
 import Layer3Shell from '../../../components/stories/Layer3';
 import { STORY_THEMES } from '../../../config/theme';
+import { getFixesForCall } from '../../../config/fixes';
 
 import {
   TOKEN_STORY,
@@ -304,7 +305,7 @@ export default function TokenCallDetail() {
   // Analyze the call
   const factors = analyzeTokenFactors(call);
   const breakdown = getTokenBreakdown(call);
-  const fixes = getTokenFixes(call, factors);
+  const fixes = getFixesForCall(call, 'token', factors);
   const configHighlights = getTokenConfigHighlights(call, factors);
   const currentState = getTokenCurrentState(call);
   

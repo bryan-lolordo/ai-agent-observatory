@@ -11,6 +11,7 @@
 
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { getFixesForCall } from '../../../config/fixes';
 
 import Layer3Shell from '../../../components/stories/Layer3';
 
@@ -21,7 +22,6 @@ import {
   getLatencyCurrentState,
   analyzeLatencyFactors,
   getTimeAttribution,
-  getLatencyFixes,
   getLatencyConfigHighlights,
   getLatencyBreakdown,
   analyzeLatencyResponse,
@@ -166,8 +166,10 @@ export default function LatencyCallDetail() {
 
   // Analyze the call
   const factors = analyzeLatencyFactors(call);
+  console.log('🔍 LATENCY FACTORS:', factors);
   const timeAttribution = getTimeAttribution(call);
-  const fixes = getLatencyFixes(call, factors);
+  const fixes = getFixesForCall(call, 'latency', factors);
+  console.log('🔧 GENERATED FIXES:', fixes);
   const configHighlights = getLatencyConfigHighlights(call, factors);
   const currentState = getLatencyCurrentState(call);
   const breakdown = getLatencyBreakdown(call);

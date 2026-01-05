@@ -137,78 +137,75 @@ export function TimeAttributionTree({
   const isProblem = tokens_per_second < expected_tokens_per_second * 0.5;
 
   return (
-    <div className={`${BASE_THEME.container.primary} rounded-lg p-5 text-sm`} style={{
+    <div className={`${BASE_THEME.container.primary} rounded-lg p-6 text-base`} style={{
       fontFamily: "'Roboto Mono', 'Ubuntu Mono', monospace",
       letterSpacing: '0.5px'
     }}>
       {/* Total */}
-      <div className="mb-2">
-        <span className="font-bold text-base" style={{ color: accentColor }}>
+      <div className="mb-4">
+        <span className="font-bold text-2xl" style={{ color: accentColor }}>
           {(total_ms / 1000).toFixed(1)}s
         </span>
-        <span style={{ color: TREE_COLORS.secondaryText }}> total</span>
+        <span className="text-lg" style={{ color: TREE_COLORS.secondaryText }}> total</span>
       </div>
 
       {/* Tree branches */}
-      <div className="ml-4 space-y-1">
+      <div className="ml-4 space-y-3">
         {/* Network */}
-        <div className="flex items-center gap-2">
-          <span style={{ color: TREE_COLORS.branch }}>├─</span>
-          <span style={{ color: TREE_COLORS.network.label }}>Network:</span>
-          <span className="font-bold" style={{ color: TREE_COLORS.network.value }}>
+        <div className="flex items-center gap-3">
+          <span className="text-lg" style={{ color: TREE_COLORS.branch }}>├─</span>
+          <span className="text-lg" style={{ color: TREE_COLORS.network.label }}>Network:</span>
+          <span className="font-bold text-lg" style={{ color: TREE_COLORS.network.value }}>
             ~{(network_ms / 1000).toFixed(1)}s
           </span>
-          <span style={{ color: TREE_COLORS.network.percentage }}>({network_pct.toFixed(0)}%)</span>
-          <span className="text-xs italic" style={{ color: TREE_COLORS.success }}>← negligible</span>
+          <span className="text-base" style={{ color: TREE_COLORS.network.percentage }}>({network_pct.toFixed(0)}%)</span>
+          <span className="text-sm italic" style={{ color: TREE_COLORS.success }}>← negligible</span>
         </div>
 
         {/* TTFT */}
-        <div className="flex items-center gap-2">
-          <span style={{ color: TREE_COLORS.branch }}>├─</span>
-          <span style={{ color: TREE_COLORS.ttft.label }}>TTFT:</span>
-          <span className="font-bold" style={{ color: TREE_COLORS.ttft.value }}>
+        <div className="flex items-center gap-3">
+          <span className="text-lg" style={{ color: TREE_COLORS.branch }}>├─</span>
+          <span className="text-lg" style={{ color: TREE_COLORS.ttft.label }}>TTFT:</span>
+          <span className="font-bold text-lg" style={{ color: TREE_COLORS.ttft.value }}>
             {(ttft_ms / 1000).toFixed(1)}s
           </span>
-          <span style={{ color: TREE_COLORS.ttft.percentage }}>({ttft_pct.toFixed(0)}%)</span>
-          <span className="text-xs" style={{ color: TREE_COLORS.mutedText }}>← Model thinking</span>
+          <span className="text-base" style={{ color: TREE_COLORS.ttft.percentage }}>({ttft_pct.toFixed(0)}%)</span>
+          <span className="text-sm" style={{ color: TREE_COLORS.mutedText }}>← Model thinking</span>
         </div>
 
         {/* Generation (with sub-tree) */}
         <div>
-          <div className="flex items-center gap-2">
-            <span style={{ color: TREE_COLORS.branch }}>└─</span>
-            <span style={{ color: TREE_COLORS.generation.label }}>Generation:</span>
-            <span className="font-bold" style={{ color: TREE_COLORS.generation.value }}>
+          <div className="flex items-center gap-3">
+            <span className="text-lg" style={{ color: TREE_COLORS.branch }}>└─</span>
+            <span className="text-lg" style={{ color: TREE_COLORS.generation.label }}>Generation:</span>
+            <span className="font-bold text-lg" style={{ color: TREE_COLORS.generation.value }}>
               {(generation_ms / 1000).toFixed(1)}s
             </span>
-            <span style={{ color: TREE_COLORS.generation.percentage }}>({generation_pct.toFixed(0)}%)</span>
-            <span className="text-xs" style={{ color: TREE_COLORS.mutedText }}>← Token output</span>
+            <span className="text-base" style={{ color: TREE_COLORS.generation.percentage }}>({generation_pct.toFixed(0)}%)</span>
+            <span className="text-sm" style={{ color: TREE_COLORS.mutedText }}>← Token output</span>
           </div>
 
           {/* Generation sub-items */}
-          <div className="ml-6 mt-1 space-y-1">
-            <div className="flex items-center gap-2">
-              <span style={{ color: TREE_COLORS.branch }}>├─</span>
-              <span className="font-bold" style={{ color: TREE_COLORS.tokens }}>
+          <div className="ml-8 mt-3 space-y-2">
+            <div className="flex items-center gap-3">
+              <span className="text-lg" style={{ color: TREE_COLORS.branch }}>├─</span>
+              <span className="font-bold text-lg" style={{ color: TREE_COLORS.tokens }}>
                 {completion_tokens} tokens
               </span>
-              <span style={{ color: TREE_COLORS.secondaryText }}> @ </span>
-              <span className="font-bold" style={{
-                color: TREE_COLORS.error,
-                fontSize: '15px'
-              }}>
+              <span className="text-base" style={{ color: TREE_COLORS.secondaryText }}> @ </span>
+              <span className="font-bold text-xl" style={{ color: TREE_COLORS.error }}>
                 {tokens_per_second.toFixed(1)} tok/sec
               </span>
               {isProblem && (
-                <span className="text-xs font-black" style={{ color: TREE_COLORS.error }}>
+                <span className="text-sm font-black" style={{ color: TREE_COLORS.error }}>
                   ← PROBLEM
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <span style={{ color: TREE_COLORS.branch }}>└─</span>
-              <span style={{ color: TREE_COLORS.mutedText }}>Expected:</span>
-              <span className="font-bold" style={{ color: TREE_COLORS.success }}>
+            <div className="flex items-center gap-3">
+              <span className="text-lg" style={{ color: TREE_COLORS.branch }}>└─</span>
+              <span className="text-base" style={{ color: TREE_COLORS.mutedText }}>Expected:</span>
+              <span className="font-bold text-lg" style={{ color: TREE_COLORS.success }}>
                 ~{expected_tokens_per_second} tok/sec
               </span>
             </div>
@@ -218,9 +215,9 @@ export function TimeAttributionTree({
 
       {/* Problem callout */}
       {isProblem && (
-        <div className={`mt-4 p-3 ${BASE_THEME.container.primary} border-2 ${BASE_THEME.status.error.border} rounded text-xs`}>
-          <div className={`${BASE_THEME.status.error.text} font-semibold mb-1`}>⚠️ Slow Token Generation</div>
-          <div className={BASE_THEME.text.secondary}>
+        <div className={`mt-6 p-4 ${BASE_THEME.container.primary} border-2 ${BASE_THEME.status.error.border} rounded text-base`}>
+          <div className={`${BASE_THEME.status.error.text} font-semibold mb-2 text-lg`}>⚠️ Slow Token Generation</div>
+          <div className={`${BASE_THEME.text.secondary} text-base`}>
             Generation is {(expected_tokens_per_second / tokens_per_second).toFixed(1)}x slower than expected.
             Likely cause: Large context or conversation history.
           </div>

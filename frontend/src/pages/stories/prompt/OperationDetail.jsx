@@ -43,19 +43,18 @@ export default function PromptOperationDetail() {
     return filters;
     }, [agent, operation]);
 
-    // Calculate stats from data 
+    // Calculate stats from data
     const stats = useMemo(() => {
     if (!data || data.length === 0) return null;
-    
-    const totalPrompt = data.reduce((sum, c) => sum + (c.prompt_tokens || 0), 0);
-    const totalCompletion = data.reduce((sum, c) => sum + (c.completion_tokens || 0), 0);
-    const avgRatio = totalCompletion > 0 ? (totalPrompt / totalCompletion).toFixed(1) : '—';
-    
+
+    // Calculate prompt token stats
+    const totalPromptTokens = data.reduce((sum, c) => sum + (c.prompt_tokens || 0), 0);
+    const avgPromptTokens = data.length > 0 ? Math.round(totalPromptTokens / data.length) : 0;
+
     return {
         total: data.length,
-        avgRatio,
-        totalPrompt,
-        totalCompletion,
+        avgPromptTokens,
+        totalPromptTokens,
         errors: data.filter(c => c.status === 'error').length,
     };
     }, [data]);

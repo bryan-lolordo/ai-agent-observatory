@@ -154,27 +154,6 @@ export default function ChatHistoryBreakdown({
         </div>
       )}
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-3 text-center">
-        <div className={`${BASE_THEME.container.primary} rounded-lg p-3 border ${BASE_THEME.border.default}`}>
-          <div className={`text-2xl font-bold ${STATUS_TEXT_COLORS.old}`}>
-            {messages.filter(m => m.status === 'old').reduce((sum, m) => sum + m.tokens, 0).toLocaleString()}
-          </div>
-          <div className={`text-xs ${BASE_THEME.text.muted} mt-1`}>Old Tokens</div>
-        </div>
-        <div className={`${BASE_THEME.container.primary} rounded-lg p-3 border ${BASE_THEME.border.default}`}>
-          <div className={`text-2xl font-bold ${STATUS_TEXT_COLORS.cacheable}`}>
-            {messages.filter(m => m.status === 'cacheable').reduce((sum, m) => sum + m.tokens, 0).toLocaleString()}
-          </div>
-          <div className={`text-xs ${BASE_THEME.text.muted} mt-1`}>Cacheable Tokens</div>
-        </div>
-        <div className={`${BASE_THEME.container.primary} rounded-lg p-3 border ${BASE_THEME.border.default}`}>
-          <div className={`text-2xl font-bold ${STATUS_TEXT_COLORS.current}`}>
-            {messages.filter(m => m.status === 'current').reduce((sum, m) => sum + m.tokens, 0).toLocaleString()}
-          </div>
-          <div className={`text-xs ${BASE_THEME.text.muted} mt-1`}>Current Input</div>
-        </div>
-      </div>
     </div>
   );
 }

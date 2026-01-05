@@ -14,6 +14,7 @@ import { BASE_THEME } from "../../../utils/themeUtils";
 import PageContainer from "../../../components/layout/PageContainer";
 import Layer3Shell from "../../../components/stories/Layer3";
 import routingConfig from "../../../config/layer3/routing";
+import { getFixesForCall } from '../../../config/fixes';
 
 const STORY_ID = "routing";
 const theme = STORY_THEMES.routing;
@@ -93,7 +94,7 @@ export default function RoutingCallDetail() {
   // Get config functions
   const kpis = routingConfig.getKPIs(call);
   const factors = routingConfig.getFactors(call);
-  const fixes = routingConfig.getFixes(call);
+  const fixes = getFixesForCall(call, 'routing', factors);
   const customSections = routingConfig.getCustomSections(call);
 
   // Build entity label

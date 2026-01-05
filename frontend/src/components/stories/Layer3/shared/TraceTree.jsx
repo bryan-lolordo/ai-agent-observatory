@@ -162,9 +162,6 @@ const GroupedCallNode = ({ group, depth = 0 }) => {
           cursor-pointer
           transition-colors
           ${depth > 0 ? `border-l-2 ${BASE_THEME.border.default}` : ''}
-          ${severity === 'critical' ? BASE_THEME.status.error.bg : ''}
-          ${severity === 'warning' ? BASE_THEME.status.warning.bg : ''}
-          ${group.has_errors ? BASE_THEME.status.error.border : ''}
         `}
         style={{ paddingLeft: `${indent + 12}px` }}
         onClick={() => setShowAll(!showAll)}
@@ -442,14 +439,17 @@ export default function TraceTree({ callId, conversationId }) {
             const groups = groupCallsByFunction(turn.children || []);
 
             const hasExpensiveCalls = turn.total_cost > 0.5 || turn.total_latency_ms > 10000;
-            const turnSeverity = hasExpensiveCalls ? BASE_THEME.status.error.bg : '';
 
             return (
-              <div key={turn.turn_number} className={`border ${BASE_THEME.border.default} rounded-lg overflow-hidden ${BASE_THEME.container.primary} ${turnSeverity}`}>
+              <div key={turn.turn_number} className={`border ${BASE_THEME.border.default} rounded-lg overflow-hidden ${BASE_THEME.container.primary}`}>
                 {/* Turn header */}
-                <div className={`bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3 border-b ${BASE_THEME.border.default}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className={`bg-gradient-to-r from-gray-800 to-gray-900 px-3 py-3 border-b ${BASE_THEME.border.default}`}>
+                  <div className="flex items-center gap-2">
+                    {/* Left side - matches the spacing of grouped calls */}
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="w-4 flex-shrink-0" /> {/* Chevron spacer */}
+                      <div className="w-4 flex-shrink-0" /> {/* Severity spacer */}
+                      <div className="w-4 flex-shrink-0" /> {/* Icon spacer */}
                       <span className={`${BASE_THEME.status.info.bg} text-white text-xs font-bold px-2 py-1 rounded flex-shrink-0`}>
                         Turn {turn.turn_number}
                       </span>
@@ -463,10 +463,12 @@ export default function TraceTree({ callId, conversationId }) {
                         </span>
                       )}
                     </div>
-                    <div className={`flex items-center gap-4 text-xs ${BASE_THEME.text.secondary} flex-shrink-0 ml-4`}>
-                      <span>{turn.total_calls} calls</span>
-                      <span>{turnTimeSeconds}s</span>
-                      <span>${(turn.total_cost || 0).toFixed(4)}</span>
+                    {/* Right side - matches column widths exactly */}
+                    <div className={`flex items-center gap-6 text-xs ${BASE_THEME.text.secondary} font-medium flex-shrink-0`}>
+                      <span className="w-14 text-center">{turn.total_calls}</span>
+                      <span className="w-16 text-right">{turnTimeSeconds}s</span>
+                      <span className="w-20 text-right">${(turn.total_cost || 0).toFixed(4)}</span>
+                      <span className="w-16 text-center">{turn.total_tokens || '-'}</span>
                     </div>
                   </div>
                 </div>

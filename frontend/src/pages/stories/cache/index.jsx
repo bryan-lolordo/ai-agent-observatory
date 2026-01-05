@@ -4,7 +4,7 @@
 
 import { useNavigate } from 'react-router-dom';
 import { useStory } from '../../../hooks/useStories';
-import { STORY_THEMES } from '../../../config/theme';
+import { STORY_THEMES, CHART_CONFIG, COLORS } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import { formatNumber, formatCurrency, truncateText } from '../../../utils/formatters';
@@ -51,7 +51,7 @@ export default function Cache() {
   // Prepare pie chart data
   const pieData = [
     { name: 'Cacheable', value: duplicate_prompts, color: theme.color },
-    { name: 'Unique', value: Math.max(0, total_calls - duplicate_prompts), color: '#374151' },
+    { name: 'Unique', value: Math.max(0, total_calls - duplicate_prompts), color: COLORS.border },
   ].filter(d => d.value > 0);
 
   // Navigation handlers
@@ -253,38 +253,33 @@ export default function Cache() {
               
               {chart_data.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart 
-                    data={chart_data.slice(0, 6)} 
+                  <BarChart
+                    data={chart_data.slice(0, 6)}
                     layout="vertical"
                     margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis 
-                      type="number" 
-                      stroke="#6b7280"
-                      tick={{ fill: '#9ca3af', fontSize: 11 }}
+                    <CartesianGrid strokeDasharray={CHART_CONFIG.grid.strokeDasharray} stroke={CHART_CONFIG.grid.stroke} />
+                    <XAxis
+                      type="number"
+                      stroke={CHART_CONFIG.axis.stroke}
+                      tick={CHART_CONFIG.axis.tick}
                       tickFormatter={(v) => `$${v.toFixed(2)}`}
                     />
-                    <YAxis 
-                      type="category" 
-                      dataKey="name" 
-                      stroke="#6b7280"
-                      tick={{ fill: '#9ca3af', fontSize: 11 }}
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      stroke={CHART_CONFIG.axis.stroke}
+                      tick={CHART_CONFIG.axis.tick}
                       width={100}
                       interval={0}
                     />
-                    <Tooltip 
-                      contentStyle={{
-                        backgroundColor: '#1f2937',
-                        border: '1px solid #374151',
-                        borderRadius: '8px',
-                        color: '#f3f4f6'
-                      }}
+                    <Tooltip
+                      contentStyle={CHART_CONFIG.tooltip.contentStyle}
                       formatter={(value) => [`$${value.toFixed(4)}`, 'Wasted']}
                     />
-                    <Bar 
-                      dataKey="wasted_cost" 
-                      fill={theme.color} 
+                    <Bar
+                      dataKey="wasted_cost"
+                      fill={theme.color}
                       radius={[0, 4, 4, 0]}
                       cursor="pointer"
                       onClick={(data) => {
@@ -341,13 +336,8 @@ export default function Cache() {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip 
-                      contentStyle={{
-                        backgroundColor: '#1f2937',
-                        border: '1px solid #374151',
-                        borderRadius: '8px',
-                        color: '#f3f4f6'
-                      }}
+                    <Tooltip
+                      contentStyle={CHART_CONFIG.tooltip.contentStyle}
                     />
                   </PieChart>
                 </ResponsiveContainer>

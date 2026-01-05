@@ -4,7 +4,7 @@
 
 import { useNavigate } from 'react-router-dom';
 import { useStory } from '../../../hooks/useStories';
-import { STORY_THEMES } from '../../../config/theme';
+import { STORY_THEMES, CHART_CONFIG } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import { formatNumber, truncateText } from '../../../utils/formatters';
@@ -49,11 +49,7 @@ export default function Routing() {
     potential_savings_formatted = '$0.00',
   } = summary;
 
-  const opportunityColors = {
-    upgrade: '#ef4444',
-    downgrade: '#3b82f6',
-    keep: '#22c55e',
-  };
+  const opportunityColors = CHART_CONFIG.opportunityColors;
 
   const handleOperationClick = (row) => {
     navigate(`/stories/routing/calls?agent=${encodeURIComponent(row.agent_name)}&operation=${encodeURIComponent(row.operation_name)}`);
@@ -269,42 +265,42 @@ export default function Routing() {
               <>
                 <ResponsiveContainer width="100%" height={350}>
                   <ScatterChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis 
-                      type="number" 
-                      dataKey="complexity" 
+                    <CartesianGrid strokeDasharray={CHART_CONFIG.grid.strokeDasharray} stroke={CHART_CONFIG.grid.stroke} />
+                    <XAxis
+                      type="number"
+                      dataKey="complexity"
                       name="Complexity"
                       domain={[0, 1]}
-                      stroke="#6b7280"
-                      tick={{ fill: '#9ca3af', fontSize: 11 }}
+                      stroke={CHART_CONFIG.axis.stroke}
+                      tick={CHART_CONFIG.axis.tick}
                     />
-                    <YAxis 
-                      type="number" 
-                      dataKey="quality" 
+                    <YAxis
+                      type="number"
+                      dataKey="quality"
                       name="Quality"
                       domain={[0, 10]}
-                      stroke="#6b7280"
-                      tick={{ fill: '#9ca3af', fontSize: 11 }}
+                      stroke={CHART_CONFIG.axis.stroke}
+                      tick={CHART_CONFIG.axis.tick}
                     />
-                    <ZAxis 
-                      type="number" 
-                      dataKey="call_count" 
-                      range={[50, 400]} 
+                    <ZAxis
+                      type="number"
+                      dataKey="call_count"
+                      range={[50, 400]}
                       name="Calls"
                     />
                     <Tooltip content={<CustomTooltip />} />
-                    <ReferenceLine x={0.4} stroke="#3b82f6" strokeDasharray="3 3" />
-                    <ReferenceLine x={0.7} stroke="#ef4444" strokeDasharray="3 3" />
-                    <ReferenceLine y={7} stroke="#eab308" strokeDasharray="3 3" />
-                    
-                    <Scatter 
-                      name="Operations" 
+                    <ReferenceLine x={0.4} stroke={CHART_CONFIG.referenceLine.info} strokeDasharray="3 3" />
+                    <ReferenceLine x={0.7} stroke={CHART_CONFIG.referenceLine.critical} strokeDasharray="3 3" />
+                    <ReferenceLine y={7} stroke={CHART_CONFIG.referenceLine.warning} strokeDasharray="3 3" />
+
+                    <Scatter
+                      name="Operations"
                       data={chart_data}
                       cursor="pointer"
                     >
                       {chart_data.map((entry, index) => (
-                        <Cell 
-                          key={`cell-${index}`} 
+                        <Cell
+                          key={`cell-${index}`}
                           fill={opportunityColors[entry.opportunity] || opportunityColors.keep}
                         />
                       ))}

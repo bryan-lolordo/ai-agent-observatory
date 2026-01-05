@@ -23,39 +23,41 @@ import { STORY_THEMES } from '../../../config/theme';
 function FixCard({ fix, isImplemented, isRecommended, onSelect, onMarkImplemented, theme }) {
   return (
     <div
-      className={`border rounded-lg p-5 transition-colors ${BASE_THEME.container.secondary} ${BASE_THEME.border.default}`}
+      className={`border rounded-lg p-6 transition-colors ${BASE_THEME.container.secondary} ${BASE_THEME.border.default} w-full`}
     >
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex items-start justify-between mb-5">
         <div>
-          <div className="flex items-center gap-2">
-            <h4 className={`font-semibold ${BASE_THEME.text.primary}`}>{fix.title}</h4>
-            {isRecommended && <span className={BASE_THEME.status.success.text}>⭐ Recommended</span>}
-            {isImplemented && <span className={`${BASE_THEME.status.success.text} text-sm`}>✓ Implemented</span>}
+          <div className="flex items-center gap-3">
+            <h4 className={`text-lg font-semibold ${BASE_THEME.text.primary}`}>{fix.title}</h4>
+            {isRecommended && <span className={`${BASE_THEME.status.success.text} text-base`}>⭐ Recommended</span>}
+            {isImplemented && <span className={`${BASE_THEME.status.success.text} text-base`}>✓ Implemented</span>}
           </div>
           {fix.subtitle && (
-            <p className={`text-sm ${BASE_THEME.text.secondary} mt-1`}>{fix.subtitle}</p>
+            <p className={`text-base ${BASE_THEME.text.secondary} mt-2`}>{fix.subtitle}</p>
           )}
         </div>
-        <span className={`px-3 py-1 rounded text-sm ${fix.effortColor || BASE_THEME.status.success.text} ${BASE_THEME.container.primary}`}>
+        <span className={`px-4 py-2 rounded text-base font-medium ${fix.effortColor || BASE_THEME.status.success.text} ${BASE_THEME.container.primary}`}>
           {fix.effort} Effort
         </span>
       </div>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
-        {fix.metrics?.map(metric => (
-          <div key={metric.label} className={`${BASE_THEME.container.primary} rounded-lg p-3 text-center`}>
-            <div className={`text-lg font-bold ${BASE_THEME.text.primary}`}>
-              {metric.after}
+      {/* Metrics Row - Full width cards with larger fonts and lighter background */}
+      {fix.metrics && fix.metrics.length > 0 && (
+        <div className={`grid gap-4 mb-5`} style={{ gridTemplateColumns: `repeat(${fix.metrics.length}, 1fr)` }}>
+          {fix.metrics.map(metric => (
+            <div key={metric.label} className="bg-gray-700 rounded-lg p-5 text-center flex-1">
+              <div className={`text-3xl font-bold ${BASE_THEME.text.primary}`}>
+                {metric.after}
+              </div>
+              <div className={`text-lg font-medium ${metric.changePercent < 0 ? BASE_THEME.status.success.text : metric.changePercent > 0 ? BASE_THEME.status.error.text : BASE_THEME.text.muted}`}>
+                {metric.changePercent === 0 ? '—' : `${metric.changePercent}%`}
+              </div>
+              <div className={`text-base ${BASE_THEME.text.muted} mt-1`}>{metric.label}</div>
             </div>
-            <div className={`text-xs ${metric.changePercent < 0 ? BASE_THEME.status.success.text : metric.changePercent > 0 ? BASE_THEME.status.error.text : BASE_THEME.text.muted}`}>
-              {metric.changePercent === 0 ? '—' : `${metric.changePercent}%`}
-            </div>
-            <div className={`text-xs ${BASE_THEME.text.muted} mt-1`}>{metric.label}</div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Output Preview */}
       {fix.outputPreview && (
@@ -98,32 +100,32 @@ function FixCard({ fix, isImplemented, isRecommended, onSelect, onMarkImplemente
 
 function QuickComparisonTable({ fixes, currentState, theme }) {
   return (
-    <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-4 mt-6`}>
-      <h3 className={`text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide mb-3`}>
+    <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-6 mt-6`}>
+      <h3 className={`text-base font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide mb-4`}>
         📊 Quick Comparison
       </h3>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-base">
           <thead>
             <tr className={`text-left ${BASE_THEME.text.muted} border-b ${BASE_THEME.border.default}`}>
-              <th className="pb-2">Fix</th>
-              <th className="pb-2">Latency</th>
-              <th className="pb-2">Tokens</th>
-              <th className="pb-2">Cost</th>
-              <th className="pb-2">Quality</th>
-              <th className="pb-2">Effort</th>
+              <th className="pb-3 text-base font-semibold">Fix</th>
+              <th className="pb-3 text-base font-semibold">Latency</th>
+              <th className="pb-3 text-base font-semibold">Tokens</th>
+              <th className="pb-3 text-base font-semibold">Cost</th>
+              <th className="pb-3 text-base font-semibold">Quality</th>
+              <th className="pb-3 text-base font-semibold">Effort</th>
             </tr>
           </thead>
           <tbody>
             {/* Current State Row */}
             {currentState && (
               <tr className={`border-b ${BASE_THEME.border.light}`}>
-                <td className={`py-2 ${BASE_THEME.text.secondary}`}>Current</td>
-                <td className={`py-2 ${BASE_THEME.status.error.text}`}>{currentState.latency}</td>
-                <td className={`py-2 ${BASE_THEME.status.error.text}`}>{currentState.tokens}</td>
-                <td className={`py-2 ${BASE_THEME.status.warning.text}`}>{currentState.cost}</td>
-                <td className={`py-2 ${BASE_THEME.text.secondary}`}>{currentState.quality || '—'}</td>
-                <td className="py-2">—</td>
+                <td className={`py-3 text-base font-medium ${BASE_THEME.text.secondary}`}>Current</td>
+                <td className={`py-3 text-base font-bold ${BASE_THEME.status.error.text}`}>{currentState.latency}</td>
+                <td className={`py-3 text-base font-bold ${BASE_THEME.status.error.text}`}>{currentState.tokens}</td>
+                <td className={`py-3 text-base font-bold ${BASE_THEME.status.warning.text}`}>{currentState.cost}</td>
+                <td className={`py-3 text-base ${BASE_THEME.text.secondary}`}>{currentState.quality || '—'}</td>
+                <td className="py-3 text-base">—</td>
               </tr>
             )}
             {fixes.map(fix => {
@@ -134,14 +136,14 @@ function QuickComparisonTable({ fixes, currentState, theme }) {
 
               return (
                 <tr key={fix.id} className={`border-b ${BASE_THEME.border.light}`}>
-                  <td className={`py-2 ${BASE_THEME.text.primary}`}>{fix.title}</td>
-                  <td className={`py-2 ${BASE_THEME.status.success.text}`}>{latencyMetric?.after || '—'}</td>
-                  <td className={`py-2 ${BASE_THEME.status.success.text}`}>{tokensMetric?.after || '—'}</td>
-                  <td className={`py-2 ${BASE_THEME.status.success.text}`}>{costMetric?.after || '—'}</td>
-                  <td className={`py-2 ${qualityMetric?.status === 'warning' ? BASE_THEME.status.warning.text : BASE_THEME.status.success.text}`}>
+                  <td className={`py-3 text-base font-medium ${BASE_THEME.text.primary}`}>{fix.title}</td>
+                  <td className={`py-3 text-base font-bold ${BASE_THEME.status.success.text}`}>{latencyMetric?.after || '—'}</td>
+                  <td className={`py-3 text-base font-bold ${BASE_THEME.status.success.text}`}>{tokensMetric?.after || '—'}</td>
+                  <td className={`py-3 text-base font-bold ${BASE_THEME.status.success.text}`}>{costMetric?.after || '—'}</td>
+                  <td className={`py-3 text-base font-bold ${qualityMetric?.status === 'warning' ? BASE_THEME.status.warning.text : BASE_THEME.status.success.text}`}>
                     {qualityMetric?.after || '—'}
                   </td>
-                  <td className={`py-2 ${fix.effortColor || BASE_THEME.status.success.text}`}>{fix.effort}</td>
+                  <td className={`py-3 text-base font-bold ${fix.effortColor || BASE_THEME.status.success.text}`}>{fix.effort}</td>
                 </tr>
               );
             })}
@@ -197,80 +199,60 @@ function CumulativeImpact({ fixes, implementedFixes = [], theme }) {
 
   return (
     <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
-      <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide mb-4`}>
+      <h3 className={`text-base font-medium ${theme.text} uppercase tracking-wide mb-4`}>
         📊 Cumulative Impact
       </h3>
 
-      <div className="grid grid-cols-2 gap-6">
-        {/* Implemented */}
-        {allFixes.length > 0 && (
-          <div>
-            <div className={`text-sm ${BASE_THEME.text.secondary} mb-3`}>
-              ✅ Implemented ({allFixes.length} {allFixes.length === 1 ? 'fix' : 'fixes'})
+      {/* Horizontal layout - metrics side by side */}
+      {allFixes.length > 0 && (
+        <div className="mb-4">
+          <div className={`text-base ${BASE_THEME.text.secondary} mb-3`}>
+            ✅ Implemented ({allFixes.length} {allFixes.length === 1 ? 'fix' : 'fixes'})
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className={`${BASE_THEME.container.primary} rounded-lg p-4 text-center`}>
+              <div className={`text-2xl font-bold ${BASE_THEME.status.success.text}`}>{implemented.totalLatency.toFixed(1)}s</div>
+              <div className={`text-sm ${BASE_THEME.text.muted} mt-1`}>Latency Saved</div>
             </div>
-            <div className="space-y-2">
-              <div className={`flex items-center justify-between ${BASE_THEME.container.primary} rounded p-3`}>
-                <span className={BASE_THEME.text.secondary}>Latency Saved:</span>
-                <span className={`${BASE_THEME.status.success.text} font-bold`}>{implemented.totalLatency.toFixed(1)}s</span>
-              </div>
-              <div className={`flex items-center justify-between ${BASE_THEME.container.primary} rounded p-3`}>
-                <span className={BASE_THEME.text.secondary}>Cost Saved:</span>
-                <span className={`${BASE_THEME.status.success.text} font-bold`}>${implemented.totalCost.toFixed(3)}</span>
-              </div>
-              <div className={`flex items-center justify-between ${BASE_THEME.container.primary} rounded p-3`}>
-                <span className={BASE_THEME.text.secondary}>Tokens Reduced:</span>
-                <span className={`${BASE_THEME.status.success.text} font-bold`}>{implemented.totalTokens.toLocaleString()}</span>
-              </div>
+            <div className={`${BASE_THEME.container.primary} rounded-lg p-4 text-center`}>
+              <div className={`text-2xl font-bold ${BASE_THEME.status.success.text}`}>${implemented.totalCost.toFixed(3)}</div>
+              <div className={`text-sm ${BASE_THEME.text.muted} mt-1`}>Cost Saved</div>
+            </div>
+            <div className={`${BASE_THEME.container.primary} rounded-lg p-4 text-center`}>
+              <div className={`text-2xl font-bold ${BASE_THEME.status.success.text}`}>{implemented.totalTokens.toLocaleString()}</div>
+              <div className={`text-sm ${BASE_THEME.text.muted} mt-1`}>Tokens Reduced</div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Potential */}
-        {pendingFixes.length > 0 && (
-          <div>
-            <div className={`text-sm ${BASE_THEME.text.secondary} mb-3`}>
-              ⏳ Remaining ({pendingFixes.length} {pendingFixes.length === 1 ? 'fix' : 'fixes'})
+      {/* Pending fixes - horizontal layout */}
+      {pendingFixes.length > 0 && (
+        <div className="mb-4">
+          <div className={`text-base ${BASE_THEME.text.secondary} mb-3`}>
+            ⏳ Remaining ({pendingFixes.length} {pendingFixes.length === 1 ? 'fix' : 'fixes'})
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className={`${BASE_THEME.container.primary} rounded-lg p-4 text-center`}>
+              <div className={`text-2xl font-bold ${theme.text}`}>-{potential.totalLatency.toFixed(1)}s</div>
+              <div className={`text-sm ${BASE_THEME.text.muted} mt-1`}>Potential Latency</div>
             </div>
-            <div className="space-y-2">
-              <div className={`flex items-center justify-between ${BASE_THEME.container.primary} rounded p-3`}>
-                <span className={BASE_THEME.text.secondary}>Potential Latency:</span>
-                <span className={`${theme.text} font-bold`}>-{potential.totalLatency.toFixed(1)}s</span>
-              </div>
-              <div className={`flex items-center justify-between ${BASE_THEME.container.primary} rounded p-3`}>
-                <span className={BASE_THEME.text.secondary}>Potential Cost:</span>
-                <span className={`${theme.text} font-bold`}>-${potential.totalCost.toFixed(3)}</span>
-              </div>
-              <div className={`flex items-center justify-between ${BASE_THEME.container.primary} rounded p-3`}>
-                <span className={BASE_THEME.text.secondary}>Potential Tokens:</span>
-                <span className={`${theme.text} font-bold`}>-{potential.totalTokens.toLocaleString()}</span>
-              </div>
+            <div className={`${BASE_THEME.container.primary} rounded-lg p-4 text-center`}>
+              <div className={`text-2xl font-bold ${theme.text}`}>-${potential.totalCost.toFixed(3)}</div>
+              <div className={`text-sm ${BASE_THEME.text.muted} mt-1`}>Potential Cost</div>
+            </div>
+            <div className={`${BASE_THEME.container.primary} rounded-lg p-4 text-center`}>
+              <div className={`text-2xl font-bold ${theme.text}`}>-{potential.totalTokens.toLocaleString()}</div>
+              <div className={`text-sm ${BASE_THEME.text.muted} mt-1`}>Potential Tokens</div>
             </div>
           </div>
-        )}
-
-        {/* All fixes pending */}
-        {allFixes.length === 0 && pendingFixes.length > 0 && (
-          <div className="col-span-2">
-            <div className={`text-center p-6 ${BASE_THEME.container.primary} border ${BASE_THEME.border.default} rounded-lg`}>
-              <div className="text-3xl mb-2">🚀</div>
-              <div className={`text-lg font-semibold ${theme.text} mb-2`}>
-                Apply All {pendingFixes.length} Fixes
-              </div>
-              <div className={`text-2xl font-bold ${theme.text} mb-1`}>
-                -{potential.totalLatency.toFixed(1)}s • -${potential.totalCost.toFixed(3)} • -{potential.totalTokens.toLocaleString()} tokens
-              </div>
-              <div className={`text-sm ${BASE_THEME.text.secondary} mt-3`}>
-                Estimated total impact if all fixes are implemented
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Progress bar if some implemented */}
       {allFixes.length > 0 && pendingFixes.length > 0 && (
-        <div className="mt-6">
-          <div className={`flex items-center justify-between text-sm ${BASE_THEME.text.secondary} mb-2`}>
+        <div className="mt-4">
+          <div className={`flex items-center justify-between text-base ${BASE_THEME.text.secondary} mb-2`}>
             <span>Implementation Progress</span>
             <span>{allFixes.length} of {fixes.length} applied</span>
           </div>
@@ -301,6 +283,7 @@ function FixComparisonView({
   entityId,
   entityType,
   responseText,
+  systemPrompt,
   aiCallId,
 }) {
   const callIdForAI = entityType === 'call' ? entityId : aiCallId;
@@ -325,33 +308,39 @@ function FixComparisonView({
       {/* 1. STATIC FIXES SECTION */}
       {fixes.length > 0 && (
         <>
-          {/* Implementation Tracker */}
+          {/* Implementation Tracker - Individual boxes for each fix */}
           {implementedFixes.length > 0 && (
-            <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-5`}>
-              <h3 className={`text-sm font-medium ${BASE_THEME.status.success.text} uppercase tracking-wide mb-3`}>
+            <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
+              <h3 className={`text-base font-medium ${BASE_THEME.status.success.text} uppercase tracking-wide mb-4`}>
                 📋 Implementation Progress
               </h3>
-              <div className="space-y-2">
-                {fixes.map(fix => (
-                  <div key={fix.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className={implementedFixes.includes(fix.id) ? BASE_THEME.status.success.text : BASE_THEME.text.muted}>
-                        {implementedFixes.includes(fix.id) ? '☑' : '☐'}
-                      </span>
-                      <span className={implementedFixes.includes(fix.id) ? BASE_THEME.status.success.text : BASE_THEME.text.secondary}>
-                        {fix.title}
-                      </span>
+              <div className={`grid gap-4`} style={{ gridTemplateColumns: `repeat(${fixes.length}, 1fr)` }}>
+                {fixes.map(fix => {
+                  const isImplemented = implementedFixes.includes(fix.id);
+                  return (
+                    <div
+                      key={fix.id}
+                      className={`${BASE_THEME.container.primary} rounded-lg p-4 border ${isImplemented ? 'border-green-500/50' : BASE_THEME.border.default}`}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className={`text-xl ${isImplemented ? BASE_THEME.status.success.text : BASE_THEME.text.muted}`}>
+                          {isImplemented ? '☑' : '☐'}
+                        </span>
+                        <span className={`text-base font-medium ${isImplemented ? BASE_THEME.status.success.text : BASE_THEME.text.secondary}`}>
+                          {fix.title}
+                        </span>
+                      </div>
+                      {isImplemented && (
+                        <button
+                          onClick={() => onMarkImplemented(fix.id)}
+                          className={`text-sm ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary}`}
+                        >
+                          Undo
+                        </button>
+                      )}
                     </div>
-                    {implementedFixes.includes(fix.id) && (
-                      <button
-                        onClick={() => onMarkImplemented(fix.id)}
-                        className={`text-xs ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary}`}
-                      >
-                        Undo
-                      </button>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -399,6 +388,7 @@ function FixComparisonView({
           <AIAnalysisPanel
             callId={callIdForAI}
             responseText={responseText}
+            systemPrompt={systemPrompt}
           />
         </div>
       )}
@@ -425,40 +415,43 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
         ← Back to Comparison
       </button>
 
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className={`text-xl font-semibold ${BASE_THEME.text.primary}`}>{fix.title}</h2>
-            {fix.recommended && <span className={BASE_THEME.status.success.text}>⭐</span>}
+      {/* Header + Metrics in outer container */}
+      <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
+        {/* Header */}
+        <div className="flex items-start justify-between mb-5">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className={`text-xl font-semibold ${BASE_THEME.text.primary}`}>{fix.title}</h2>
+              {fix.recommended && <span className={BASE_THEME.status.success.text}>⭐</span>}
+            </div>
+            {fix.subtitle && (
+              <p className={`${BASE_THEME.text.secondary} mt-1`}>{fix.subtitle}</p>
+            )}
           </div>
-          {fix.subtitle && (
-            <p className={`${BASE_THEME.text.secondary} mt-1`}>{fix.subtitle}</p>
-          )}
+          <span className={`px-3 py-1 rounded ${fix.effortColor || BASE_THEME.status.success.text} ${BASE_THEME.container.primary}`}>
+            {fix.effort} Effort
+          </span>
         </div>
-        <span className={`px-3 py-1 rounded ${fix.effortColor || BASE_THEME.status.success.text} ${BASE_THEME.container.primary}`}>
-          {fix.effort} Effort
-        </span>
+
+        {/* Metrics - Full width KPI Cards with larger fonts */}
+        {fix.metrics && fix.metrics.length > 0 && (
+          <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${fix.metrics.length}, 1fr)` }}>
+            {fix.metrics.map(metric => (
+              <div key={metric.label} className="bg-gray-700 rounded-lg p-5 text-center">
+                <div className={`text-4xl font-bold ${BASE_THEME.text.primary}`}>{metric.after}</div>
+                <div className={`text-lg font-medium ${metric.changePercent < 0 ? BASE_THEME.status.success.text : metric.changePercent > 0 ? BASE_THEME.status.error.text : BASE_THEME.text.muted}`}>
+                  {metric.changePercent === 0 ? '—' : `${metric.changePercent}%`}
+                </div>
+                <div className={`text-base ${BASE_THEME.text.muted} mt-1`}>{metric.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Metrics - Large KPI Cards */}
-      {fix.metrics && fix.metrics.length > 0 && (
-        <div className="grid grid-cols-4 gap-4">
-          {fix.metrics.map(metric => (
-            <div key={metric.label} className={`${BASE_THEME.container.primary} rounded-lg p-4 text-center`}>
-              <div className={`text-3xl font-bold ${BASE_THEME.status.success.text}`}>{metric.after}</div>
-              <div className={`text-sm ${metric.changePercent < 0 ? BASE_THEME.status.success.text : metric.changePercent > 0 ? BASE_THEME.status.error.text : BASE_THEME.text.muted}`}>
-                {metric.changePercent === 0 ? '—' : `${metric.changePercent}%`}
-              </div>
-              <div className={`text-xs ${BASE_THEME.text.muted} mt-1`}>{metric.label}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Code Before/After */}
-      <div>
-        <h3 className={`text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide mb-3`}>
+      <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
+        <h3 className={`text-base font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide mb-4`}>
           💻 Implementation
         </h3>
 
@@ -466,29 +459,29 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className={`text-xs ${BASE_THEME.status.error.text} font-medium`}>BEFORE</span>
+                <span className={`text-sm ${BASE_THEME.status.error.text} font-medium`}>BEFORE</span>
                 <button
                   onClick={() => handleCopy(fix.codeBefore)}
-                  className={`text-xs px-2 py-1 ${BASE_THEME.container.secondary} hover:bg-gray-600 ${BASE_THEME.text.secondary} rounded`}
+                  className={`text-sm px-3 py-1 bg-gray-600 hover:bg-gray-500 ${BASE_THEME.text.secondary} rounded`}
                 >
                   Copy
                 </button>
               </div>
-              <pre className={`${BASE_THEME.container.primary} rounded-lg p-4 text-sm font-mono ${BASE_THEME.text.secondary} overflow-x-auto max-h-64 overflow-y-auto`}>
+              <pre className="bg-gray-700 rounded-lg p-4 text-base font-mono text-gray-200 overflow-x-auto max-h-64 overflow-y-auto">
                 {fix.codeBefore}
               </pre>
             </div>
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className={`text-xs ${BASE_THEME.status.success.text} font-medium`}>AFTER</span>
+                <span className={`text-sm ${BASE_THEME.status.success.text} font-medium`}>AFTER</span>
                 <button
                   onClick={() => handleCopy(fix.codeAfter)}
-                  className={`text-xs px-2 py-1 ${BASE_THEME.status.success.bg} hover:opacity-80 ${BASE_THEME.status.success.text} rounded`}
+                  className={`text-sm px-3 py-1 ${BASE_THEME.status.success.bg} hover:opacity-80 ${BASE_THEME.status.success.text} rounded`}
                 >
                   Copy
                 </button>
               </div>
-              <pre className={`${BASE_THEME.container.primary} rounded-lg p-4 text-sm font-mono ${BASE_THEME.text.secondary} overflow-x-auto max-h-64 overflow-y-auto border ${BASE_THEME.border.default}`}>
+              <pre className="bg-gray-700 rounded-lg p-4 text-base font-mono text-gray-200 overflow-x-auto max-h-64 overflow-y-auto">
                 {fix.codeAfter}
               </pre>
             </div>
@@ -496,15 +489,15 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
         ) : fix.codeAfter ? (
           <div>
             <div className="flex justify-between items-center mb-2">
-              <span className={`text-xs ${BASE_THEME.status.success.text} font-medium`}>IMPLEMENTATION</span>
+              <span className={`text-sm ${BASE_THEME.status.success.text} font-medium`}>IMPLEMENTATION</span>
               <button
                 onClick={() => handleCopy(fix.codeAfter)}
-                className={`text-xs px-2 py-1 ${BASE_THEME.container.secondary} hover:bg-gray-600 ${BASE_THEME.text.secondary} rounded`}
+                className={`text-sm px-3 py-1 bg-gray-600 hover:bg-gray-500 ${BASE_THEME.text.secondary} rounded`}
               >
                 Copy
               </button>
             </div>
-            <pre className={`${BASE_THEME.container.primary} rounded-lg p-4 text-sm font-mono ${BASE_THEME.text.secondary} overflow-x-auto max-h-64 overflow-y-auto`}>
+            <pre className="bg-gray-700 rounded-lg p-4 text-base font-mono text-gray-200 overflow-x-auto max-h-64 overflow-y-auto">
               {fix.codeAfter}
             </pre>
           </div>
@@ -513,8 +506,8 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
 
       {/* Output Before/After - OUTPUT CHANGE section */}
       {(fix.outputBefore || fix.outputAfter || responseText) && (
-        <div>
-          <h3 className={`text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide mb-3`}>
+        <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
+          <h3 className={`text-base font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide mb-4`}>
             📦 Output Change
           </h3>
 
@@ -627,13 +620,13 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
                   {/* BEFORE */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <span className={`text-xs ${BASE_THEME.text.secondary}`}>BEFORE (Actual Response)</span>
+                      <span className={`text-sm ${BASE_THEME.text.secondary}`}>BEFORE (Actual Response)</span>
                       {beforeTokens && (
-                        <span className={`text-xs ${BASE_THEME.text.muted}`}>{beforeTokens.toLocaleString()} tokens</span>
+                        <span className={`text-sm ${BASE_THEME.text.muted}`}>{beforeTokens.toLocaleString()} tokens</span>
                       )}
                     </div>
-                    <div className={`${BASE_THEME.container.primary} rounded-lg p-4 border ${BASE_THEME.border.default} max-h-48 overflow-y-auto`}>
-                      <pre className={`text-sm font-mono ${BASE_THEME.text.secondary} whitespace-pre-wrap`}>
+                    <div className="bg-gray-700 rounded-lg p-4 max-h-48 overflow-y-auto">
+                      <pre className="text-base font-mono text-gray-200 whitespace-pre-wrap">
                         {typeof beforeOutput === 'string' ? beforeOutput.substring(0, 1500) : beforeOutput}
                         {typeof beforeOutput === 'string' && beforeOutput.length > 1500 ? '...' : ''}
                       </pre>
@@ -642,26 +635,26 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
 
                   {/* Arrow */}
                   <div className="flex justify-center">
-                    <span className={`${BASE_THEME.text.muted} text-lg`}>↓</span>
+                    <span className={`${BASE_THEME.text.muted} text-xl`}>↓</span>
                   </div>
 
                   {/* AFTER */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <span className={`text-xs ${isTruncated ? BASE_THEME.status.warning.text : BASE_THEME.status.success.text}`}>
+                      <span className={`text-sm ${isTruncated ? BASE_THEME.status.warning.text : BASE_THEME.status.success.text}`}>
                         AFTER (Predicted)
                       </span>
                       {afterTokens && (
-                        <span className={`text-xs ${BASE_THEME.text.muted}`}>~{afterTokens.toLocaleString()} tokens</span>
+                        <span className={`text-sm ${BASE_THEME.text.muted}`}>~{afterTokens.toLocaleString()} tokens</span>
                       )}
                     </div>
-                    <div className={`${BASE_THEME.container.primary} rounded-lg p-4 border max-h-48 overflow-y-auto ${BASE_THEME.border.default}`}>
-                      <pre className={`text-sm font-mono ${BASE_THEME.text.secondary} whitespace-pre-wrap`}>
+                    <div className="bg-gray-700 rounded-lg p-4 max-h-48 overflow-y-auto">
+                      <pre className="text-base font-mono text-gray-200 whitespace-pre-wrap">
                         {afterOutput}
                       </pre>
                     </div>
                     {afterNote && (
-                      <div className={`text-xs mt-2 ${afterNoteColor || BASE_THEME.status.success.text}`}>
+                      <div className={`text-sm mt-2 ${afterNoteColor || BASE_THEME.status.success.text}`}>
                         {afterNote}
                       </div>
                     )}
@@ -670,12 +663,12 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
               );
             } else if (fix.outputPreview) {
               return (
-                <div className={`${BASE_THEME.container.primary} rounded-lg p-4 border ${BASE_THEME.border.default}`}>
-                  <pre className={`text-sm font-mono ${BASE_THEME.text.secondary} whitespace-pre-wrap max-h-48 overflow-y-auto`}>
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <pre className="text-base font-mono text-gray-200 whitespace-pre-wrap max-h-48 overflow-y-auto">
                     {fix.outputPreview}
                   </pre>
                   {fix.outputNote && (
-                    <div className={`mt-3 pt-3 border-t ${BASE_THEME.border.default} ${fix.outputNoteColor || BASE_THEME.status.success.text} text-sm font-medium`}>
+                    <div className={`mt-3 pt-3 border-t border-gray-600 ${fix.outputNoteColor || BASE_THEME.status.success.text} text-base font-medium`}>
                       {fix.outputNote}
                     </div>
                   )}
@@ -684,9 +677,9 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
             } else if (beforeOutput) {
               return (
                 <div>
-                  <div className={`text-xs ${BASE_THEME.text.secondary} mb-2`}>Current Output</div>
-                  <div className={`${BASE_THEME.container.primary} rounded-lg p-4 border ${BASE_THEME.border.default} max-h-48 overflow-y-auto`}>
-                    <pre className={`text-sm font-mono ${BASE_THEME.text.secondary} whitespace-pre-wrap`}>
+                  <div className={`text-sm ${BASE_THEME.text.secondary} mb-2`}>Current Output</div>
+                  <div className="bg-gray-700 rounded-lg p-4 max-h-48 overflow-y-auto">
+                    <pre className="text-base font-mono text-gray-200 whitespace-pre-wrap">
                       {typeof beforeOutput === 'string' ? beforeOutput.substring(0, 500) : beforeOutput}
                       {typeof beforeOutput === 'string' && beforeOutput.length > 500 ? '...' : ''}
                     </pre>
@@ -703,11 +696,11 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
       {(fix.tradeoffs?.length > 0 || fix.benefits?.length > 0) && (
         <div className="grid grid-cols-2 gap-4">
           {fix.tradeoffs?.length > 0 && (
-            <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-4`}>
-              <h4 className={`text-sm font-medium ${BASE_THEME.status.error.text} mb-3`}>⚠️ Trade-offs</h4>
-              <ul className="space-y-2">
+            <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-5`}>
+              <h4 className={`text-base font-medium ${BASE_THEME.status.error.text} mb-4`}>⚠️ Trade-offs</h4>
+              <ul className="space-y-3">
                 {fix.tradeoffs.map((t, i) => (
-                  <li key={i} className={`text-sm ${BASE_THEME.text.secondary} flex items-start gap-2`}>
+                  <li key={i} className="text-base text-gray-200 flex items-start gap-2">
                     <span>•</span> {t}
                   </li>
                 ))}
@@ -715,11 +708,11 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
             </div>
           )}
           {fix.benefits?.length > 0 && (
-            <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-4`}>
-              <h4 className={`text-sm font-medium ${BASE_THEME.status.success.text} mb-3`}>✅ Benefits</h4>
-              <ul className="space-y-2">
+            <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-5`}>
+              <h4 className={`text-base font-medium ${BASE_THEME.status.success.text} mb-4`}>✅ Benefits</h4>
+              <ul className="space-y-3">
                 {fix.benefits.map((b, i) => (
-                  <li key={i} className={`text-sm ${BASE_THEME.text.secondary} flex items-start gap-2`}>
+                  <li key={i} className="text-base text-gray-200 flex items-start gap-2">
                     <span>•</span> {b}
                   </li>
                 ))}
@@ -731,17 +724,17 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
 
       {/* Best For */}
       {fix.bestFor && (
-        <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-4`}>
-          <span className={`text-sm ${theme.text} font-medium`}>✅ Best For: </span>
-          <span className={`text-sm ${BASE_THEME.text.secondary}`}>{fix.bestFor}</span>
+        <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-5`}>
+          <span className={`text-base ${theme.text} font-medium`}>✅ Best For: </span>
+          <span className="text-base text-gray-200">{fix.bestFor}</span>
         </div>
       )}
 
       {/* Similar Count */}
       {similarCount > 1 && (
-        <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-4`}>
-          <div className={`text-sm ${BASE_THEME.text.secondary}`}>
-            <span className={`${theme.text} font-medium`}>{similarCount} similar calls</span> have this same issue.
+        <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-5`}>
+          <div className="text-base text-gray-200">
+            <span className={`${theme.text} font-semibold text-lg`}>{similarCount} similar calls</span> have this same issue.
             Fixing this will multiply your savings by {similarCount}x.
           </div>
         </div>
@@ -792,6 +785,7 @@ export default function FixPanel({
   entityId = null,
   entityType = 'call',
   responseText = null,
+  systemPrompt = null,
   // For patterns - pass first call ID for AI analysis
   aiCallId = null,
 }) {
@@ -825,6 +819,7 @@ export default function FixPanel({
       entityId={entityId}
       entityType={entityType}
       responseText={responseText}
+      systemPrompt={systemPrompt}
       aiCallId={aiCallId}
     />
   );

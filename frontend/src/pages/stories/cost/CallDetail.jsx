@@ -11,6 +11,7 @@ import { useTimeRange } from '../../../context/TimeRangeContext';
 
 import Layer3Shell from '../../../components/stories/Layer3';
 import { STORY_THEMES } from '../../../config/theme';
+import { getFixesForCall } from '../../../config/fixes';
 
 import {
   COST_STORY,
@@ -285,7 +286,7 @@ export default function CostCallDetail() {
     pricing: null,
   };
   const alternatives = getAlternativeModels(call);
-  const fixes = getCostFixes(call, factors);
+  const fixes = getFixesForCall(call, 'cost', factors);
   const configHighlights = getCostConfigHighlights(call, factors);
   const currentState = getCostCurrentState(call);
   

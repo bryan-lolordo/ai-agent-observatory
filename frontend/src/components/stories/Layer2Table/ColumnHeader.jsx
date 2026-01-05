@@ -108,26 +108,50 @@ export default function ColumnHeader({
 
   return (
     <th
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', column.key);
+        onDragStart();
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        onDragOver();
+      }}
+      onDragEnd={onDragEnd}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDragEnd();
+      }}
       className={`
-        py-3 px-4 text-center text-sm font-semibold relative select-none
-        ${isDragging ? 'opacity-50' : ''}
-        ${isDragOver ? `border-l-2 ${theme.border}` : ''}
+        py-3 px-4 text-center text-sm font-semibold relative select-none transition-all duration-150 cursor-grab active:cursor-grabbing
+        ${isDragging ? 'opacity-40 scale-95 bg-gray-900' : ''}
+        ${isDragOver ? 'bg-gray-700/50' : ''}
       `}
-      style={{ width: columnWidth ? `${columnWidth}px` : 'auto', minWidth: '80px' }}
+      style={{
+        width: columnWidth ? `${columnWidth}px` : 'auto',
+        minWidth: '80px',
+        boxShadow: isDragOver ? `inset 4px 0 0 ${theme.color}` : 'none',
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      {/* Drop indicator line */}
+      {isDragOver && (
+        <div
+          className="absolute left-0 top-0 bottom-0 w-1"
+          style={{ backgroundColor: theme.color }}
+        />
+      )}
+
       <div className="flex items-center justify-center gap-1">
-        {/* Drag Handle */}
+        {/* Drag Handle indicator */}
         <span
-          draggable
-          onDragStart={onDragStart}
-          onDragOver={(e) => { e.preventDefault(); onDragOver(); }}
-          onDragEnd={onDragEnd}
-          className="text-gray-600 cursor-grab active:cursor-grabbing hover:text-gray-400"
+          className="text-gray-600 hover:text-gray-400"
           title="Drag to reorder"
         >
-          ⠿
+          ⋮⋮
         </span>
 
         {/* Column Name (click to sort) */}
@@ -208,32 +232,35 @@ export default function ColumnHeader({
             )}
           </div>
         )}
-
-        {/* Delete Button (on hover) */}
-        {canRemove && (
-          <button
-            onClick={onRemove}
-            className={`
-              text-gray-600 hover:text-red-400 transition-opacity ml-1
-              ${isHovered ? 'opacity-100' : 'opacity-0'}
-            `}
-            title="Remove column"
-          >
-            ✕
-          </button>
-        )}
       </div>
+
+      {/* Delete Button (on hover) - positioned far right */}
+      {canRemove && (
+        <button
+          onClick={onRemove}
+          className={`
+            absolute top-1/2 -translate-y-1/2 right-4
+            text-gray-600 hover:text-red-400 transition-opacity
+            ${isHovered ? 'opacity-100' : 'opacity-0'}
+          `}
+          title="Remove column"
+        >
+          ✕
+        </button>
+      )}
 
       {/* Resize Handle */}
       <div
         onMouseDown={handleResizeStart}
         className={`
-          absolute top-0 right-0 w-1 h-full cursor-col-resize
-          hover:bg-gray-500 transition-colors
-          ${isResizing ? 'bg-gray-400' : 'bg-transparent'}
+          absolute top-0 right-0 w-2 h-full cursor-col-resize
+          group flex items-center justify-center
+          ${isResizing ? 'bg-blue-500/50' : 'hover:bg-gray-600'}
         `}
         title="Drag to resize"
-      />
+      >
+        <div className={`w-0.5 h-4 rounded ${isResizing ? 'bg-blue-400' : 'bg-gray-500 group-hover:bg-gray-400'}`} />
+      </div>
     </th>
   );
 }

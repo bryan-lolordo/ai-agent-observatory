@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 import Layer3Shell from '../../../components/stories/Layer3';
 import { PromptBreakdownBar } from '../../../components/stories/Layer3/shared';
 import { STORY_THEMES } from '../../../config/theme';
+import { getFixesForCall } from '../../../config/fixes';
 
 import {
   PROMPT_STORY,
@@ -373,10 +374,10 @@ export default function PromptCallDetail() {
   const componentAnalysis = getComponentAnalysis(call);
   const tokenMetrics = getTokenMetrics(call);
   const costBreakdown = getCostBreakdown(call);
-  const fixes = getPromptFixes(call, factors);
+  const fixes = getFixesForCall(call, 'prompt', factors);
   const configHighlights = getPromptConfigHighlights(call, factors);
   const currentState = getPromptCurrentState(call);
-  
+
   // Check if healthy
   const isHealthy = factors.length === 0 || factors.every(f => f.severity === 'info' || f.severity === 'ok');
 

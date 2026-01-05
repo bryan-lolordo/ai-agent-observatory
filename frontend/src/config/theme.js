@@ -236,13 +236,14 @@ export const CHART_CONFIG = {
     strokeDasharray: '3 3',
     stroke: '#374151', // gray-700
   },
-  
+
   // Axis styling
   axis: {
-    stroke: '#9ca3af', // gray-400
-    fontSize: 12,
+    stroke: '#6b7280', // gray-500
+    tick: { fill: '#9ca3af', fontSize: 11 }, // gray-400
+    axisLine: { stroke: '#374151' }, // gray-700
   },
-  
+
   // Tooltip styling
   tooltip: {
     contentStyle: {
@@ -255,12 +256,34 @@ export const CHART_CONFIG = {
       stroke: '#6b7280', // gray-500
     },
   },
-  
+
   // Legend styling
   legend: {
     wrapperStyle: {
       color: '#9ca3af', // gray-400
     },
+  },
+
+  // Reference lines
+  referenceLine: {
+    critical: '#ef4444', // red-500
+    warning: '#eab308', // yellow-500
+    info: '#3b82f6', // blue-500
+  },
+
+  // Status-based bar colors (for charts with status indicators)
+  statusColors: {
+    severe: '#ef4444', // red-500
+    high: '#f97316', // orange-500
+    moderate: '#eab308', // yellow-500
+    good: '#22c55e', // green-500
+  },
+
+  // Opportunity colors (for routing)
+  opportunityColors: {
+    upgrade: '#ef4444', // red-500
+    downgrade: '#3b82f6', // blue-500
+    keep: '#22c55e', // green-500
   },
 };
 

@@ -13,6 +13,7 @@ import { useState, useEffect } from 'react';
 
 import Layer3Shell from '../../../components/stories/Layer3';
 import { PromptBreakdownBar } from '../../../components/stories/Layer3/shared';
+import { getFixesForCall } from '../../../config/fixes';
 
 import {
   QUALITY_STORY,
@@ -249,7 +250,7 @@ export default function QualityCallDetail() {
   const factors = analyzeQualityFactors(call);
   const criteria = getQualityCriteriaBreakdown(call);
   const judgeEval = getJudgeEvaluation(call);
-  const fixes = getQualityFixes(call, factors);
+  const fixes = getFixesForCall(call, 'quality', factors);
   const configHighlights = getQualityConfigHighlights(call, factors);
   const currentState = getQualityCurrentState(call);
   const isHealthy = factors.length === 0 || factors.every(f => f.severity === 'info' || f.severity === 'ok');

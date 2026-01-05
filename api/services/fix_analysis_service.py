@@ -106,7 +106,11 @@ Return ONLY valid JSON (no markdown, no code blocks):
       "priority": "high",
       "problem": "What's wrong - be specific (1-2 sentences)",
       "solution": "What to change - be specific (1-2 sentences)",
-      "new_prompt": "The actual rewritten system prompt - FULL TEXT ready to copy. If the fix doesn't involve changing the prompt, write 'N/A - no prompt change needed'",
+      "implementation": {{
+        "code_before": "Show the CURRENT code pattern being used (e.g., 'messages = conversation_history' or 'response_format=None')",
+        "code_after": "Show the NEW code implementation needed. Include actual Python code snippets, function definitions, or configuration changes. Be specific and copy-paste ready."
+      }},
+      "new_prompt": "The actual rewritten system prompt - FULL TEXT ready to copy. If the fix doesn't involve changing the prompt, write 'N/A'",
       "expected_output_example": "Show what the optimized output would look like (abbreviated if long)",
       "estimated_impact": {{
         "tokens_before": {completion_tokens},

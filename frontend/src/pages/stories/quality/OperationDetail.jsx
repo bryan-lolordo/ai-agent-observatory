@@ -42,19 +42,23 @@ export default function QualityOperationDetail() {
     return filters;
     }, [agent, operation]);
 
-    // Calculate stats from data 
+    // Calculate stats from data
     const stats = useMemo(() => {
     if (!data || data.length === 0) return null;
-    
-    const totalPrompt = data.reduce((sum, c) => sum + (c.prompt_tokens || 0), 0);
-    const totalCompletion = data.reduce((sum, c) => sum + (c.completion_tokens || 0), 0);
-    const avgRatio = totalCompletion > 0 ? (totalPrompt / totalCompletion).toFixed(1) : '—';
-    
+
+    // Calculate quality stats
+    const evaluatedCalls = data.filter(c => c.judge_score != null);
+    const scores = evaluatedCalls.map(c => c.judge_score);
+    const avgScore = scores.length > 0
+        ? `${(scores.reduce((sum, s) => sum + s, 0) / scores.length).toFixed(1)}/10`
+        : '—';
+    const lowQuality = evaluatedCalls.filter(c => c.judge_score < 7).length;
+
     return {
         total: data.length,
-        avgRatio,
-        totalPrompt,
-        totalCompletion,
+        evaluated: evaluatedCalls.length,
+        avgScore,
+        lowQuality,
         errors: data.filter(c => c.status === 'error').length,
     };
     }, [data]);

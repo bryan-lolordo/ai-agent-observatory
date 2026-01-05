@@ -4,7 +4,11 @@
  * Displays contextual, AI-generated recommendations for optimizing an LLM call.
  * Used in Layer 3 to replace or augment static rule-based fixes.
  *
- * UPDATED: Uses theme system - no hardcoded colors or glows!
+ * UPDATED: Improved visual hierarchy and readability
+ * - Clear section groupings with outer boxes
+ * - Larger, more prominent metrics
+ * - Vertical stacking for before/after comparisons
+ * - Better spacing and typography
  */
 
 import { useState } from 'react';
@@ -31,11 +35,11 @@ export default function AIAnalysisPanel({ callId, responseText = null }) {
   const handleAnalyze = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await fetch(`/api/analysis/calls/${callId}`);
       const data = await response.json();
-      
+
       if (data.error) {
         setError(data.error + (data.details ? `: ${data.details}` : ''));
       } else {
@@ -61,28 +65,28 @@ export default function AIAnalysisPanel({ callId, responseText = null }) {
   // ─────────────────────────────────────────────────────────────────────────────
   // NOT YET ANALYZED STATE
   // ─────────────────────────────────────────────────────────────────────────────
-  
+
   if (!analysis && !loading && !error) {
     return (
-      <div className={`${BASE_THEME.container.secondary} rounded-xl border ${BASE_THEME.border.default} p-6`}>
+      <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-8`}>
         <div className="text-center">
-          <div className="text-4xl mb-4">🤖</div>
-          <h3 className={`text-lg font-semibold ${BASE_THEME.text.secondary} mb-2`}>
+          <div className="text-5xl mb-4">🤖</div>
+          <h3 className={`text-xl font-semibold ${BASE_THEME.text.primary} mb-3`}>
             AI-Powered Analysis
           </h3>
-          <p className={`${BASE_THEME.text.muted} text-sm mb-6 max-w-md mx-auto`}>
+          <p className={`${BASE_THEME.text.secondary} text-base mb-6 max-w-md mx-auto`}>
             Get tailored recommendations by analyzing your actual prompt and response.
             The AI will suggest specific changes based on your use case.
           </p>
           <button
             onClick={handleAnalyze}
-            className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-medium transition-colors flex items-center gap-2 mx-auto"
+            className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-medium transition-colors flex items-center gap-2 mx-auto text-base"
           >
             <span>🔍</span>
             <span>Analyze This Call</span>
-            <span className="text-purple-300 text-xs">(~$0.02)</span>
+            <span className="text-purple-300 text-sm">(~$0.02)</span>
           </button>
-          <p className={`text-xs ${BASE_THEME.text.muted} mt-3`}>
+          <p className={`text-sm ${BASE_THEME.text.muted} mt-4`}>
             Uses GPT-4o to analyze your prompt, response, and metrics
           </p>
         </div>
@@ -93,14 +97,14 @@ export default function AIAnalysisPanel({ callId, responseText = null }) {
   // ─────────────────────────────────────────────────────────────────────────────
   // LOADING STATE
   // ─────────────────────────────────────────────────────────────────────────────
-  
+
   if (loading) {
     return (
-      <div className="bg-gray-900 rounded-xl border border-gray-700 p-8">
+      <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-8`}>
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
-          <div className="text-gray-300">Analyzing call with AI...</div>
-          <div className="text-xs text-gray-500">This may take 5-10 seconds</div>
+          <div className={`${BASE_THEME.text.secondary} text-base`}>Analyzing call with AI...</div>
+          <div className={`${BASE_THEME.text.muted} text-sm`}>This may take 5-10 seconds</div>
         </div>
       </div>
     );
@@ -109,15 +113,15 @@ export default function AIAnalysisPanel({ callId, responseText = null }) {
   // ─────────────────────────────────────────────────────────────────────────────
   // ERROR STATE
   // ─────────────────────────────────────────────────────────────────────────────
-  
+
   if (error) {
     return (
-      <div className="bg-red-900/20 rounded-xl border border-red-500/50 p-6">
+      <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.status.error.border} rounded-lg p-6`}>
         <div className="flex items-start gap-3">
           <span className="text-2xl">⚠️</span>
           <div>
-            <h3 className="text-red-400 font-semibold mb-1">Analysis Failed</h3>
-            <p className="text-gray-300 text-sm">{safeRender(error)}</p>
+            <h3 className={`${BASE_THEME.status.error.text} font-semibold text-lg mb-2`}>Analysis Failed</h3>
+            <p className={`${BASE_THEME.text.secondary} text-base`}>{safeRender(error)}</p>
             <button
               onClick={handleAnalyze}
               className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm"
@@ -133,76 +137,77 @@ export default function AIAnalysisPanel({ callId, responseText = null }) {
   // ─────────────────────────────────────────────────────────────────────────────
   // ANALYSIS RESULTS
   // ─────────────────────────────────────────────────────────────────────────────
-  
+
   const { analysis: callAnalysis, recommendations = [] } = analysis;
 
   return (
     <div className="space-y-6">
-      
-      {/* Analysis Summary */}
-      <div className="bg-gray-900 rounded-xl border border-gray-700 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-purple-300 flex items-center gap-2">
-            <span>🤖</span>
+
+      {/* Analysis Summary - Outer container */}
+      <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-6`}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-semibold text-purple-400 flex items-center gap-3">
+            <span className="text-2xl">🤖</span>
             AI Analysis
           </h3>
           {analysis.from_cache && (
-            <span className="px-2 py-1 bg-gray-800 rounded text-xs text-gray-400">
+            <span className="px-3 py-1 bg-gray-700 rounded text-sm text-gray-300">
               Cached
             </span>
           )}
         </div>
-        
+
         {callAnalysis && (
-          <div className="space-y-4">
-            {/* Purpose */}
-            <div>
-              <div className="text-xs text-gray-500 uppercase mb-1">Purpose</div>
-              <p className="text-gray-300">{safeRender(callAnalysis.purpose)}</p>
+          <div className="space-y-6">
+            {/* Purpose - Prominent section */}
+            <div className="bg-gray-700 rounded-lg p-4">
+              <div className={`text-base font-bold ${BASE_THEME.text.muted} uppercase tracking-wide mb-2`}>Purpose</div>
+              <p className={`${BASE_THEME.text.primary} text-base`}>{safeRender(callAnalysis.purpose)}</p>
             </div>
-            
+
             {/* Output Format Assessment */}
             {callAnalysis.output_format_assessment && (
-              <div>
-                <div className="text-xs text-gray-500 uppercase mb-1">Output Format</div>
-                <p className="text-gray-300">{safeRender(callAnalysis.output_format_assessment)}</p>
+              <div className="bg-gray-700 rounded-lg p-4">
+                <div className={`text-base font-bold ${BASE_THEME.text.muted} uppercase tracking-wide mb-2`}>Output Format</div>
+                <p className={`${BASE_THEME.text.primary} text-base`}>{safeRender(callAnalysis.output_format_assessment)}</p>
               </div>
             )}
-            
-            {/* Essential vs Redundant */}
+
+            {/* Essential vs Redundant - Side by side */}
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-xs text-green-500 uppercase mb-2">Essential Output</div>
-                <ul className="text-sm text-gray-400 space-y-1">
+              <div className="bg-gray-700 rounded-lg p-4">
+                <div className={`text-base font-bold ${BASE_THEME.status.success.text} uppercase tracking-wide mb-3`}>Essential Output</div>
+                <ul className="space-y-2">
                   {callAnalysis.essential_output?.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="text-green-500">✓</span>
+                    <li key={i} className={`text-base ${BASE_THEME.text.secondary} flex items-start gap-2`}>
+                      <span className={BASE_THEME.status.success.text}>✓</span>
                       <span>{safeRender(item)}</span>
                     </li>
                   ))}
                 </ul>
               </div>
-              <div>
-                <div className="text-xs text-yellow-500 uppercase mb-2">Redundant Output</div>
-                <ul className="text-sm text-gray-400 space-y-1">
+              <div className="bg-gray-700 rounded-lg p-4">
+                <div className={`text-base font-bold ${BASE_THEME.status.warning.text} uppercase tracking-wide mb-3`}>Redundant Output</div>
+                <ul className="space-y-2">
                   {callAnalysis.redundant_output?.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="text-yellow-500">−</span>
+                    <li key={i} className={`text-base ${BASE_THEME.text.secondary} flex items-start gap-2`}>
+                      <span className={BASE_THEME.status.warning.text}>−</span>
                       <span>{safeRender(item)}</span>
                     </li>
                   ))}
                 </ul>
               </div>
             </div>
-            
+
             {/* Prompt Issues */}
             {callAnalysis.prompt_issues?.length > 0 && (
-              <div>
-                <div className="text-xs text-red-400 uppercase mb-2">Prompt Issues</div>
-                <ul className="text-sm text-gray-400 space-y-1">
+              <div className="bg-gray-700 rounded-lg p-4">
+                <div className={`text-base font-bold ${BASE_THEME.status.error.text} uppercase tracking-wide mb-3`}>Prompt Issues</div>
+                <ul className="space-y-2">
                   {callAnalysis.prompt_issues.map((issue, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="text-red-400">!</span>
+                    <li key={i} className={`text-base ${BASE_THEME.text.secondary} flex items-start gap-2`}>
+                      <span className={BASE_THEME.status.error.text}>!</span>
                       <span>{safeRender(issue)}</span>
                     </li>
                   ))}
@@ -213,13 +218,13 @@ export default function AIAnalysisPanel({ callId, responseText = null }) {
         )}
       </div>
 
-      {/* Recommendations */}
+      {/* Recommendations Section */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
-          <span>💡</span>
+        <h3 className={`text-xl font-semibold ${BASE_THEME.text.primary} flex items-center gap-3`}>
+          <span className="text-2xl">💡</span>
           Recommendations
         </h3>
-        
+
         {recommendations.map((rec, index) => (
           <RecommendationCard
             key={rec.id || index}
@@ -238,12 +243,12 @@ export default function AIAnalysisPanel({ callId, responseText = null }) {
       <div className="text-center pt-4">
         <button
           onClick={handleAnalyze}
-          className="text-sm text-gray-500 hover:text-gray-300 underline"
+          className={`text-sm ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary} underline`}
         >
           Re-analyze (clear cache)
         </button>
         {analysis.analysis_cost && (
-          <span className="text-xs text-gray-600 ml-2">
+          <span className={`text-sm ${BASE_THEME.text.muted} ml-2`}>
             Analysis cost: ${analysis.analysis_cost}
           </span>
         )}
@@ -266,13 +271,13 @@ function RecommendationCard({
   responseText,
 }) {
   const rec = recommendation;
-  
+
   const priorityColors = {
     high: 'bg-red-500',
     medium: 'bg-yellow-500',
     low: 'bg-green-500',
   };
-  
+
   const effortColors = {
     Low: 'text-green-400',
     Medium: 'text-yellow-400',
@@ -280,69 +285,69 @@ function RecommendationCard({
   };
 
   return (
-    <div className="bg-gray-900 rounded-xl border border-gray-700 overflow-hidden">
+    <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg overflow-hidden`}>
       {/* Header - Always visible */}
       <div
         onClick={onToggle}
-        className="p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+        className="p-5 cursor-pointer hover:bg-gray-700/30 transition-colors"
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             {/* Priority indicator */}
-            <div className={`w-2 h-2 rounded-full ${priorityColors[rec.priority] || 'bg-gray-500'}`} />
-            
+            <div className={`w-3 h-3 rounded-full ${priorityColors[rec.priority] || 'bg-gray-500'}`} />
+
             {/* Rank */}
-            <span className="text-2xl font-bold text-gray-600">#{index + 1}</span>
-            
+            <span className={`text-2xl font-bold ${BASE_THEME.text.muted}`}>#{index + 1}</span>
+
             {/* Title */}
             <div>
-              <h4 className="font-semibold text-gray-200">{safeRender(rec.title)}</h4>
-              <div className="flex items-center gap-3 text-xs mt-1">
+              <h4 className={`text-lg font-semibold ${BASE_THEME.text.primary}`}>{safeRender(rec.title)}</h4>
+              <div className="flex items-center gap-3 text-sm mt-1">
                 <span className={effortColors[rec.effort] || 'text-gray-400'}>
                   {safeRender(rec.effort)} effort
                 </span>
-                <span className="text-gray-500">•</span>
-                <span className="text-gray-400">
+                <span className={BASE_THEME.text.muted}>•</span>
+                <span className={BASE_THEME.text.secondary}>
                   {Math.round((rec.confidence || 0) * 100)}% confidence
                 </span>
               </div>
             </div>
           </div>
-          
+
           {/* Impact preview */}
           <div className="flex items-center gap-4">
             {rec.estimated_impact?.cost_reduction_pct > 0 && (
-              <span className="text-green-400 text-sm font-semibold">
+              <span className={`${BASE_THEME.status.success.text} text-base font-semibold`}>
                 -{rec.estimated_impact.cost_reduction_pct}% cost
               </span>
             )}
-            <span className="text-gray-400 text-lg">
+            <span className={`${BASE_THEME.text.muted} text-xl`}>
               {isExpanded ? '▼' : '▶'}
             </span>
           </div>
         </div>
       </div>
-      
+
       {/* Expanded content */}
       {isExpanded && (
-        <div className="border-t border-gray-700 p-4 space-y-4">
-          
-          {/* Problem & Solution */}
+        <div className={`border-t ${BASE_THEME.border.default} p-6 space-y-6`}>
+
+          {/* Problem & Solution - Side by side */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs text-red-400 uppercase mb-2">Problem</div>
-              <p className="text-sm text-gray-300">{safeRender(rec.problem)}</p>
+            <div className="bg-gray-700 rounded-lg p-4">
+              <div className={`text-base font-bold ${BASE_THEME.status.error.text} uppercase tracking-wide mb-2`}>Problem</div>
+              <p className={`text-base ${BASE_THEME.text.primary}`}>{safeRender(rec.problem)}</p>
             </div>
-            <div>
-              <div className="text-xs text-green-400 uppercase mb-2">Solution</div>
-              <p className="text-sm text-gray-300">{safeRender(rec.solution)}</p>
+            <div className="bg-gray-700 rounded-lg p-4">
+              <div className={`text-base font-bold ${BASE_THEME.status.success.text} uppercase tracking-wide mb-2`}>Solution</div>
+              <p className={`text-base ${BASE_THEME.text.primary}`}>{safeRender(rec.solution)}</p>
             </div>
           </div>
-          
-          {/* Impact metrics */}
+
+          {/* Impact metrics - Larger and more prominent */}
           {rec.estimated_impact && (
-            <div>
-              <div className="text-xs text-gray-500 uppercase mb-2">Estimated Impact</div>
+            <div className="bg-gray-700 rounded-lg p-5">
+              <div className={`text-base font-bold ${BASE_THEME.text.muted} uppercase tracking-wide mb-4`}>Estimated Impact</div>
               <div className="grid grid-cols-3 gap-4">
                 <ImpactMetric
                   label="Tokens"
@@ -361,107 +366,130 @@ function RecommendationCard({
               </div>
             </div>
           )}
-          
-          {/* New prompt */}
+
+          {/* Implementation Code - Before/After (like static recommendations) */}
+          {rec.implementation && (rec.implementation.code_before || rec.implementation.code_after) && (
+            <div className="bg-gray-700 rounded-lg p-5">
+              <div className={`text-base font-bold ${BASE_THEME.text.muted} uppercase tracking-wide mb-4`}>📝 Implementation</div>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Before */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`text-base font-bold ${BASE_THEME.status.error.text}`}>BEFORE</div>
+                    <button
+                      onClick={() => onCopyCode(rec.implementation.code_before)}
+                      className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-300 overflow-x-auto max-h-64 whitespace-pre-wrap font-mono">
+                    {safeRender(rec.implementation.code_before)}
+                  </pre>
+                </div>
+                {/* After */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`text-base font-bold ${BASE_THEME.status.success.text}`}>AFTER</div>
+                    <button
+                      onClick={() => onCopyCode(rec.implementation.code_after)}
+                      className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-200 overflow-x-auto max-h-64 whitespace-pre-wrap font-mono">
+                    {safeRender(rec.implementation.code_after)}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Prompt Change (if applicable) */}
           {rec.new_prompt && rec.new_prompt !== 'N/A' && rec.new_prompt !== 'N/A - no prompt change needed' && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-xs text-purple-400 uppercase">Optimized Prompt</div>
+            <div className="bg-gray-700 rounded-lg p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className={`text-base font-bold ${BASE_THEME.text.muted} uppercase tracking-wide`}>📄 Prompt Change</div>
                 <button
                   onClick={() => onCopyCode(rec.new_prompt)}
-                  className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded"
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-lg"
                 >
-                  {isCopied ? '✓ Copied!' : 'Copy Prompt'}
+                  {isCopied ? '✓ Copied!' : 'Copy New Prompt'}
                 </button>
               </div>
-              <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-300 overflow-x-auto max-h-64 whitespace-pre-wrap">
+              <pre className="bg-gray-800 rounded-lg p-4 text-base text-gray-200 overflow-x-auto max-h-48 whitespace-pre-wrap">
                 {safeRender(rec.new_prompt)}
               </pre>
             </div>
           )}
-          
-          {/* Output Before/After Comparison */}
-          {(responseText || rec.expected_output_example) && (
-            <div>
-              <div className="text-xs text-gray-500 uppercase mb-2">📤 Output Comparison</div>
-              
-              {responseText && rec.expected_output_example ? (
-                // Side-by-side comparison when both are available
-                <div className="grid grid-cols-2 gap-4">
+
+          {/* Output Comparison (optional - only show if expected_output_example exists) */}
+          {rec.expected_output_example && (
+            <div className="bg-gray-700 rounded-lg p-5">
+              <div className={`text-base font-bold ${BASE_THEME.text.muted} uppercase tracking-wide mb-4`}>📤 Expected Output Change</div>
+
+              {responseText ? (
+                <div className="space-y-4">
                   <div>
-                    <div className="text-xs text-red-400 mb-2 flex items-center gap-2">
-                      <span>BEFORE</span>
-                      <span className="text-gray-500">(Current Output)</span>
-                    </div>
-                    <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-400 overflow-x-auto max-h-48 whitespace-pre-wrap border border-red-900/50">
-                      {safeRender(responseText).substring(0, 1000)}{responseText?.length > 1000 ? '...' : ''}
+                    <div className={`text-base font-bold ${BASE_THEME.status.error.text} mb-2`}>Current Output</div>
+                    <pre className="bg-gray-800 rounded-lg p-4 text-base text-gray-300 overflow-x-auto max-h-32 whitespace-pre-wrap">
+                      {safeRender(responseText).substring(0, 500)}{responseText?.length > 500 ? '...' : ''}
                     </pre>
-                    {responseText?.length > 1000 && (
-                      <div className="text-xs text-gray-500 mt-1">
-                        Showing first 1000 chars of {responseText.length.toLocaleString()} total
-                      </div>
-                    )}
+                  </div>
+                  <div className="flex justify-center">
+                    <span className={`${BASE_THEME.text.muted} text-2xl`}>↓</span>
                   </div>
                   <div>
-                    <div className="text-xs text-green-400 mb-2 flex items-center gap-2">
-                      <span>AFTER</span>
-                      <span className="text-gray-500">(Expected with fix)</span>
-                    </div>
-                    <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-300 overflow-x-auto max-h-48 whitespace-pre-wrap border border-green-900/50">
+                    <div className={`text-base font-bold ${BASE_THEME.status.success.text} mb-2`}>Expected After Fix</div>
+                    <pre className="bg-gray-800 rounded-lg p-4 text-base text-gray-200 overflow-x-auto max-h-32 whitespace-pre-wrap">
                       {safeRender(rec.expected_output_example)}
                     </pre>
                   </div>
                 </div>
-              ) : rec.expected_output_example ? (
-                // Only expected output available
+              ) : (
                 <div>
-                  <div className="text-xs text-green-400 mb-2">Expected Output (After Fix)</div>
-                  <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-300 overflow-x-auto max-h-40 whitespace-pre-wrap border border-green-900/50">
+                  <div className={`text-base font-bold ${BASE_THEME.status.success.text} mb-2`}>Expected Output</div>
+                  <pre className="bg-gray-800 rounded-lg p-4 text-base text-gray-200 overflow-x-auto max-h-32 whitespace-pre-wrap">
                     {safeRender(rec.expected_output_example)}
                   </pre>
                 </div>
-              ) : responseText ? (
-                // Only current output available
-                <div>
-                  <div className="text-xs text-gray-400 mb-2">Current Output</div>
-                  <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-400 overflow-x-auto max-h-40 whitespace-pre-wrap">
-                    {safeRender(responseText).substring(0, 500)}{responseText?.length > 500 ? '...' : ''}
-                  </pre>
-                </div>
-              ) : null}
+              )}
             </div>
           )}
-          
-          {/* Preserves & Tradeoffs */}
-          <div className="grid grid-cols-2 gap-4">
-            {rec.preserves?.length > 0 && (
-              <div>
-                <div className="text-xs text-green-500 uppercase mb-2">Preserves</div>
-                <ul className="text-sm text-gray-400 space-y-1">
-                  {rec.preserves.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="text-green-500">✓</span>
-                      <span>{safeRender(item)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {rec.tradeoffs?.length > 0 && (
-              <div>
-                <div className="text-xs text-yellow-500 uppercase mb-2">Trade-offs</div>
-                <ul className="text-sm text-gray-400 space-y-1">
-                  {rec.tradeoffs.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="text-yellow-500">⚠</span>
-                      <span>{safeRender(item)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-          
+
+          {/* Preserves & Tradeoffs - Side by side since they're short */}
+          {(rec.preserves?.length > 0 || rec.tradeoffs?.length > 0) && (
+            <div className="grid grid-cols-2 gap-4">
+              {rec.preserves?.length > 0 && (
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <div className={`text-base font-bold ${BASE_THEME.status.success.text} uppercase tracking-wide mb-3`}>Preserves</div>
+                  <ul className="space-y-2">
+                    {rec.preserves.map((item, i) => (
+                      <li key={i} className={`text-base ${BASE_THEME.text.secondary} flex items-start gap-2`}>
+                        <span className={BASE_THEME.status.success.text}>✓</span>
+                        <span>{safeRender(item)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {rec.tradeoffs?.length > 0 && (
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <div className={`text-base font-bold ${BASE_THEME.status.warning.text} uppercase tracking-wide mb-3`}>Trade-offs</div>
+                  <ul className="space-y-2">
+                    {rec.tradeoffs.map((item, i) => (
+                      <li key={i} className={`text-base ${BASE_THEME.text.secondary} flex items-start gap-2`}>
+                        <span className={BASE_THEME.status.warning.text}>⚠</span>
+                        <span>{safeRender(item)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       )}
     </div>
@@ -469,17 +497,17 @@ function RecommendationCard({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IMPACT METRIC
+// IMPACT METRIC - Larger and more prominent
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ImpactMetric({ label, before, after, change }) {
   const isImprovement = change > 0;
-  
+
   // Label-specific wording
   const getChangeText = () => {
     if (change == null) return null;
     const value = Math.abs(change);
-    
+
     switch (label.toLowerCase()) {
       case 'tokens':
         return `${value}% reduction`;
@@ -491,19 +519,19 @@ function ImpactMetric({ label, before, after, change }) {
         return `${value}% improvement`;
     }
   };
-  
+
   return (
-    <div className="bg-gray-800 rounded-lg p-3">
-      <div className="text-xs text-gray-500 mb-1">{label}</div>
-      {before != null && after != null ? (
-        <div className="text-sm">
-          <span className="text-gray-400">{safeRender(before)}</span>
-          <span className="text-gray-600 mx-1">→</span>
-          <span className="text-gray-200">{safeRender(after)}</span>
+    <div className="bg-gray-800 rounded-lg p-4 text-center">
+      <div className={`text-sm ${BASE_THEME.text.muted} uppercase tracking-wide mb-2`}>{label}</div>
+      {before != null && after != null && (
+        <div className={`text-base ${BASE_THEME.text.secondary} mb-1`}>
+          <span>{safeRender(before)}</span>
+          <span className={BASE_THEME.text.muted}> → </span>
+          <span className={BASE_THEME.text.primary}>{safeRender(after)}</span>
         </div>
-      ) : null}
+      )}
       {change != null && (
-        <div className={`text-lg font-bold ${isImprovement ? 'text-green-400' : 'text-red-400'}`}>
+        <div className={`text-2xl font-bold ${isImprovement ? BASE_THEME.status.success.text : BASE_THEME.status.error.text}`}>
           {getChangeText()}
         </div>
       )}

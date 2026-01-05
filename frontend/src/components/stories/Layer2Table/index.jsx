@@ -131,10 +131,19 @@ export default function Layer2Table({
   // ─────────────────────────────────────────────────────────────────────────────
   
   const handleSort = useCallback((columnKey) => {
-    setSortConfig(prev => ({
-      key: columnKey,
-      direction: prev.key === columnKey && prev.direction === 'desc' ? 'asc' : 'desc',
-    }));
+    setSortConfig(prev => {
+      // Cycle: unsorted → desc → asc → unsorted
+      if (prev.key !== columnKey) {
+        // New column: start with descending
+        return { key: columnKey, direction: 'desc' };
+      } else if (prev.direction === 'desc') {
+        // Same column, was desc: switch to asc
+        return { key: columnKey, direction: 'asc' };
+      } else {
+        // Same column, was asc: clear sort
+        return { key: null, direction: 'desc' };
+      }
+    });
   }, []);
   
   // ─────────────────────────────────────────────────────────────────────────────
@@ -438,6 +447,20 @@ export default function Layer2Table({
           
           {/* Table Header */}
           <thead className="bg-gray-800">
+            {/* Drag mode indicator */}
+            {draggedColumn && (
+              <tr>
+                <td
+                  colSpan={columnDefs.length + 1}
+                  className="py-1 text-center text-xs text-gray-400 border-b border-gray-700"
+                  style={{ backgroundColor: `${theme.color}15` }}
+                >
+                  <span className="animate-pulse">
+                    Dragging <span style={{ color: theme.color }} className="font-semibold">{getColumn(draggedColumn)?.label}</span> — drop on another column to reorder
+                  </span>
+                </td>
+              </tr>
+            )}
             <tr className="border-b border-gray-700">
               {columnDefs.map((col, idx) => (
                 <ColumnHeader

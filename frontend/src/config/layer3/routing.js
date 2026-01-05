@@ -116,71 +116,105 @@ export function getKPIs(call) {
 export function getFactors(call) {
   const routing = call.routing_analysis || {};
   const factors = [];
-  
-  const verdict = routing.verdict; // NEW: optimal, overprovisioned, underprovisioned
+
+  const verdict = routing.verdict; // optimal, overprovisioned, underprovisioned
   const complexity = routing.complexity_score ?? call.complexity_score;
   const quality = call.judge_score;
-  const isCheap = routing.is_cheap_model ?? false;
   const model = call.model_name || '';
-  
-  // NEW: Use verdict instead of opportunity for clearer logic
+
+  // Use verdict for clearer logic - include `id` for fix system mapping
   if (verdict === 'overprovisioned') {
     factors.push({
+      id: 'overprovisioned',  // Maps to FACTOR_FIX_MAP
       label: 'Model Overprovisioned',
       status: 'warning',
+      severity: 'warning',
       detail: routing.reasoning || `Using ${model} for a task that could use a cheaper model`,
+      hasFix: true,
     });
-    
+
     const savings = routing.potential_savings_usd;
     if (savings > 0) {
       factors.push({
+        id: 'cost_reduction_available',  // Maps to FACTOR_FIX_MAP
         label: 'Cost Reduction Available',
         status: 'info',
+        severity: 'info',
         detail: `Potential savings of ${formatCurrency(savings)} per call (${routing.quality_impact})`,
+        hasFix: true,
       });
     }
   }
-  
+
   else if (verdict === 'underprovisioned') {
     factors.push({
+      id: 'underprovisioned',  // Maps to FACTOR_FIX_MAP
       label: 'Model Underprovisioned',
       status: 'critical',
+      severity: 'critical',
       detail: routing.reasoning || `Using ${model} for a task that needs more capable model`,
+      hasFix: true,
     });
-    
+
     if (quality !== null && quality < 8) {
       factors.push({
+        id: 'low_quality_score',  // Maps to FACTOR_FIX_MAP
         label: 'Quality Below Target',
         status: 'critical',
+        severity: 'critical',
         detail: `Quality score ${quality.toFixed(1)}/10 suggests need for stronger model`,
+        hasFix: true,
       });
     }
   }
-  
+
   else { // optimal
     factors.push({
+      id: 'optimal_routing',
       label: 'Model Well-Matched',
       status: 'success',
+      severity: 'ok',
       detail: routing.reasoning || `${model} is appropriate for this task`,
+      hasFix: false,
     });
   }
-  
-  // NEW: Show complexity breakdown if available
+
+  // Check for premium model that could be downgraded (even without routing analysis)
+  if (!verdict) {
+    const isPremium = model.includes('gpt-4o') && !model.includes('mini') ||
+                      model.includes('claude-3-opus') ||
+                      model.includes('claude-3-sonnet');
+    if (isPremium && complexity < 0.5) {
+      factors.push({
+        id: 'premium_model',  // Maps to FACTOR_FIX_MAP
+        label: 'Premium Model for Simple Task',
+        status: 'warning',
+        severity: 'warning',
+        detail: `Using ${model} (premium) for a task with complexity ${(complexity * 100).toFixed(0)}%`,
+        hasFix: true,
+      });
+    }
+  }
+
+  // Show complexity breakdown if available
   if (routing.complexity_breakdown) {
     const breakdown = routing.complexity_breakdown;
     const topFactors = Object.entries(breakdown)
       .sort((a, b) => b[1].value - a[1].value)
       .slice(0, 2); // Top 2 contributors
-    
+
     topFactors.forEach(([key, data]) => {
       factors.push({
+        id: `complexity_${key}`,
         label: `${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} Factor`,
         status: 'info',
+        severity: 'info',
         detail: `${data.label} contributes ${(data.value * 100).toFixed(0)}% to complexity`,
+        hasFix: false,
       });
     });
   }
-  
+
   return factors;
 }
 

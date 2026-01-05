@@ -9,18 +9,19 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTimeRange } from '../context/TimeRangeContext';
 import { BASE_THEME } from '../utils/themeUtils';
+import { STORY_THEMES } from '../config/theme';
 import PageContainer from '../components/layout/PageContainer';
 import StoryNavTabs from '../components/stories/StoryNavTabs';
 
-// Story configuration
+// Story configuration - derived from STORY_THEMES
 const STORIES = [
-  { id: 'latency', label: 'Latency', icon: '🌐', color: '#f97316' },
-  { id: 'cache', label: 'Cache', icon: '💾', color: '#ec4899' },
-  { id: 'cost', label: 'Cost', icon: '💰', color: '#10b981' },
-  { id: 'quality', label: 'Quality', icon: '⭐', color: '#8b5cf6' },
-  { id: 'routing', label: 'Routing', icon: '🔀', color: '#3b82f6' },
-  { id: 'token', label: 'Token', icon: '⚖️', color: '#f59e0b' },
-  { id: 'system_prompt', label: 'Prompt', icon: '📝', color: '#06b6d4' },
+  { id: 'latency', label: 'Latency', icon: STORY_THEMES.latency.emoji, color: STORY_THEMES.latency.color },
+  { id: 'cache', label: 'Cache', icon: STORY_THEMES.cache.emoji, color: STORY_THEMES.cache.color },
+  { id: 'cost', label: 'Cost', icon: STORY_THEMES.cost.emoji, color: STORY_THEMES.cost.color },
+  { id: 'quality', label: 'Quality', icon: STORY_THEMES.quality.emoji, color: STORY_THEMES.quality.color },
+  { id: 'routing', label: 'Routing', icon: STORY_THEMES.routing.emoji, color: STORY_THEMES.routing.color },
+  { id: 'token', label: 'Token', icon: STORY_THEMES.token_imbalance.emoji, color: STORY_THEMES.token_imbalance.color },
+  { id: 'system_prompt', label: 'Prompt', icon: STORY_THEMES.system_prompt.emoji, color: STORY_THEMES.system_prompt.color },
 ];
 
 // Quick filter presets

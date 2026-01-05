@@ -280,7 +280,7 @@ export default function Layer3Shell({
         )}
 
         {/* Accent Bar */}
-        <div className={`h-1 rounded-full mb-6 ${theme.bg} ${theme.dividerGlow}`} />
+        <div className={`h-1 rounded-full mb-6 ${theme.bg}`} />
 
         {/* Tabs */}
         <div className={`flex gap-1 border-b ${BASE_THEME.border.default} mb-6`}>
@@ -340,6 +340,8 @@ export default function Layer3Shell({
               entityType={entityType}
               // Pass response text for before/after comparison
               responseText={responseText}
+              // Pass system prompt for before/after code comparison
+              systemPrompt={data?.system_prompt}
               // Pass aiCallId for pattern-based AI Analysis
               aiCallId={aiCallId}
             />

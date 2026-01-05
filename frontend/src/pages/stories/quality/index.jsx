@@ -6,7 +6,7 @@
 
 import { useNavigate } from 'react-router-dom';
 import { useStory } from '../../../hooks/useStories';
-import { STORY_THEMES } from '../../../config/theme';
+import { STORY_THEMES, CHART_CONFIG } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import { formatNumber, truncateText } from '../../../utils/formatters';
@@ -53,10 +53,10 @@ export default function Quality() {
   } = summary;
 
   const getBarColor = (bucket) => {
-    if (bucket < 5) return '#ef4444';
-    if (bucket < 7) return '#f97316';
-    if (bucket < 8) return '#eab308';
-    return '#22c55e';
+    if (bucket < 5) return CHART_CONFIG.statusColors.severe;
+    if (bucket < 7) return CHART_CONFIG.statusColors.high;
+    if (bucket < 8) return CHART_CONFIG.statusColors.moderate;
+    return CHART_CONFIG.statusColors.good;
   };
 
   const handleOperationClick = (row) => {
@@ -250,23 +250,18 @@ export default function Quality() {
               <>
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={chart_data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis 
-                      dataKey="label" 
-                      stroke="#6b7280"
-                      tick={{ fill: '#9ca3af', fontSize: 11 }}
+                    <CartesianGrid strokeDasharray={CHART_CONFIG.grid.strokeDasharray} stroke={CHART_CONFIG.grid.stroke} />
+                    <XAxis
+                      dataKey="label"
+                      stroke={CHART_CONFIG.axis.stroke}
+                      tick={CHART_CONFIG.axis.tick}
                     />
-                    <YAxis 
-                      stroke="#6b7280"
-                      tick={{ fill: '#9ca3af', fontSize: 11 }}
+                    <YAxis
+                      stroke={CHART_CONFIG.axis.stroke}
+                      tick={CHART_CONFIG.axis.tick}
                     />
-                    <Tooltip 
-                      contentStyle={{
-                        backgroundColor: '#1f2937',
-                        border: '1px solid #374151',
-                        borderRadius: '8px',
-                        color: '#f3f4f6'
-                      }}
+                    <Tooltip
+                      contentStyle={CHART_CONFIG.tooltip.contentStyle}
                     />
                     <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                       {chart_data.map((entry, index) => (

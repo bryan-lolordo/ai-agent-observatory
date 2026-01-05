@@ -217,7 +217,7 @@ export const ALL_COLUMNS = {
     width: 'min-w-[100px]',
     align: 'left',
     formatter: formatters.callId,
-    className: 'text-gray-500 font-mono text-xs',
+    className: 'text-gray-500 font-mono',
   },
   agent_name: {
     key: 'agent_name',
@@ -240,7 +240,7 @@ export const ALL_COLUMNS = {
     align: 'left',
     formatter: (v) => formatters.truncate(v, 35),
     // className is dynamic based on story - set in component
-    classNameBase: 'font-mono text-xs',
+    classNameBase: 'font-mono',
   },
   session_id: {
   key: 'session_id',
@@ -251,7 +251,7 @@ export const ALL_COLUMNS = {
   width: 'min-w-[100px]',
   align: 'left',
   formatter: formatters.callId,
-  className: 'text-gray-500 font-mono text-xs',
+  className: 'text-gray-500 font-mono',
   },
   call_type: {
     key: 'call_type',
@@ -498,7 +498,7 @@ export const ALL_COLUMNS = {
     width: 'min-w-[150px]',
     align: 'left',
     formatter: (v) => formatters.truncate(v, 40),
-    className: 'text-red-400 text-xs',
+    className: 'text-red-400',
   },
   error_type: {
     key: 'error_type',
@@ -535,7 +535,7 @@ export const ALL_COLUMNS = {
     width: 'min-w-[120px]',
     align: 'left',
     formatter: formatters.text,
-    className: 'text-blue-400 text-xs',
+    className: 'text-blue-400',
   },
   provider: {
     key: 'provider',
@@ -583,9 +583,9 @@ export const ALL_COLUMNS = {
     width: 'min-w-[120px]',
     align: 'left',
     formatter: formatters.text,
-    className: 'text-purple-400 text-xs',
+    className: 'text-purple-400',
   },
-  
+
   // ─────────────────────────────────────────────────────────────────────────────
   // CACHE (Individual Calls)
   // ─────────────────────────────────────────────────────────────────────────────
@@ -620,7 +620,7 @@ export const ALL_COLUMNS = {
     width: 'min-w-[120px]',
     align: 'left',
     formatter: formatters.callId,
-    className: 'text-gray-500 font-mono text-xs',
+    className: 'text-gray-500 font-mono',
   },
   cached_prompt_tokens: {
     key: 'cached_prompt_tokens',
@@ -668,7 +668,7 @@ export const ALL_COLUMNS = {
     width: 'min-w-[250px]',
     align: 'left',
     formatter: (v) => v ? `"${formatters.truncate(v, 50)}"` : '—',
-    className: 'font-mono text-xs text-pink-400',
+    className: 'font-mono text-base text-pink-400',
   },
   repeat_count: {
     key: 'repeat_count',
@@ -724,7 +724,123 @@ export const ALL_COLUMNS = {
     align: 'center',
     formatter: formatters.effort,
   },
-  
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ROUTING PATTERNS
+  // ─────────────────────────────────────────────────────────────────────────────
+  type: {
+    key: 'type',
+    label: 'Type',
+    category: 'Routing Patterns',
+    sortable: true,
+    filterable: true,
+    width: 'min-w-[120px]',
+    align: 'center',
+    // Uses type_label for display
+    formatter: (v, row) => row?.type_label || v || '—',
+    colorizer: (v) => {
+      if (v === 'downgrade') return 'text-blue-400';
+      if (v === 'upgrade') return 'text-red-400';
+      return 'text-green-400';
+    },
+  },
+  model: {
+    key: 'model',
+    label: 'Model',
+    category: 'Routing Patterns',
+    sortable: true,
+    filterable: true,
+    width: 'min-w-[140px]',
+    align: 'center',
+    formatter: formatters.text,
+    className: 'text-gray-300',
+  },
+  complexity_avg: {
+    key: 'complexity_avg',
+    label: 'Complexity',
+    category: 'Routing Patterns',
+    sortable: true,
+    filterable: false,
+    width: 'min-w-[100px]',
+    align: 'center',
+    formatter: (v) => v != null ? v.toFixed(2) : '—',
+    colorizer: (v) => {
+      if (v == null) return 'text-gray-400';
+      if (v >= 0.7) return 'text-red-400 font-semibold';
+      if (v >= 0.4) return 'text-yellow-400';
+      return 'text-green-400';
+    },
+  },
+  avg_quality: {
+    key: 'avg_quality',
+    label: 'Quality',
+    category: 'Routing Patterns',
+    sortable: true,
+    filterable: false,
+    width: 'min-w-[80px]',
+    align: 'center',
+    formatter: (v, row) => row?.avg_quality_formatted || (v != null ? v.toFixed(1) : '—'),
+    colorizer: (v) => {
+      if (v == null) return 'text-gray-400';
+      if (v >= 8) return 'text-emerald-400 font-semibold';
+      if (v >= 7) return 'text-green-400';
+      if (v >= 5) return 'text-yellow-400';
+      return 'text-red-400';
+    },
+  },
+  call_count: {
+    key: 'call_count',
+    label: 'Calls',
+    category: 'Routing Patterns',
+    sortable: true,
+    filterable: false,
+    width: 'min-w-[80px]',
+    align: 'center',
+    formatter: formatters.number,
+    colorizer: (v) => {
+      if (v == null) return 'text-gray-400';
+      if (v >= 100) return 'text-purple-400 font-semibold';
+      if (v >= 50) return 'text-blue-400';
+      if (v >= 10) return 'text-cyan-400';
+      return 'text-gray-400';
+    },
+  },
+  savable: {
+    key: 'savable',
+    label: 'Savable',
+    category: 'Routing Patterns',
+    sortable: true,
+    filterable: false,
+    width: 'min-w-[90px]',
+    align: 'center',
+    formatter: (v) => {
+      if (v == null) return '—';
+      if (v > 0) return `$${v.toFixed(2)}`;
+      if (v < 0) return `+$${Math.abs(v).toFixed(2)}`;
+      return '—';
+    },
+    colorizer: (v) => {
+      if (v > 0) return 'text-green-400 font-semibold';
+      if (v < 0) return 'text-red-400 font-semibold';
+      return 'text-gray-500';
+    },
+  },
+  safe_pct: {
+    key: 'safe_pct',
+    label: 'Safe %',
+    category: 'Routing Patterns',
+    sortable: true,
+    filterable: false,
+    width: 'min-w-[80px]',
+    align: 'center',
+    formatter: (v) => v != null ? `${v}%` : '—',
+    colorizer: (v) => {
+      if (v >= 90) return 'text-green-400';
+      if (v >= 70) return 'text-yellow-400';
+      return 'text-red-400';
+    },
+  },
+
   // ─────────────────────────────────────────────────────────────────────────────
   // CONTEXT / TIME
   // ─────────────────────────────────────────────────────────────────────────────

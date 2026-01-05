@@ -318,39 +318,34 @@ export const STORY_LAYER2_CONFIG = {
   },
   
   // ─────────────────────────────────────────────────────────────────────────────
-  // ROUTING
+  // ROUTING - Patterns (aggregated operation+model view)
   // ─────────────────────────────────────────────────────────────────────────────
   [STORY_IDS.ROUTING]: {
     id: STORY_IDS.ROUTING,
     name: 'Routing Opportunities',
     emoji: '🔀',
-    
+    dataType: 'patterns', // Indicates this uses grouped pattern data, not individual calls
+
     quickFilters: [
-      createQuickFilter('all', 'All Calls', '🎯', null),
-      createQuickFilter('high_quality', 'High Quality ≥8', '⭐', { field: 'judge_score', op: '>=', value: 8 }),
-      createQuickFilter('low_quality', 'Low Quality <5', '😟', { field: 'judge_score', op: '<', value: 5 }),
-      createQuickFilter('simple', 'Simple Tasks', '📋', { type: 'compound', filters: [
-        { field: 'total_tokens', op: '<', value: 1000 },
-        { field: 'completion_tokens', op: '<', value: 300 },
-      ]}),
-      createQuickFilter('expensive', 'Expensive >$0.05', '💸', { field: 'total_cost', op: '>', value: 0.05 }),
-      createQuickFilter('errors', 'Errors', '❌', { field: 'status', op: '=', value: 'error' }),
+      createQuickFilter('all', 'All Types', '📊', null, 'Show all routing patterns'),
+      createQuickFilter('downgrade', 'Downgrade', '↓', { field: 'type', op: '=', value: 'downgrade' }, 'Can use cheaper model'),
+      createQuickFilter('upgrade', 'Upgrade', '↑', { field: 'type', op: '=', value: 'upgrade' }, 'Needs better model'),
+      createQuickFilter('keep', 'Keep', '✓', { field: 'type', op: '=', value: 'keep' }, 'Already optimal'),
+      createQuickFilter('risky', 'Risky', '⚠️', { field: 'safe_pct', op: '<', value: 80 }, 'Low safe percentage'),
     ],
-    
-    defaultColumns: ['call_id', 'agent_name', 'operation', 'model_name', 'total_cost', 'latency_ms', 'judge_score'],
-    
+
+    defaultColumns: ['type', 'agent_name', 'operation', 'model', 'complexity_avg', 'avg_quality', 'call_count', 'savable', 'safe_pct'],
+
     availableColumns: [
-      'call_id', 'timestamp', 'agent_name', 'operation', 'model_name', 'provider',
-      'complexity_score', 'chosen_model',
-      'total_cost', 'latency_ms', 'total_tokens',
-      'judge_score', 'status',
+      'type', 'agent_name', 'operation', 'model',
+      'complexity_avg', 'avg_quality', 'call_count', 'savable', 'safe_pct',
     ],
-    
-    defaultSort: { key: 'total_cost', direction: 'desc' },
-    
-    filterBarColumns: ['operation', 'agent_name', 'model_name', 'call_type'],
-    
-    primaryMetric: 'total_cost',
+
+    defaultSort: { key: 'savable', direction: 'desc' },
+
+    filterBarColumns: ['operation', 'agent_name', 'type', 'model'],
+
+    primaryMetric: 'savable',
   },
   
   // ─────────────────────────────────────────────────────────────────────────────

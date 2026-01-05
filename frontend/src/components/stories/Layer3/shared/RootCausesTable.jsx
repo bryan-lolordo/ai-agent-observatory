@@ -28,10 +28,10 @@ export default function RootCausesTable({ causes = [], onViewFix, theme }) {
   };
 
   return (
-    <div className={`${BASE_THEME.container.primary} rounded-lg overflow-hidden border ${BASE_THEME.border.default}`}>
+    <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-600">
       <table className="w-full text-base">
-        <thead className={`${BASE_THEME.container.secondary} border-b ${BASE_THEME.border.default}`}>
-          <tr className={`text-left ${BASE_THEME.text.secondary}`}>
+        <thead className="bg-gray-700 border-b border-gray-600">
+          <tr className="text-left text-gray-200">
             <th className="py-4 px-6 font-medium w-[45%]">Cause</th>
             <th className="py-4 px-6 font-medium w-[22%]">Impact</th>
             <th className="py-4 px-6 font-medium w-[15%]">Severity</th>
@@ -42,17 +42,13 @@ export default function RootCausesTable({ causes = [], onViewFix, theme }) {
           {sortedCauses.map((cause, idx) => (
             <tr
               key={cause.id || idx}
-              className={`border-b border-gray-800 ${BASE_THEME.state.hover} transition-colors ${
-                cause.severity === 'critical' ? BASE_THEME.status.error.bg :
-                cause.severity === 'warning' ? BASE_THEME.status.warning.bg :
-                ''
-              }`}
+              className="border-b border-gray-700 hover:bg-gray-700/50 transition-colors"
             >
               {/* Cause */}
               <td className="py-5 px-6">
                 <div className={`font-semibold ${BASE_THEME.text.primary} text-base mb-2`}>{cause.label}</div>
                 {cause.description && (
-                  <div className={`text-sm ${BASE_THEME.text.muted} leading-relaxed`}>{cause.description}</div>
+                  <div className="text-base text-gray-300 leading-relaxed">{cause.description}</div>
                 )}
               </td>
 

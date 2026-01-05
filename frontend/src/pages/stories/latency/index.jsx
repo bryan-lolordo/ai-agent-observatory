@@ -4,7 +4,7 @@
 
 import { useNavigate } from 'react-router-dom';
 import { useStory } from '../../../hooks/useStories';
-import { STORY_THEMES } from '../../../config/theme';
+import { STORY_THEMES, CHART_CONFIG, COLORS } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import { formatNumber, truncateText } from '../../../utils/formatters';
@@ -227,49 +227,44 @@ export default function Latency() {
             </h3>
             
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart 
-                data={chartData} 
+              <BarChart
+                data={chartData}
                 layout="vertical"
                 margin={{ top: 5, right: 30, left: 150, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis 
-                  type="number" 
-                  stroke="#6b7280"
-                  tick={{ fill: '#9ca3af', fontSize: 11 }}
-                  axisLine={{ stroke: '#374151' }}
+                <CartesianGrid strokeDasharray={CHART_CONFIG.grid.strokeDasharray} stroke={CHART_CONFIG.grid.stroke} />
+                <XAxis
+                  type="number"
+                  stroke={CHART_CONFIG.axis.stroke}
+                  tick={CHART_CONFIG.axis.tick}
+                  axisLine={CHART_CONFIG.axis.axisLine}
                 />
-                <YAxis 
-                  type="category" 
-                  dataKey="name" 
-                  stroke="#6b7280"
-                  tick={{ fill: '#9ca3af', fontSize: 11 }}
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  stroke={CHART_CONFIG.axis.stroke}
+                  tick={CHART_CONFIG.axis.tick}
                   width={150}
-                  axisLine={{ stroke: '#374151' }}
+                  axisLine={CHART_CONFIG.axis.axisLine}
                 />
-                <Tooltip 
-                  contentStyle={{
-                    backgroundColor: '#1f2937',
-                    border: '1px solid #374151',
-                    borderRadius: '8px',
-                    color: '#f3f4f6'
-                  }}
+                <Tooltip
+                  contentStyle={CHART_CONFIG.tooltip.contentStyle}
                 />
-                <ReferenceLine 
-                  x={LATENCY_THRESHOLD / 1000} 
-                  stroke="#ef4444" 
-                  strokeDasharray="3 3" 
+                <ReferenceLine
+                  x={LATENCY_THRESHOLD / 1000}
+                  stroke={CHART_CONFIG.referenceLine.critical}
+                  strokeDasharray="3 3"
                 />
-                <Bar 
-                  dataKey="latency" 
+                <Bar
+                  dataKey="latency"
                   radius={[0, 4, 4, 0]}
                   onClick={(data) => handleOperationClick(data.agent, data.operationOnly)}
                   cursor="pointer"
                 >
                   {chartData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={entry.isSlow ? theme.color : '#22c55e'} 
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.isSlow ? theme.color : COLORS.success}
                     />
                   ))}
                 </Bar>
