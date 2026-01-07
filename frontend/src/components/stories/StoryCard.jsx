@@ -8,6 +8,7 @@
  */
 
 import { useNavigate } from 'react-router-dom';
+import { BASE_THEME } from '../../utils/themeUtils';
 
 // Color configuration for each story
 const COLORS = {
@@ -93,7 +94,7 @@ function HealthIndicator({ score }) {
   
   return (
     <div className="flex items-center gap-2" title={`Health: ${score}%`}>
-      <span className="text-sm text-gray-500">{Math.round(score)}%</span>
+      <span className="text-sm ${BASE_THEME.text.muted}">{Math.round(score)}%</span>
       <div className={`w-3.5 h-3.5 rounded-full ${colorClass} shadow-lg`} />
     </div>
   );
@@ -142,7 +143,7 @@ export default function StoryCard({ story, data = {} }) {
       </div>
 
       {/* Description */}
-      <p className="text-base text-gray-400 mb-4 leading-relaxed">
+      <p className="text-base ${BASE_THEME.text.secondary} mb-4 leading-relaxed">
         {story.description}
       </p>
       
@@ -152,19 +153,19 @@ export default function StoryCard({ story, data = {} }) {
           {heroMetric}
         </div>
         {heroLabel && (
-          <div className="text-base text-gray-500 mt-1">
+          <div className="text-base ${BASE_THEME.text.muted} mt-1">
             {heroLabel}
           </div>
         )}
       </div>
 
       {/* Opportunity Section */}
-      <div className="border-t border-gray-700/50 pt-4 mt-4">
+      <div className={`border-t ${BASE_THEME.border.default}/50 pt-4 mt-4`}>
         {issueCount > 0 || savings ? (
           <>
             <div className="flex items-center gap-2 text-base">
-              <span className="text-yellow-400">💡</span>
-              <span className="text-gray-300">
+              <span className={BASE_THEME.status.warning.text}>💡</span>
+              <span className={BASE_THEME.text.secondary}>
                 {issueCount} {issueLabel}
               </span>
             </div>
@@ -175,7 +176,7 @@ export default function StoryCard({ story, data = {} }) {
             )}
           </>
         ) : (
-          <div className="text-base text-gray-500 flex items-center gap-2">
+          <div className="text-base ${BASE_THEME.text.muted} flex items-center gap-2">
             <span className="text-green-400">✓</span>
             No issues detected
           </div>

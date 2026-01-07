@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 
 import Layer3Shell from '../../../components/stories/Layer3';
 import { STORY_THEMES } from '../../../config/theme';
+import { BASE_THEME } from '../../../utils/themeUtils';
 import { getFixesForCall } from '../../../config/fixes';
 
 import {
@@ -141,7 +142,7 @@ function TokenBreakdownBar({ breakdown }) {
         <div className="text-xs text-gray-500 mb-2">
           Input Tokens ({total.toLocaleString()})
         </div>
-        <div className="h-8 bg-gray-700 rounded-full overflow-hidden flex">
+        <div className="h-8 ${BASE_THEME.border.default} rounded-full overflow-hidden flex">
           {systemPct > 0 && (
             <div 
               className="bg-purple-500 flex items-center justify-center text-xs text-white"
@@ -174,7 +175,7 @@ function TokenBreakdownBar({ breakdown }) {
         <div className="text-xs text-gray-500 mb-2">
           Output Tokens ({completion.toLocaleString()})
         </div>
-        <div className="h-8 bg-gray-700 rounded-full overflow-hidden">
+        <div className="h-8 ${BASE_THEME.border.default} rounded-full overflow-hidden">
           <div 
             className="bg-green-500 h-full flex items-center justify-center text-xs text-white"
             style={{ width: `${Math.min(outputPct, 100)}%`, minWidth: completion > 0 ? '40px' : '0' }}

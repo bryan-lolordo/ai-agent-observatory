@@ -7,10 +7,11 @@ import { useStory } from '../../../hooks/useStories';
 import { STORY_THEMES, CHART_CONFIG } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
-import { formatNumber, truncateText } from '../../../utils/formatters';
+import { formatNumber } from '../../../utils/formatters';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, ZAxis } from 'recharts';
 import { BASE_THEME } from '../../../utils/themeUtils';
 import PageContainer from '../../../components/layout/PageContainer';
+import Layer1Table from '../../../components/stories/Layer1Table';
 
 export default function Routing() {
   const navigate = useNavigate();
@@ -92,80 +93,80 @@ export default function Routing() {
               <span className="text-4xl">{theme.emoji}</span>
               {theme.name}
             </h1>
-            <div className="px-4 py-2 rounded-full border border-gray-700 bg-gray-900">
+            <div className={`px-4 py-2 rounded-full border ${BASE_THEME.border.default} ${BASE_THEME.container.primary}`}>
               <span className={`text-sm font-semibold ${theme.text}`}>
                 {Math.round(health_score)}% Health
               </span>
             </div>
           </div>
-          <p className="text-gray-500 text-sm">
+          <p className={`${BASE_THEME.text.muted} text-sm`}>
             Dashboard › Model Routing
           </p>
         </div>
 
         {/* KPI Cards */}
         <div className="grid grid-cols-4 gap-4 mb-8">
-          <div 
+          <div
             onClick={() => navigate('/stories/routing/calls?filter=all')}
-            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+            className={`rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} p-4 cursor-pointer ${BASE_THEME.state.hover} transition-colors`}
           >
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Current Model</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} uppercase tracking-wide mb-1`}>Current Model</div>
             <div className={`text-2xl font-bold ${theme.text}`}>{current_model}</div>
-            <div className="text-xs text-gray-500 mt-1">{current_model_pct}% of {formatNumber(total_calls)} calls</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} mt-1`}>{current_model_pct}% of {formatNumber(total_calls)} calls</div>
           </div>
-          
-          <div 
+
+          <div
             onClick={() => navigate('/stories/routing/calls?filter=downgrade')}
-            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+            className={`rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} p-4 cursor-pointer ${BASE_THEME.state.hover} transition-colors`}
           >
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Downgrade Candidates</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} uppercase tracking-wide mb-1`}>Downgrade Candidates</div>
             <div className="text-2xl font-bold text-blue-400">{downgrade_count}</div>
-            <div className="text-xs text-gray-500 mt-1">Can use cheaper model</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} mt-1`}>Can use cheaper model</div>
           </div>
-          
-          <div 
+
+          <div
             onClick={() => navigate('/stories/routing/calls?filter=upgrade')}
-            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+            className={`rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} p-4 cursor-pointer ${BASE_THEME.state.hover} transition-colors`}
           >
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Upgrade Candidates</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} uppercase tracking-wide mb-1`}>Upgrade Candidates</div>
             <div className="text-2xl font-bold text-red-400">{upgrade_count}</div>
-            <div className="text-xs text-gray-500 mt-1">Need better model</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} mt-1`}>Need better model</div>
           </div>
-          
-          <div 
+
+          <div
             onClick={() => navigate('/stories/routing/calls?filter=all')}
-            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+            className={`rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} p-4 cursor-pointer ${BASE_THEME.state.hover} transition-colors`}
           >
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Potential Savings</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} uppercase tracking-wide mb-1`}>Potential Savings</div>
             <div className="text-2xl font-bold text-green-400">{potential_savings_formatted}</div>
-            <div className="text-xs text-gray-500 mt-1">From routing optimization</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} mt-1`}>From routing optimization</div>
           </div>
         </div>
 
         {/* Top Offender */}
         {top_offender && (
-          <div 
+          <div
             onClick={() => navigate(`/stories/routing/operations/${encodeURIComponent(top_offender.agent)}/${encodeURIComponent(top_offender.operation)}`)}
-            className="mb-8 rounded-lg border border-gray-700 bg-gray-900 overflow-hidden cursor-pointer hover:border-gray-600 transition-all"
+            className={`mb-8 rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} overflow-hidden cursor-pointer hover:${BASE_THEME.border.light} transition-all`}
           >
             <div className={`h-1 ${theme.bg}`} />
             <div className="p-5">
-              <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">
+              <h3 className={`text-xs font-medium ${BASE_THEME.text.muted} uppercase tracking-wide mb-2`}>
                 🎯 Top Routing Opportunity
               </h3>
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-xl font-bold text-purple-400">{top_offender.agent}</span>
-                <span className="text-gray-500">.</span>
+                <span className={BASE_THEME.text.muted}>.</span>
                 <span className={`text-xl font-bold ${theme.text} font-mono`}>{top_offender.operation}</span>
               </div>
-              <div className="flex gap-6 text-sm text-gray-400">
+              <div className={`flex gap-6 text-sm ${BASE_THEME.text.muted}`}>
                 <span>{top_offender.opportunity_emoji} {top_offender.opportunity?.toUpperCase()}</span>
-                <span>Complexity: <span className="text-gray-200">{top_offender.complexity_formatted}</span></span>
-                <span>Quality: <span className="text-gray-200">{top_offender.quality_formatted}</span></span>
-                <span>Calls: <span className="text-gray-200">{formatNumber(top_offender.call_count)}</span></span>
+                <span>Complexity: <span className={BASE_THEME.text.primary}>{top_offender.complexity_formatted}</span></span>
+                <span>Quality: <span className={BASE_THEME.text.primary}>{top_offender.quality_formatted}</span></span>
+                <span>Calls: <span className={BASE_THEME.text.primary}>{formatNumber(top_offender.call_count)}</span></span>
               </div>
               {top_offender.suggested_model && (
-                <p className="text-sm text-gray-500 mt-3">
+                <p className={`text-sm ${BASE_THEME.text.muted} mt-3`}>
                   💡 Suggested: Switch to <span className={theme.text}>{top_offender.suggested_model}</span>
                 </p>
               )}
@@ -174,93 +175,64 @@ export default function Routing() {
         )}
 
         {/* Operations Table */}
-        <div className="mb-8 rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
-          <div className={`h-1 ${theme.bg}`} />
-          <div className="p-4 border-b border-gray-700">
-            <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide`}>
-              📊 Operations
-              <span className="text-gray-500 normal-case ml-2 font-normal">Click row to drill down</span>
-            </h3>
-          </div>
-          
-          <div className="overflow-x-auto overflow-y-auto max-h-80">
-            <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
-              <thead className="bg-gray-800/50">
-                <tr className="border-b border-gray-700">
-                  <th style={{ width: '4%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Status</th>
-                  <th style={{ width: '14%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Agent</th>
-                  <th style={{ width: '28%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Operation</th>
-                  <th style={{ width: '12%' }} className="text-center py-3 px-4 text-gray-400 font-medium">Complexity</th>
-                  <th style={{ width: '10%' }} className="text-center py-3 px-4 text-gray-400 font-medium">Quality</th>
-                  <th style={{ width: '10%' }} className="text-right py-3 px-4 text-gray-400 font-medium">Cost/Call</th>
-                  <th style={{ width: '8%' }} className="text-right py-3 px-4 text-gray-400 font-medium">Calls</th>
-                  <th style={{ width: '14%' }} className="text-center py-3 px-4 text-gray-400 font-medium">Opportunity</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail_table.length > 0 ? (
-                  detail_table.map((row, idx) => (
-                    <tr
-                      key={idx}
-                      onClick={() => handleOperationClick(row)}
-                      className="border-b border-gray-800 cursor-pointer hover:bg-gray-800/50 transition-colors"
-                    >
-                      <td className="py-3 px-4 text-lg">{row.status_emoji}</td>
-                      <td className="py-3 px-4 font-semibold text-purple-400">
-                        {row.agent_name}
-                      </td>
-                      <td className={`py-3 px-4 font-mono ${theme.text}`}>
-                        {truncateText(row.operation_name, 25)}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className="inline-flex items-center gap-1">
-                          <span>{row.complexity_emoji}</span>
-                          <span className="text-gray-300">{row.complexity_formatted}</span>
-                        </span>
-                      </td>
-                      <td className={`py-3 px-4 text-center ${
-                        row.quality_status === 'good' ? 'text-green-400' :
-                        row.quality_status === 'ok' ? 'text-yellow-400' :
-                        row.quality_status === 'poor' ? 'text-red-400' :
-                        'text-gray-400'
-                      }`}>
-                        {row.avg_quality_formatted}
-                      </td>
-                      <td className="py-3 px-4 text-right text-gray-300">
-                        {row.avg_cost_formatted}
-                      </td>
-                      <td className="py-3 px-4 text-right text-gray-400">
-                        {formatNumber(row.call_count)}
-                      </td>
-                      <td className={`py-3 px-4 text-center font-semibold ${
-                        row.opportunity === 'upgrade' ? 'text-red-400' :
-                        row.opportunity === 'downgrade' ? 'text-blue-400' :
-                        'text-green-400'
-                      }`}>
-                        {row.opportunity_emoji} {row.opportunity_label}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center text-gray-500">
-                      No routing data available
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="mb-8">
+          <Layer1Table
+            data={detail_table.map(row => ({
+              ...row,
+              operation: row.operation_name,
+            }))}
+            theme={theme}
+            storyId="routing"
+            onRowClick={handleOperationClick}
+            columns={[
+              { key: 'complexity_formatted', label: 'Complexity', width: '12%' },
+              { key: 'avg_quality_formatted', label: 'Quality', width: '10%' },
+              { key: 'avg_cost_formatted', label: 'Cost/Call', width: '10%' },
+              { key: 'call_count', label: 'Calls', width: '8%' },
+              { key: 'opportunity_label', label: 'Opportunity', width: '14%' },
+            ]}
+            renderMetricCells={(row) => (
+              <>
+                <td className="py-3 px-4 text-right">
+                  <span className="inline-flex items-center gap-1">
+                    <span>{row.complexity_emoji}</span>
+                    <span className={BASE_THEME.text.secondary}>{row.complexity_formatted}</span>
+                  </span>
+                </td>
+                <td className={`py-3 px-4 text-right ${
+                  row.quality_status === 'good' ? 'text-green-400' :
+                  row.quality_status === 'ok' ? 'text-yellow-400' :
+                  row.quality_status === 'poor' ? 'text-red-400' :
+                  BASE_THEME.text.muted
+                }`}>
+                  {row.avg_quality_formatted}
+                </td>
+                <td className={`py-3 px-4 text-right ${BASE_THEME.text.secondary}`}>
+                  {row.avg_cost_formatted}
+                </td>
+                <td className={`py-3 px-4 text-right ${BASE_THEME.text.muted}`}>
+                  {formatNumber(row.call_count)}
+                </td>
+                <td className={`py-3 px-4 text-right font-semibold ${
+                  row.opportunity === 'upgrade' ? 'text-red-400' :
+                  row.opportunity === 'downgrade' ? 'text-blue-400' :
+                  'text-green-400'
+                }`}>
+                  {row.opportunity_emoji} {row.opportunity_label}
+                </td>
+              </>
+            )}
+          />
         </div>
 
         {/* Chart */}
-        <div className="rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
+        <div className={`rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} overflow-hidden`}>
           <div className={`h-1 ${theme.bg}`} />
           <div className="p-6">
             <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide mb-6`}>
               📊 Complexity vs Quality
             </h3>
-            
+
             {chart_data.length > 0 ? (
               <>
                 <ResponsiveContainer width="100%" height={350}>
@@ -307,24 +279,24 @@ export default function Routing() {
                     </Scatter>
                   </ScatterChart>
                 </ResponsiveContainer>
-                
+
                 <div className="flex justify-center gap-8 mt-4 text-sm">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                    <span className="text-gray-400">↑ Upgrade Needed</span>
+                    <span className={BASE_THEME.text.muted}>↑ Upgrade Needed</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span className="text-gray-400">↓ Can Downgrade</span>
+                    <span className={BASE_THEME.text.muted}>↓ Can Downgrade</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    <span className="text-gray-400">✓ Optimal</span>
+                    <span className={BASE_THEME.text.muted}>✓ Optimal</span>
                   </div>
                 </div>
               </>
             ) : (
-              <div className="h-64 flex items-center justify-center text-gray-500">
+              <div className={`h-64 flex items-center justify-center ${BASE_THEME.text.muted}`}>
                 No data to display
               </div>
             )}

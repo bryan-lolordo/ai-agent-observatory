@@ -13,6 +13,7 @@
 import { useState } from 'react';
 import { ChevronRight, ChevronDown, Check, Plus } from 'lucide-react';
 import { STORY_THEMES } from '../../config/theme';
+import { BASE_THEME } from '../../utils/themeUtils';
 
 // Story color mapping
 const STORY_COLORS = {
@@ -28,10 +29,10 @@ const STORY_COLORS = {
 // Status badge component
 const StatusBadge = ({ status }) => {
   const configs = {
-    pending: { bg: 'bg-gray-700', text: 'text-gray-300', label: 'Pending' },
+    pending: { bg: '${BASE_THEME.container.tertiary}', text: BASE_THEME.text.secondary, label: 'Pending' },
     in_progress: { bg: 'bg-blue-600', text: 'text-white', label: 'In Progress' },
     complete: { bg: 'bg-green-600', text: 'text-white', label: 'Complete' },
-    skipped: { bg: 'bg-gray-600', text: 'text-gray-300', label: 'Skipped' },
+    skipped: { bg: '${BASE_THEME.container.tertiary}', text: BASE_THEME.text.secondary, label: 'Skipped' },
   };
   const config = configs[status] || configs.pending;
 
@@ -47,13 +48,13 @@ const ProgressIndicator = ({ complete, total }) => {
   const pct = total > 0 ? (complete / total) * 100 : 0;
   return (
     <div className="flex items-center gap-2">
-      <div className="w-16 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+      <div className="w-16 h-1.5 ${BASE_THEME.container.tertiary} rounded-full overflow-hidden">
         <div
           className="h-full bg-green-500 rounded-full transition-all"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-xs text-gray-500">{complete}/{total}</span>
+      <span className={`text-xs ${BASE_THEME.text.muted}`}>{complete}/{total}</span>
     </div>
   );
 };
@@ -64,20 +65,20 @@ const AgentRow = ({ agent, expanded, onToggle, onStoryClick }) => {
     <>
       <tr
         onClick={onToggle}
-        className="border-b border-gray-800 cursor-pointer hover:bg-gray-800/50 transition-colors"
+        className={`cursor-pointer hover:${BASE_THEME.container.secondary}/50 transition-colors`}
       >
         <td className="py-3 px-4">
           <div className="flex items-center gap-2">
             {expanded ? (
-              <ChevronDown className="w-4 h-4 text-gray-500" />
+              <ChevronDown className={`w-4 h-4 ${BASE_THEME.text.muted}`} />
             ) : (
-              <ChevronRight className="w-4 h-4 text-gray-500" />
+              <ChevronRight className={`w-4 h-4 ${BASE_THEME.text.muted}`} />
             )}
-            <span className="font-medium text-gray-200">{agent.agent_name}</span>
-            <span className="text-xs text-gray-500">Agent</span>
+            <span className={`font-medium ${BASE_THEME.text.primary}`}>{agent.agent_name}</span>
+            <span className={`text-xs ${BASE_THEME.text.muted}`}>Agent</span>
           </div>
         </td>
-        <td className="py-3 px-4 text-right text-gray-400">{agent.call_count}</td>
+        <td className={`py-3 px-4 text-right ${BASE_THEME.text.secondary}`}>{agent.call_count}</td>
         <td className="py-3 px-4"></td>
         <td className="py-3 px-4"></td>
         <td className="py-3 px-4"></td>
@@ -107,19 +108,19 @@ const OperationRows = ({ operation, agentName, onStoryClick }) => {
     <>
       <tr
         onClick={() => setExpanded(!expanded)}
-        className="border-b border-gray-800 cursor-pointer hover:bg-gray-800/30 transition-colors bg-gray-900/30"
+        className={`cursor-pointer hover:${BASE_THEME.container.tertiary}/30 transition-colors ${BASE_THEME.container.primary}/30`}
       >
         <td className="py-2.5 px-4 pl-10">
           <div className="flex items-center gap-2">
             {expanded ? (
-              <ChevronDown className="w-4 h-4 text-gray-500" />
+              <ChevronDown className={`w-4 h-4 ${BASE_THEME.text.muted}`} />
             ) : (
-              <ChevronRight className="w-4 h-4 text-gray-500" />
+              <ChevronRight className={`w-4 h-4 ${BASE_THEME.text.muted}`} />
             )}
             <span className="font-mono text-purple-400">{operation.operation}</span>
           </div>
         </td>
-        <td className="py-2.5 px-4 text-right text-gray-500">{operation.call_count}</td>
+        <td className={`py-2.5 px-4 text-right ${BASE_THEME.text.muted}`}>{operation.call_count}</td>
         <td className="py-2.5 px-4"></td>
         <td className="py-2.5 px-4"></td>
         <td className="py-2.5 px-4"></td>
@@ -151,15 +152,15 @@ const StoryRows = ({ story, onStoryClick }) => {
     <>
       <tr
         onClick={() => setExpanded(!expanded)}
-        className={`border-b border-gray-800 cursor-pointer transition-colors bg-gray-900/50 ${storyTheme.rowHover}`}
+        className={`cursor-pointer transition-colors ${BASE_THEME.container.primary}/50 ${storyTheme.rowHover}`}
       >
         {/* Story Name */}
         <td className="py-2.5 px-4 pl-16">
           <div className="flex items-center gap-2">
             {expanded ? (
-              <ChevronDown className="w-4 h-4 text-gray-500" />
+              <ChevronDown className={`w-4 h-4 ${BASE_THEME.text.muted}`} />
             ) : (
-              <ChevronRight className="w-4 h-4 text-gray-500" />
+              <ChevronRight className={`w-4 h-4 ${BASE_THEME.text.muted}`} />
             )}
             <span className="text-lg">{story.story_icon}</span>
             <span className={storyTheme.text}>
@@ -169,13 +170,13 @@ const StoryRows = ({ story, onStoryClick }) => {
         </td>
 
         {/* Calls */}
-        <td className="py-2.5 px-4 text-right text-gray-500">
+        <td className={`py-2.5 px-4 text-right ${BASE_THEME.text.muted}`}>
           {story.call_count}
         </td>
 
         {/* Before (Baseline) */}
         <td className="py-2.5 px-4 text-right">
-          <span className="text-gray-300">{story.baseline_value_formatted}</span>
+          <span className={BASE_THEME.text.secondary}>{story.baseline_value_formatted}</span>
         </td>
 
         {/* After (Current) */}
@@ -183,7 +184,7 @@ const StoryRows = ({ story, onStoryClick }) => {
           {hasImprovement ? (
             <span className={storyTheme.text}>{story.current_value_formatted}</span>
           ) : (
-            <span className="text-gray-600">—</span>
+            <span className={BASE_THEME.text.muted}>—</span>
           )}
         </td>
 
@@ -192,7 +193,7 @@ const StoryRows = ({ story, onStoryClick }) => {
           {hasImprovement ? (
             <span className="text-green-400 font-medium">{story.improvement_formatted}</span>
           ) : (
-            <span className="text-gray-600">—</span>
+            <span className={BASE_THEME.text.muted}>—</span>
           )}
         </td>
 
@@ -201,7 +202,7 @@ const StoryRows = ({ story, onStoryClick }) => {
           {story.fix_count > 0 ? (
             <span className="text-green-400">{story.fix_count}</span>
           ) : (
-            <span className="text-gray-600">0</span>
+            <span className={BASE_THEME.text.muted}>0</span>
           )}
         </td>
 
@@ -213,21 +214,21 @@ const StoryRows = ({ story, onStoryClick }) => {
 
       {/* Expanded content: Applied Fixes + Sample Calls + Actions */}
       {expanded && (
-        <tr className="border-b border-gray-800 bg-gray-950">
+        <tr className={`${BASE_THEME.container.primary}`}>
           <td colSpan={7} className="p-0">
             <div className="pl-20 pr-4 py-3 space-y-3">
               {/* Applied Fixes */}
               {story.fixes && story.fixes.length > 0 && (
                 <div className="space-y-2">
-                  <div className="text-xs text-gray-500 uppercase tracking-wide">Applied Fixes</div>
+                  <div className={`text-xs ${BASE_THEME.text.muted} uppercase tracking-wide`}>Applied Fixes</div>
                   {story.fixes.map((fix) => (
                     <div
                       key={fix.id}
-                      className="flex items-center gap-4 p-2 rounded bg-gray-900/30 border border-gray-800"
+                      className={`flex items-center gap-4 p-2 rounded ${BASE_THEME.container.primary}/30 border ${BASE_THEME.border.default}`}
                     >
                       <Check className="w-4 h-4 text-green-500" />
                       <span className={`font-medium ${storyTheme.text}`}>{fix.fix_type}</span>
-                      <span className="text-gray-500">
+                      <span className={BASE_THEME.text.muted}>
                         {fix.before_value?.toFixed(2)} → {fix.after_value?.toFixed(2)}
                       </span>
                       {fix.improvement_pct && (
@@ -236,12 +237,12 @@ const StoryRows = ({ story, onStoryClick }) => {
                         </span>
                       )}
                       {fix.applied_date && (
-                        <span className="text-gray-600 text-xs">
+                        <span className={`${BASE_THEME.text.muted} text-xs`}>
                           {new Date(fix.applied_date).toLocaleDateString()}
                         </span>
                       )}
                       {fix.git_commit && (
-                        <span className="font-mono text-xs text-gray-600">
+                        <span className={`font-mono text-xs ${BASE_THEME.text.muted}`}>
                           {fix.git_commit.slice(0, 7)}
                         </span>
                       )}
@@ -253,7 +254,7 @@ const StoryRows = ({ story, onStoryClick }) => {
               {/* Sample Calls */}
               {story.calls && story.calls.length > 0 && (
                 <div className="space-y-2">
-                  <div className="text-xs text-gray-500 uppercase tracking-wide">Sample Calls</div>
+                  <div className={`text-xs ${BASE_THEME.text.muted} uppercase tracking-wide`}>Sample Calls</div>
                   <div className="flex flex-wrap gap-2">
                     {story.calls.slice(0, 5).map((call) => (
                       <div
@@ -262,14 +263,14 @@ const StoryRows = ({ story, onStoryClick }) => {
                           e.stopPropagation();
                           onStoryClick && onStoryClick(story, call);
                         }}
-                        className="px-2 py-1 rounded bg-gray-800 border border-gray-700 text-xs cursor-pointer hover:bg-gray-700 transition-colors"
+                        className={`px-2 py-1 rounded ${BASE_THEME.container.tertiary} border ${BASE_THEME.border.default} text-xs cursor-pointer hover:${BASE_THEME.container.tertiary} transition-colors`}
                       >
-                        <span className="font-mono text-gray-400">{call.id?.slice(0, 8)}...</span>
-                        <span className="text-gray-500 ml-2">{call.metric_formatted}</span>
+                        <span className={`font-mono ${BASE_THEME.text.secondary}`}>{call.id?.slice(0, 8)}...</span>
+                        <span className={`${BASE_THEME.text.muted} ml-2`}>{call.metric_formatted}</span>
                       </div>
                     ))}
                     {story.calls.length > 5 && (
-                      <div className="px-2 py-1 text-xs text-gray-600">
+                      <div className={`px-2 py-1 text-xs ${BASE_THEME.text.muted}`}>
                         +{story.calls.length - 5} more
                       </div>
                     )}
@@ -292,7 +293,7 @@ const StoryRows = ({ story, onStoryClick }) => {
                 {story.status === 'pending' && (
                   <button
                     onClick={(e) => e.stopPropagation()}
-                    className="px-3 py-1.5 rounded text-xs font-medium bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
+                    className={`px-3 py-1.5 rounded text-xs font-medium ${BASE_THEME.container.tertiary} ${BASE_THEME.text.secondary} hover:${BASE_THEME.container.secondary} transition-colors`}
                   >
                     Mark In Progress
                   </button>
@@ -300,7 +301,7 @@ const StoryRows = ({ story, onStoryClick }) => {
                 {story.status !== 'complete' && story.status !== 'skipped' && (
                   <button
                     onClick={(e) => e.stopPropagation()}
-                    className="px-3 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors"
+                    className={`px-3 py-1.5 rounded text-xs font-medium ${BASE_THEME.container.tertiary} ${BASE_THEME.text.secondary} hover:${BASE_THEME.container.tertiary} transition-colors`}
                   >
                     Skip
                   </button>
@@ -334,7 +335,7 @@ export default function OptimizationHierarchy({ hierarchy, onStoryClick }) {
 
   if (!hierarchy || !hierarchy.agents || hierarchy.agents.length === 0) {
     return (
-      <div className="p-8 text-center text-gray-500">
+      <div className={`p-8 text-center ${BASE_THEME.text.muted}`}>
         No optimization opportunities detected. Your system looks well-optimized!
       </div>
     );
@@ -343,17 +344,17 @@ export default function OptimizationHierarchy({ hierarchy, onStoryClick }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
-        <thead className="bg-gray-800/50">
-          <tr className="border-b border-gray-700">
-            <th className="text-left py-3 px-4 text-gray-400 font-medium">
+        <thead className={BASE_THEME.container.secondary}>
+          <tr>
+            <th className={`text-left py-3 px-4 ${BASE_THEME.text.secondary} font-medium`}>
               Agent / Operation / Story
             </th>
-            <th className="text-right py-3 px-4 text-gray-400 font-medium w-20">Calls</th>
-            <th className="text-right py-3 px-4 text-gray-400 font-medium w-24">Before</th>
-            <th className="text-right py-3 px-4 text-gray-400 font-medium w-24">After</th>
-            <th className="text-right py-3 px-4 text-gray-400 font-medium w-20">Δ%</th>
-            <th className="text-center py-3 px-4 text-gray-400 font-medium w-16">Fixes</th>
-            <th className="text-left py-3 px-4 text-gray-400 font-medium w-28">Status</th>
+            <th className={`text-right py-3 px-4 ${BASE_THEME.text.secondary} font-medium w-20`}>Calls</th>
+            <th className={`text-right py-3 px-4 ${BASE_THEME.text.secondary} font-medium w-24`}>Before</th>
+            <th className={`text-right py-3 px-4 ${BASE_THEME.text.secondary} font-medium w-24`}>After</th>
+            <th className={`text-right py-3 px-4 ${BASE_THEME.text.secondary} font-medium w-20`}>Δ%</th>
+            <th className={`text-center py-3 px-4 ${BASE_THEME.text.secondary} font-medium w-16`}>Fixes</th>
+            <th className={`text-left py-3 px-4 ${BASE_THEME.text.secondary} font-medium w-28`}>Status</th>
           </tr>
         </thead>
         <tbody>

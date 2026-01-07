@@ -54,25 +54,25 @@ function OperationSelector({ operations, selectedOperation, onSelect, loading })
 
   if (loading) {
     return (
-      <div className="w-64 flex-shrink-0 border-r border-gray-700 bg-gray-900/50 p-4">
+      <div className={`w-64 flex-shrink-0 border-r ${BASE_THEME.border.default} ${BASE_THEME.container.primary} p-4`}>
         <div className="animate-pulse space-y-3">
-          <div className="h-4 bg-gray-700 rounded w-3/4"></div>
-          <div className="h-8 bg-gray-800 rounded"></div>
-          <div className="h-8 bg-gray-800 rounded"></div>
-          <div className="h-8 bg-gray-800 rounded"></div>
+          <div className={`h-4 ${BASE_THEME.container.tertiary} rounded w-3/4`}></div>
+          <div className={`h-8 ${BASE_THEME.container.primary} rounded`}></div>
+          <div className={`h-8 ${BASE_THEME.container.primary} rounded`}></div>
+          <div className={`h-8 ${BASE_THEME.container.primary} rounded`}></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-64 flex-shrink-0 border-r border-gray-700 bg-gray-900/50 overflow-y-auto">
-      <div className="p-4 border-b border-gray-700">
-        <h3 className="text-sm font-medium text-gray-300 uppercase tracking-wide flex items-center gap-2">
+    <div className={`w-64 flex-shrink-0 border-r ${BASE_THEME.border.default} ${BASE_THEME.container.primary} overflow-y-auto`}>
+      <div className={`p-4 border-b ${BASE_THEME.border.default}`}>
+        <h3 className={`text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide flex items-center gap-2`}>
           <Layers className="w-4 h-4" />
           Operations ({operations.length})
         </h3>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className={`text-xs ${BASE_THEME.text.muted} mt-1`}>
           Select an operation to view its code
         </p>
       </div>
@@ -83,7 +83,7 @@ function OperationSelector({ operations, selectedOperation, onSelect, loading })
             {/* Agent Header */}
             <button
               onClick={() => toggleAgent(agent)}
-              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 transition-colors"
+              className={`w-full flex items-center gap-2 px-4 py-2 text-sm ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary} hover:${BASE_THEME.container.tertiary} transition-colors`}
             >
               {expandedAgents[agent] ? (
                 <ChevronDown className="w-4 h-4" />
@@ -91,7 +91,7 @@ function OperationSelector({ operations, selectedOperation, onSelect, loading })
                 <ChevronRight className="w-4 h-4" />
               )}
               <span className="font-medium">{agent}</span>
-              <span className="text-xs text-gray-600">({ops.length})</span>
+              <span className={`text-xs ${BASE_THEME.text.muted}`}>({ops.length})</span>
             </button>
 
             {/* Operations under this agent */}
@@ -104,7 +104,7 @@ function OperationSelector({ operations, selectedOperation, onSelect, loading })
                     className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
                       selectedOperation?.operation === op.operation
                         ? 'bg-purple-500/20 text-purple-300 border-l-2 border-purple-500'
-                        : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 border-l-2 border-transparent'
+                        : `${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary} hover:${BASE_THEME.container.tertiary} border-l-2 border-transparent`
                     }`}
                   >
                     <Code2 className="w-3.5 h-3.5 flex-shrink-0" />
@@ -122,7 +122,7 @@ function OperationSelector({ operations, selectedOperation, onSelect, loading })
         ))}
 
         {operations.length === 0 && (
-          <div className="px-4 py-8 text-center text-gray-500 text-sm">
+          <div className={`px-4 py-8 text-center ${BASE_THEME.text.muted} text-sm`}>
             No operations found
           </div>
         )}
@@ -330,7 +330,7 @@ export default function CodeCentricPage() {
       <StoryNavTabs activeStory="optimization" />
 
       {/* Page Header */}
-      <div className="border-b border-gray-700 bg-gray-900/50">
+      <div className={`border-b ${BASE_THEME.border.default} ${BASE_THEME.container.primary}`}>
         <PageContainer>
           <div className="py-6">
             <div className="flex items-center justify-between">
@@ -339,14 +339,14 @@ export default function CodeCentricPage() {
                   <Code2 className="w-6 h-6" />
                   Code-Centric View
                 </h1>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className={`text-sm ${BASE_THEME.text.muted} mt-1`}>
                   See your operation code with issues and fixes - know exactly where to make changes
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => navigate('/stories/optimization')}
-                  className="px-3 py-1.5 rounded text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
+                  className={`px-3 py-1.5 rounded text-sm ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary} hover:${BASE_THEME.container.tertiary} transition-colors`}
                 >
                   Table View
                 </button>
@@ -357,7 +357,7 @@ export default function CodeCentricPage() {
                 </button>
                 <button
                   onClick={refetch}
-                  className="px-2 py-1.5 rounded text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
+                  className={`px-2 py-1.5 rounded text-sm ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary} hover:${BASE_THEME.container.tertiary} transition-colors`}
                   title="Refresh data"
                 >
                   <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -391,7 +391,7 @@ export default function CodeCentricPage() {
               loadingPrompt={loadingPrompt}
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">
+            <div className={`flex items-center justify-center h-full ${BASE_THEME.text.muted}`}>
               <div className="text-center">
                 <Code2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>Select an operation from the sidebar to view its code</p>

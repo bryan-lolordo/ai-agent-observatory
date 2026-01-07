@@ -1,12 +1,13 @@
 /**
  * AddColumnDropdown - Dropdown to add columns
- * 
+ *
  * Shows all available columns grouped by category.
  * Already visible columns are grayed out.
  */
 
 import { useRef, useEffect } from 'react';
 import { getColumnsByCategory } from '../../../config/columnDefinitions';
+import { BASE_THEME } from '../../../utils/themeUtils';
 
 export default function AddColumnDropdown({
   visibleColumns,
@@ -42,39 +43,39 @@ export default function AddColumnDropdown({
   return (
     <div
       ref={dropdownRef}
-      className="absolute top-full right-0 mt-1 w-72 bg-gray-900 rounded-lg border border-gray-700 shadow-xl z-50 overflow-hidden"
+      className={`absolute top-full right-0 mt-1 w-72 ${BASE_THEME.container.primary} rounded-lg border ${BASE_THEME.border.default} shadow-xl z-50 overflow-hidden`}
     >
       {/* Header */}
-      <div className="p-3 border-b border-gray-800 flex justify-between items-center">
-        <span className="text-sm font-semibold text-gray-300">Add Column</span>
+      <div className={`p-3 border-b ${BASE_THEME.container.secondary} flex justify-between items-center`}>
+        <span className={`text-sm font-semibold ${BASE_THEME.text.secondary}`}>Add Column</span>
         <button
           onClick={onClose}
-          className="text-gray-500 hover:text-gray-300"
+          className={`${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary}`}
         >
           ✕
         </button>
       </div>
-      
+
       {/* Columns by Category */}
       <div className="max-h-96 overflow-y-auto">
         {categories.map(category => {
           // Check if any columns in this category are available (not already visible)
           const availableColumns = category.columns.filter(col => !visibleColumns.includes(col.key));
-          
+
           return (
-            <div key={category.name} className="border-b border-gray-800 last:border-0">
+            <div key={category.name} className={`border-b ${BASE_THEME.container.secondary} last:border-0`}>
               {/* Category Header */}
-              <div className="px-3 py-2 bg-gray-800/50">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <div className={`px-3 py-2 ${BASE_THEME.container.secondary}/50`}>
+                <span className={`text-xs font-semibold ${BASE_THEME.text.muted} uppercase tracking-wider`}>
                   {category.name}
                 </span>
               </div>
-              
+
               {/* Columns */}
               <div className="py-1">
                 {category.columns.map(col => {
                   const isAlreadyVisible = visibleColumns.includes(col.key);
-                  
+
                   return (
                     <button
                       key={col.key}
@@ -83,15 +84,15 @@ export default function AddColumnDropdown({
                       className={`
                         w-full text-left px-4 py-2 text-sm
                         flex items-center justify-between
-                        ${isAlreadyVisible 
-                          ? 'text-gray-600 cursor-not-allowed' 
-                          : `text-gray-300 hover:bg-gray-800 hover:${theme.text} cursor-pointer`
+                        ${isAlreadyVisible
+                          ? `${BASE_THEME.text.muted} cursor-not-allowed`
+                          : `${BASE_THEME.text.secondary} hover:${BASE_THEME.container.secondary} hover:${theme.text} cursor-pointer`
                         }
                       `}
                     >
                       <span>{col.label}</span>
                       {isAlreadyVisible && (
-                        <span className="text-xs text-gray-600">✓ Added</span>
+                        <span className={`text-xs ${BASE_THEME.text.muted}`}>✓ Added</span>
                       )}
                     </button>
                   );
@@ -101,10 +102,10 @@ export default function AddColumnDropdown({
           );
         })}
       </div>
-      
+
       {/* Footer */}
-      <div className="p-2 border-t border-gray-800 bg-gray-900">
-        <span className="text-xs text-gray-500">
+      <div className={`p-2 border-t ${BASE_THEME.container.secondary} ${BASE_THEME.container.primary}`}>
+        <span className={`text-xs ${BASE_THEME.text.muted}`}>
           {visibleColumns.length} columns visible
         </span>
       </div>

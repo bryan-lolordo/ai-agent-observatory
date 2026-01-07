@@ -35,7 +35,7 @@ export default function ErrorDisplay({
           {onRetry && (
             <button
               onClick={onRetry}
-              className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+              className={`mt-4 px-4 py-2 ${BASE_THEME.status.error.bgSolid} ${BASE_THEME.status.error.bgSolidHover} text-white rounded-lg transition-colors`}
             >
               Retry
             </button>

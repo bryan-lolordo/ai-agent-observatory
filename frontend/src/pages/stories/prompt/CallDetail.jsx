@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 import Layer3Shell from '../../../components/stories/Layer3';
 import { PromptBreakdownBar } from '../../../components/stories/Layer3/shared';
 import { STORY_THEMES } from '../../../config/theme';
+import { BASE_THEME } from '../../../utils/themeUtils';
 import { getFixesForCall } from '../../../config/fixes';
 
 import {
@@ -141,7 +142,7 @@ function PromptCompositionBar({ composition }) {
   return (
     <div className="space-y-3">
       {/* Stacked bar */}
-      <div className="h-8 flex rounded-lg overflow-hidden bg-gray-800">
+      <div className="h-8 flex rounded-lg overflow-hidden ${BASE_THEME.container.tertiary}">
         {components.map((comp) => (
           comp.percentage > 0 && (
             <div
@@ -200,7 +201,7 @@ function CacheReadinessCard({ analysis }) {
       </div>
       
       {analysis.issueReason && (
-        <div className="text-sm text-gray-300 mb-3 p-2 bg-gray-800/50 rounded">
+        <div className="text-sm text-gray-300 mb-3 p-2 ${BASE_THEME.container.tertiary}/50 rounded">
           {analysis.issueReason}
         </div>
       )}
@@ -256,7 +257,7 @@ function ChatHistoryList({ history, maxShow = 8 }) {
   
   if (!history || history.length === 0) {
     return (
-      <div className="text-sm text-gray-500 italic p-4 bg-gray-800/50 rounded-lg">
+      <div className="text-sm text-gray-500 italic p-4 ${BASE_THEME.container.tertiary}/50 rounded-lg">
         No chat history in this call
       </div>
     );
@@ -273,7 +274,7 @@ function ChatHistoryList({ history, maxShow = 8 }) {
           className={`p-3 rounded-lg text-sm ${
             msg.role === 'user' 
               ? 'bg-cyan-500/10 border border-cyan-500/20 ml-4' 
-              : 'bg-gray-800 border border-gray-700 mr-4'
+              : '${BASE_THEME.container.tertiary} border border-gray-700 mr-4'
           }`}
         >
           <div className="flex items-center gap-2 mb-1">
@@ -311,7 +312,7 @@ function MetricsGrid({ items, title }) {
         {items.map((item, idx) => (
           <div 
             key={idx} 
-            className={`p-3 rounded-lg bg-gray-800/50 border border-gray-700 ${
+            className={`p-3 rounded-lg ${BASE_THEME.container.tertiary}/50 border border-gray-700 ${
               item.highlight ? 'border-yellow-500/50' : ''
             }`}
           >

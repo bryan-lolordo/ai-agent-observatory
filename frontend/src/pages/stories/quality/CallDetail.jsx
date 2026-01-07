@@ -12,6 +12,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 
 import Layer3Shell from '../../../components/stories/Layer3';
+import { BASE_THEME } from '../../../utils/themeUtils';
 import { PromptBreakdownBar } from '../../../components/stories/Layer3/shared';
 import { getFixesForCall } from '../../../config/fixes';
 
@@ -36,7 +37,7 @@ function CriteriaBreakdownBar({ criteria }) {
   }
 
   return (
-    <div className="bg-gray-900 rounded-lg p-4 space-y-3">
+    <div className={`${BASE_THEME.container.secondary} rounded-lg p-4 space-y-3`}>
       {criteria.map(c => {
         const pct = (c.score / 10) * 100;
         const color = c.status === 'critical' ? 'red' : c.status === 'warning' ? 'yellow' : 'green';
@@ -65,19 +66,19 @@ function JudgeEvaluationSection({ evaluation }) {
       {reasoning && (
         <div>
           <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">🧠 Judge Reasoning</h4>
-          <div className="bg-gray-900 rounded-lg p-4">
+          <div className={`${BASE_THEME.container.secondary} rounded-lg p-4`}>
             <p className="text-gray-300 text-sm leading-relaxed">{reasoning}</p>
           </div>
         </div>
       )}
       {issues_found?.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">❌ Issues Found</h4>
-          <div className="bg-gray-900 rounded-lg p-4 space-y-2">
+          <h4 className={`text-sm font-medium ${BASE_THEME.text.muted} uppercase tracking-wide mb-2`}>❌ Issues Found</h4>
+          <div className={`${BASE_THEME.container.secondary} rounded-lg p-4 space-y-2`}>
             {issues_found.map((issue, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
-                <span className="text-red-400">•</span>
-                <span className="text-gray-300">{issue}</span>
+                <span className={BASE_THEME.status.error.text}>•</span>
+                <span className={BASE_THEME.text.secondary}>{issue}</span>
               </div>
             ))}
           </div>
@@ -85,12 +86,12 @@ function JudgeEvaluationSection({ evaluation }) {
       )}
       {strengths?.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">✅ Strengths</h4>
-          <div className="bg-gray-900 rounded-lg p-4 space-y-2">
+          <h4 className={`text-sm font-medium ${BASE_THEME.text.muted} uppercase tracking-wide mb-2`}>✅ Strengths</h4>
+          <div className={`${BASE_THEME.container.secondary} rounded-lg p-4 space-y-2`}>
             {strengths.map((s, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
-                <span className="text-green-400">•</span>
-                <span className="text-gray-300">{s}</span>
+                <span className={BASE_THEME.status.success.text}>•</span>
+                <span className={BASE_THEME.text.secondary}>{s}</span>
               </div>
             ))}
           </div>

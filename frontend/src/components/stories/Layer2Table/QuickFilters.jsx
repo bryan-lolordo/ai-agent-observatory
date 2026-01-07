@@ -1,8 +1,10 @@
 /**
  * QuickFilters - Preset filter buttons
- * 
+ *
  * Displays a row of quick filter buttons. Only one can be active at a time.
  */
+
+import { BASE_THEME } from '../../../utils/themeUtils';
 
 export default function QuickFilters({
   filters = [],
@@ -13,10 +15,10 @@ export default function QuickFilters({
   theme,
 }) {
   if (!filters.length) return null;
-  
+
   return (
     <div className="flex items-center gap-3 mb-3">
-      <span className="text-sm text-gray-500 font-semibold w-28 flex-shrink-0">
+      <span className={`text-sm ${BASE_THEME.text.muted} font-semibold w-28 flex-shrink-0`}>
         QUICK FILTERS
       </span>
       <div className="flex flex-wrap gap-2">
@@ -32,7 +34,7 @@ export default function QuickFilters({
                 flex items-center gap-2 transition-all
                 ${isActive
                   ? `${theme.bg} text-white shadow-[0_0_10px_var(--glow-color)]`
-                  : 'bg-gray-800 text-gray-400 border border-gray-700 hover:border-gray-600 hover:text-gray-300'
+                  : `${BASE_THEME.container.secondary} ${BASE_THEME.text.muted} border ${BASE_THEME.border.default} hover:${BASE_THEME.border.light} hover:${BASE_THEME.text.secondary}`
                 }
               `}
               style={{ '--glow-color': `${theme.color}40` }}
@@ -48,7 +50,7 @@ export default function QuickFilters({
       {hasActiveFilters && activeFilter !== 'all' && (
         <button
           onClick={onClearAll}
-          className="px-3 py-2 text-sm text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg transition-colors ml-2"
+          className={`px-3 py-2 text-sm ${BASE_THEME.text.muted} hover:text-white ${BASE_THEME.container.secondary} hover:${BASE_THEME.border.light} border ${BASE_THEME.border.default} rounded-lg transition-colors ml-2`}
         >
           Clear All
         </button>

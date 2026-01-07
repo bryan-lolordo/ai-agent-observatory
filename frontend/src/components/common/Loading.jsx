@@ -1,11 +1,15 @@
 /**
  * Loading Component
- * 
+ *
  * Displays loading states with multiple variants optimized for dark theme.
  * - spinner: Simple spinning loader
  * - skeleton: Skeleton placeholder for content
  * - page: Full-page loading overlay
+ *
+ * UPDATED: Uses BASE_THEME - no hardcoded colors!
  */
+
+import { BASE_THEME } from '../../utils/themeUtils';
 
 /**
  * Spinner variant - Simple rotating circle
@@ -39,7 +43,7 @@ function Skeleton({ className = '', variant = 'rectangle' }) {
 
   return (
     <div
-      className={`animate-pulse bg-gray-800 ${variants[variant]} ${className}`}
+      className={`animate-pulse ${BASE_THEME.container.secondary} ${variants[variant]} ${className}`}
     />
   );
 }
@@ -49,7 +53,7 @@ function Skeleton({ className = '', variant = 'rectangle' }) {
  */
 function CardSkeleton() {
   return (
-    <div className="rounded-lg border border-gray-700 p-6 space-y-4 bg-gray-800">
+    <div className={`rounded-lg border ${BASE_THEME.border.default} p-6 space-y-4 ${BASE_THEME.container.secondary}`}>
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <Skeleton className="w-12 h-12" variant="circle" />
@@ -97,7 +101,7 @@ function TableSkeleton({ rows = 5, columns = 4 }) {
  */
 function KPICardSkeleton() {
   return (
-    <div className="rounded-lg border border-gray-700 p-6 space-y-3 bg-gray-800">
+    <div className={`rounded-lg border ${BASE_THEME.border.default} p-6 space-y-3 ${BASE_THEME.container.secondary}`}>
       <Skeleton className="w-24 h-4" />
       <Skeleton className="w-32 h-8" />
       <Skeleton className="w-20 h-3" />
@@ -110,10 +114,10 @@ function KPICardSkeleton() {
  */
 function PageLoading({ message = 'Loading...' }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950">
+    <div className={`min-h-screen flex items-center justify-center ${BASE_THEME.container.tertiary}`}>
       <div className="text-center space-y-4">
-        <Spinner size="lg" className="mx-auto text-blue-400" />
-        <p className="text-gray-400 text-lg">{message}</p>
+        <Spinner size="lg" className={`mx-auto ${BASE_THEME.status.info.text}`} />
+        <p className={`${BASE_THEME.text.muted} text-lg`}>{message}</p>
       </div>
     </div>
   );
@@ -124,7 +128,7 @@ function PageLoading({ message = 'Loading...' }) {
  */
 function InlineLoading({ text = 'Loading...' }) {
   return (
-    <div className="flex items-center gap-2 text-gray-400">
+    <div className={`flex items-center gap-2 ${BASE_THEME.text.muted}`}>
       <Spinner size="sm" />
       <span className="text-sm">{text}</span>
     </div>
@@ -136,7 +140,7 @@ function InlineLoading({ text = 'Loading...' }) {
  */
 function DashboardSkeleton() {
   return (
-    <div className="min-h-screen bg-gray-950 p-8">
+    <div className={`min-h-screen ${BASE_THEME.container.tertiary} p-8`}>
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
         <div className="space-y-2">
@@ -167,7 +171,7 @@ function DashboardSkeleton() {
  */
 export function StoryPageSkeleton() {
   return (
-    <div className="min-h-screen bg-gray-950 p-8">
+    <div className={`min-h-screen ${BASE_THEME.container.tertiary} p-8`}>
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Breadcrumb */}
         <Skeleton className="w-48 h-5" />
@@ -187,7 +191,7 @@ export function StoryPageSkeleton() {
         </div>
 
         {/* Table */}
-        <div className="rounded-lg border border-gray-700 p-6 bg-gray-800">
+        <div className={`rounded-lg border ${BASE_THEME.border.default} p-6 ${BASE_THEME.container.secondary}`}>
           <Skeleton className="w-48 h-6 mb-6" />
           <TableSkeleton rows={8} columns={6} />
         </div>
@@ -199,12 +203,12 @@ export function StoryPageSkeleton() {
 /**
  * Default export - Basic loading component
  */
-export default function Loading({ 
-  variant = 'spinner', 
+export default function Loading({
+  variant = 'spinner',
   size = 'md',
   fullPage = false,
   message,
-  ...props 
+  ...props
 }) {
   if (fullPage) {
     return <PageLoading message={message} />;

@@ -53,9 +53,11 @@ import {
   Maximize2,
   Bot,
   User,
-  Loader2
+  Loader2,
+  RotateCcw
 } from 'lucide-react';
 import { STORY_THEMES } from '../../config/theme';
+import { BASE_THEME } from '../../utils/themeUtils';
 import { FIX_REPOSITORY, getFixesByCategory } from '../../config/fixes/repository';
 
 // Story icon mapping
@@ -84,21 +86,21 @@ function CodeBlock({ code, language = 'python', maxHeight = '300px', title, toke
   };
 
   return (
-    <div className="rounded-lg border border-gray-700 overflow-hidden">
+    <div className={`rounded-lg border ${BASE_THEME.border.default} overflow-hidden`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-800/80 border-b border-gray-700">
+      <div className={`flex items-center justify-between px-4 py-2 ${BASE_THEME.container.primary} border-b ${BASE_THEME.border.default}`}>
         <div className="flex items-center gap-3">
-          <Code2 className="w-4 h-4 text-gray-400" />
-          <span className="text-sm font-medium text-gray-300">{title}</span>
+          <Code2 className={`w-4 h-4 ${BASE_THEME.text.muted}`} />
+          <span className={`text-sm font-medium ${BASE_THEME.text.secondary}`}>{title}</span>
           {tokens && (
-            <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400">
+            <span className={`text-xs px-2 py-0.5 rounded ${BASE_THEME.container.tertiary} ${BASE_THEME.text.muted}`}>
               {tokens.toLocaleString()} tokens
             </span>
           )}
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors"
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs ${BASE_THEME.text.muted} hover:${BASE_THEME.text.primary} transition-colors`}
         >
           {copied ? (
             <>
@@ -116,10 +118,10 @@ function CodeBlock({ code, language = 'python', maxHeight = '300px', title, toke
 
       {/* Code Content */}
       <div
-        className="overflow-auto bg-gray-900/50"
+        className={`overflow-auto ${BASE_THEME.container.primary}`}
         style={{ maxHeight }}
       >
-        <pre className="p-4 text-sm font-mono text-gray-300 whitespace-pre-wrap">
+        <pre className={`p-4 text-sm font-mono ${BASE_THEME.text.secondary} whitespace-pre-wrap`}>
           {code || 'No code available'}
         </pre>
       </div>
@@ -138,19 +140,19 @@ function IssueCard({ issue, onClick }) {
   return (
     <div
       onClick={onClick}
-      className={`p-4 rounded-lg border border-gray-700 cursor-pointer transition-all hover:border-gray-500 ${storyConfig.bg}`}
+      className={`p-4 rounded-lg border ${BASE_THEME.border.default} cursor-pointer transition-all ${BASE_THEME.state.hover} ${storyConfig.bg}`}
     >
       <div className="flex items-start gap-3">
-        <div className={`p-2 rounded-lg bg-gray-800 ${storyConfig.color}`}>
+        <div className={`p-2 rounded-lg ${BASE_THEME.container.tertiary} ${storyConfig.color}`}>
           <Icon className="w-4 h-4" />
         </div>
         <div className="flex-1 min-w-0">
           <div className={`font-medium ${storyConfig.color}`}>{issue.title}</div>
-          <div className="text-sm text-gray-400 mt-1">{issue.description}</div>
+          <div className={`text-sm ${BASE_THEME.text.muted} mt-1`}>{issue.description}</div>
           {issue.metrics && (
             <div className="flex flex-wrap gap-2 mt-2">
               {issue.metrics.map((metric, i) => (
-                <span key={i} className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-300">
+                <span key={i} className={`text-xs px-2 py-0.5 rounded ${BASE_THEME.container.tertiary} ${BASE_THEME.text.secondary}`}>
                   {metric}
                 </span>
               ))}
@@ -185,25 +187,25 @@ function FixCard({ fix, operationData, expanded, onToggle }) {
   }, [fix, operationData]);
 
   return (
-    <div className="rounded-lg border border-gray-700 overflow-hidden bg-gray-900/30">
+    <div className={`rounded-lg border ${BASE_THEME.border.default} overflow-hidden ${BASE_THEME.container.primary}`}>
       {/* Fix Header */}
       <div
         onClick={onToggle}
-        className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+        className={`flex items-center justify-between p-4 cursor-pointer ${BASE_THEME.state.hover} transition-colors`}
       >
         <div className="flex items-center gap-3">
           {expanded ? (
-            <ChevronDown className="w-4 h-4 text-gray-500" />
+            <ChevronDown className={`w-4 h-4 ${BASE_THEME.text.muted}`} />
           ) : (
-            <ChevronRight className="w-4 h-4 text-gray-500" />
+            <ChevronRight className={`w-4 h-4 ${BASE_THEME.text.muted}`} />
           )}
           <div>
-            <div className="font-medium text-gray-200">{fix.title}</div>
-            <div className="text-sm text-gray-500">{fix.subtitle}</div>
+            <div className={`font-medium ${BASE_THEME.text.primary}`}>{fix.title}</div>
+            <div className={`text-sm ${BASE_THEME.text.muted}`}>{fix.subtitle}</div>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className={`text-xs px-2 py-0.5 rounded ${fix.effortColor} bg-gray-800`}>
+          <span className={`text-xs px-2 py-0.5 rounded ${fix.effortColor} ${BASE_THEME.container.tertiary}`}>
             {fix.effort} Effort
           </span>
           {/* Show potential savings from metrics */}
@@ -217,16 +219,16 @@ function FixCard({ fix, operationData, expanded, onToggle }) {
 
       {/* Expanded Content */}
       {expanded && (
-        <div className="border-t border-gray-700 p-4 space-y-4">
+        <div className={`border-t ${BASE_THEME.border.default} p-4 space-y-4`}>
           {/* Metrics Preview */}
           {generatedMetrics.length > 0 && (
             <div className="grid grid-cols-3 gap-4">
               {generatedMetrics.map((metric, i) => (
-                <div key={i} className="p-3 rounded bg-gray-800/50 text-center">
-                  <div className="text-xs text-gray-500 uppercase">{metric.label}</div>
+                <div key={i} className={`p-3 rounded ${BASE_THEME.container.tertiary} text-center`}>
+                  <div className={`text-xs ${BASE_THEME.text.muted} uppercase`}>{metric.label}</div>
                   <div className="flex items-center justify-center gap-2 mt-1">
-                    <span className="text-gray-400 line-through text-sm">{metric.before}</span>
-                    <ArrowRight className="w-3 h-3 text-gray-600" />
+                    <span className={`${BASE_THEME.text.muted} line-through text-sm`}>{metric.before}</span>
+                    <ArrowRight className={`w-3 h-3 ${BASE_THEME.text.muted}`} />
                     <span className="text-green-400 font-medium">{metric.after}</span>
                   </div>
                   {metric.changePercent !== 0 && (
@@ -259,7 +261,7 @@ function FixCard({ fix, operationData, expanded, onToggle }) {
                   <span className="w-2 h-2 rounded-full bg-red-500"></span>
                   Before
                 </div>
-                <pre className="p-3 rounded bg-gray-950 border border-red-900/30 text-sm font-mono text-gray-400 overflow-auto max-h-48">
+                <pre className={`p-3 rounded ${BASE_THEME.container.tertiary} border border-red-900/30 text-sm font-mono ${BASE_THEME.text.muted} overflow-auto max-h-48`}>
                   {generatedCode.before}
                 </pre>
               </div>
@@ -268,7 +270,7 @@ function FixCard({ fix, operationData, expanded, onToggle }) {
                   <span className="w-2 h-2 rounded-full bg-green-500"></span>
                   After
                 </div>
-                <pre className="p-3 rounded bg-gray-950 border border-green-900/30 text-sm font-mono text-gray-300 overflow-auto max-h-48">
+                <pre className={`p-3 rounded ${BASE_THEME.container.tertiary} border border-green-900/30 text-sm font-mono ${BASE_THEME.text.secondary} overflow-auto max-h-48`}>
                   {generatedCode.after}
                 </pre>
               </div>
@@ -278,10 +280,10 @@ function FixCard({ fix, operationData, expanded, onToggle }) {
           {/* Benefits & Tradeoffs */}
           <div className="grid grid-cols-2 gap-4 pt-2">
             <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Benefits</div>
+              <div className={`text-xs ${BASE_THEME.text.muted} uppercase tracking-wide mb-2`}>Benefits</div>
               <ul className="space-y-1">
                 {fix.benefits?.slice(0, 3).map((b, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-400">
+                  <li key={i} className={`flex items-start gap-2 text-sm ${BASE_THEME.text.muted}`}>
                     <Check className="w-3.5 h-3.5 text-green-500 mt-0.5 flex-shrink-0" />
                     {b}
                   </li>
@@ -289,10 +291,10 @@ function FixCard({ fix, operationData, expanded, onToggle }) {
               </ul>
             </div>
             <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Tradeoffs</div>
+              <div className={`text-xs ${BASE_THEME.text.muted} uppercase tracking-wide mb-2`}>Tradeoffs</div>
               <ul className="space-y-1">
                 {fix.tradeoffs?.slice(0, 3).map((t, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-400">
+                  <li key={i} className={`flex items-start gap-2 text-sm ${BASE_THEME.text.muted}`}>
                     <AlertTriangle className="w-3.5 h-3.5 text-yellow-500 mt-0.5 flex-shrink-0" />
                     {t}
                   </li>
@@ -530,30 +532,113 @@ function FeedbackChatBot({ operation, operationData, systemPrompt, issues }) {
     );
   }
 
+  // Helper to render markdown-like content with code blocks
+  const renderMessageContent = (content) => {
+    // Split by code blocks (```...```)
+    const parts = content.split(/(```[\s\S]*?```)/g);
+
+    return parts.map((part, i) => {
+      // Check if this is a code block
+      if (part.startsWith('```') && part.endsWith('```')) {
+        // Extract language and code
+        const lines = part.slice(3, -3).split('\n');
+        const language = lines[0].trim();
+        const code = lines.slice(1).join('\n').trim() || lines.join('\n').trim();
+
+        return (
+          <div key={i} className="my-2 rounded-lg overflow-hidden border border-gray-600">
+            {language && (
+              <div className="px-3 py-1 bg-gray-800 text-xs text-gray-400 border-b border-gray-600">
+                {language}
+              </div>
+            )}
+            <pre className="p-3 bg-gray-900 text-gray-200 text-xs overflow-x-auto">
+              <code>{code}</code>
+            </pre>
+          </div>
+        );
+      }
+
+      // Regular text - handle bold (**text**) and headers (### text)
+      return (
+        <span key={i}>
+          {part.split('\n').map((line, lineIdx) => {
+            // Check for headers
+            if (line.startsWith('### ')) {
+              return (
+                <div key={lineIdx} className="font-semibold text-cyan-400 mt-2 mb-1">
+                  {line.slice(4)}
+                </div>
+              );
+            }
+            if (line.startsWith('## ')) {
+              return (
+                <div key={lineIdx} className="font-bold text-white mt-2 mb-1">
+                  {line.slice(3)}
+                </div>
+              );
+            }
+
+            // Handle bold text
+            const boldParts = line.split(/(\*\*.*?\*\*)/g);
+            return (
+              <div key={lineIdx}>
+                {boldParts.map((boldPart, boldIdx) => {
+                  if (boldPart.startsWith('**') && boldPart.endsWith('**')) {
+                    return <strong key={boldIdx}>{boldPart.slice(2, -2)}</strong>;
+                  }
+                  // Handle inline code (`code`)
+                  const inlineParts = boldPart.split(/(`[^`]+`)/g);
+                  return inlineParts.map((inlinePart, inlineIdx) => {
+                    if (inlinePart.startsWith('`') && inlinePart.endsWith('`')) {
+                      return (
+                        <code key={inlineIdx} className="px-1 py-0.5 bg-gray-800 rounded text-cyan-300 text-xs">
+                          {inlinePart.slice(1, -1)}
+                        </code>
+                      );
+                    }
+                    return inlinePart;
+                  });
+                })}
+              </div>
+            );
+          })}
+        </span>
+      );
+    });
+  };
+
   // Chat panel
   return (
     <div
-      className={`fixed bottom-6 right-6 flex flex-col bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 transition-all ${
-        isExpanded ? 'w-[600px] h-[500px]' : 'w-[400px] h-[400px]'
+      className={`fixed bottom-6 right-6 flex flex-col ${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-xl shadow-2xl z-50 transition-all ${
+        isExpanded ? 'w-[700px] h-[600px]' : 'w-[500px] h-[450px]'
       }`}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gradient-to-r from-cyan-600/20 to-blue-600/20 rounded-t-xl">
         <div className="flex items-center gap-2">
           <Bot className="w-5 h-5 text-cyan-400" />
-          <span className="font-medium text-gray-200">Optimization Assistant</span>
+          <span className="font-medium text-white">Optimization Assistant</span>
         </div>
         <div className="flex items-center gap-1">
           <button
+            onClick={() => setMessages([])}
+            className="p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+            title="Clear chat"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
+            className="p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
             title={isExpanded ? 'Minimize' : 'Expand'}
           >
             {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
           <button
             onClick={() => setIsOpen(false)}
-            className="p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
+            className="p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
             title="Close"
           >
             <X className="w-4 h-4" />
@@ -577,15 +662,13 @@ function FeedbackChatBot({ operation, operationData, systemPrompt, issues }) {
                 <Bot className="w-4 h-4 text-white" />
               )}
             </div>
-            <div className={`max-w-[80%] rounded-lg px-3 py-2 ${
+            <div className={`max-w-[85%] rounded-lg px-3 py-2 ${
               msg.role === 'user'
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-800 text-gray-200'
+                : 'bg-gray-700 text-gray-100'
             }`}>
-              <div className="text-sm whitespace-pre-wrap">
-                {msg.content.split('**').map((part, j) =>
-                  j % 2 === 1 ? <strong key={j}>{part}</strong> : part
-                )}
+              <div className="text-sm">
+                {msg.role === 'user' ? msg.content : renderMessageContent(msg.content)}
               </div>
             </div>
           </div>
@@ -596,7 +679,7 @@ function FeedbackChatBot({ operation, operationData, systemPrompt, issues }) {
             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-cyan-600 flex items-center justify-center">
               <Bot className="w-4 h-4 text-white" />
             </div>
-            <div className="bg-gray-800 rounded-lg px-3 py-2">
+            <div className={`${BASE_THEME.container.tertiary} rounded-lg px-3 py-2`}>
               <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
             </div>
           </div>
@@ -616,7 +699,7 @@ function FeedbackChatBot({ operation, operationData, systemPrompt, issues }) {
                   setInput(action.query);
                   setTimeout(() => handleSend(), 100);
                 }}
-                className="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors"
+                className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-400 hover:text-white hover:bg-gray-600 transition-colors"
               >
                 {action.label}
               </button>
@@ -635,7 +718,7 @@ function FeedbackChatBot({ operation, operationData, systemPrompt, issues }) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask about this operation..."
-            className="flex-1 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500 text-sm"
+            className="flex-1 px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-gray-100 placeholder:text-gray-500 focus:outline-none focus:border-cyan-500 text-sm"
             disabled={isLoading}
           />
           <button
@@ -711,23 +794,23 @@ export default function CodeCentricView({
       {/* Operation Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-100 font-mono">{operation}</h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <h2 className="text-xl font-semibold ${BASE_THEME.text.primary} font-mono">{operation}</h2>
+          <p className="text-sm ${BASE_THEME.text.muted} mt-1">
             Code-centric view - Your operation code with related issues and fixes
           </p>
         </div>
         {stats && (
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <div className="text-sm text-gray-500">Calls</div>
-              <div className="text-lg font-medium text-gray-200">{stats.totalCalls}</div>
+              <div className="text-sm ${BASE_THEME.text.muted}">Calls</div>
+              <div className="text-lg font-medium ${BASE_THEME.text.primary}">{stats.totalCalls}</div>
             </div>
             <div className="text-right">
-              <div className="text-sm text-gray-500">Total Cost</div>
+              <div className="text-sm ${BASE_THEME.text.muted}">Total Cost</div>
               <div className="text-lg font-medium text-green-400">${stats.totalCost.toFixed(2)}</div>
             </div>
             <div className="text-right">
-              <div className="text-sm text-gray-500">Avg Latency</div>
+              <div className="text-sm ${BASE_THEME.text.muted}">Avg Latency</div>
               <div className="text-lg font-medium text-orange-400">{(stats.avgLatency / 1000).toFixed(1)}s</div>
             </div>
           </div>
@@ -739,7 +822,7 @@ export default function CodeCentricView({
       {/* ═══════════════════════════════════════════════════════════════════════ */}
 
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-sm text-gray-400">
+        <div className="flex items-center gap-2 text-sm ${BASE_THEME.text.muted}">
           <Code2 className="w-4 h-4" />
           <span className="uppercase tracking-wide">Your Operation Code</span>
           {loadingPrompt && (
@@ -751,12 +834,12 @@ export default function CodeCentricView({
         </div>
 
         {loadingPrompt ? (
-          <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-8">
+          <div className="rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.secondary}/50 p-8">
             <div className="animate-pulse space-y-3">
-              <div className="h-4 bg-gray-700 rounded w-3/4"></div>
-              <div className="h-4 bg-gray-700 rounded w-1/2"></div>
-              <div className="h-4 bg-gray-700 rounded w-5/6"></div>
-              <div className="h-4 bg-gray-700 rounded w-2/3"></div>
+              <div className="h-4 ${BASE_THEME.border.default} rounded w-3/4"></div>
+              <div className="h-4 ${BASE_THEME.border.default} rounded w-1/2"></div>
+              <div className="h-4 ${BASE_THEME.border.default} rounded w-5/6"></div>
+              <div className="h-4 ${BASE_THEME.border.default} rounded w-2/3"></div>
             </div>
           </div>
         ) : systemPrompt ? (
@@ -767,10 +850,10 @@ export default function CodeCentricView({
             maxHeight="350px"
           />
         ) : (
-          <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-8 text-center">
-            <Code2 className="w-8 h-8 text-gray-600 mx-auto mb-3" />
-            <p className="text-gray-500">No system prompt found for this operation</p>
-            <p className="text-xs text-gray-600 mt-1">
+          <div className={`rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.secondary}/50 p-8 text-center`}>
+            <Code2 className={`w-8 h-8 ${BASE_THEME.text.muted} mx-auto mb-3`} />
+            <p className={BASE_THEME.text.muted}>No system prompt found for this operation</p>
+            <p className={`text-xs ${BASE_THEME.text.muted} mt-1`}>
               The calls for this operation may not have a system prompt stored
             </p>
           </div>
@@ -783,7 +866,7 @@ export default function CodeCentricView({
 
       {issues.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm text-gray-400">
+          <div className="flex items-center gap-2 text-sm ${BASE_THEME.text.muted}">
             <AlertTriangle className="w-4 h-4 text-yellow-500" />
             <span className="uppercase tracking-wide">Issues Detected</span>
             <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
@@ -809,7 +892,7 @@ export default function CodeCentricView({
 
       {applicableFixes.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm text-gray-400">
+          <div className="flex items-center gap-2 text-sm ${BASE_THEME.text.muted}">
             <Zap className="w-4 h-4 text-cyan-500" />
             <span className="uppercase tracking-wide">Fixes for This Code</span>
             <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400">
@@ -833,10 +916,10 @@ export default function CodeCentricView({
 
       {/* Empty State */}
       {issues.length === 0 && (
-        <div className="p-8 text-center rounded-lg border border-gray-700 bg-gray-900/30">
-          <Check className="w-8 h-8 text-green-500 mx-auto mb-3" />
-          <div className="text-gray-300 font-medium">No Issues Detected</div>
-          <div className="text-sm text-gray-500 mt-1">
+        <div className={`p-8 text-center rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.secondary}/30`}>
+          <Check className={`w-8 h-8 ${BASE_THEME.status.success.text} mx-auto mb-3`} />
+          <div className={`${BASE_THEME.text.secondary} font-medium`}>No Issues Detected</div>
+          <div className={`text-sm ${BASE_THEME.text.muted} mt-1`}>
             This operation looks well-optimized!
           </div>
         </div>

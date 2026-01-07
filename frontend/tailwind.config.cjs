@@ -57,6 +57,28 @@ module.exports = {
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
+  			},
+  			// Numerro Theme - Custom Observatory Colors
+  			// Using rgb() format to support Tailwind opacity modifiers like /20, /50 etc.
+  			numerro: {
+  				bg: {
+  					primary: 'rgb(30 30 30)',      // #1E1E1E
+  					secondary: 'rgb(36 36 36)',    // #242424
+  					tertiary: 'rgb(43 43 43)',     // #2B2B2B
+  				},
+  				text: {
+  					primary: 'rgb(237 237 237)',   // #EDEDED
+  					secondary: 'rgb(199 199 199)', // #C7C7C7
+  					muted: 'rgb(156 163 175)',     // #9CA3AF
+  				},
+  				border: {
+  					DEFAULT: 'rgb(52 52 52)',      // #343434
+  					light: 'rgb(64 64 64)',        // #404040
+  				},
+  				success: 'rgb(34 197 94)',         // #22c55e
+  				warning: 'rgb(245 158 11)',        // #f59e0b
+  				error: 'rgb(239 68 68)',           // #ef4444
+  				info: 'rgb(59 130 246)',           // #3b82f6
   			}
   		},
   		borderRadius: {

@@ -17,6 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import { STORY_THEMES } from '../../../config/theme';
 import { ALL_COLUMNS, getColumn, getColumnsByCategory } from '../../../config/columnDefinitions';
 import { getLayer2Config } from '../../../config/storyDefinitions';
+import { BASE_THEME } from '../../../utils/themeUtils';
 
 // Sub-components
 import QuickFilters from './QuickFilters';
@@ -373,7 +374,7 @@ export default function Layer2Table({
   const columnDefs = visibleColumns.map(key => getColumn(key)).filter(Boolean);
   
   return (
-    <div className="bg-gray-900 rounded-xl border border-gray-700 overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.3)]">
+    <div className={`${BASE_THEME.container.primary} rounded-xl border ${BASE_THEME.border.default} overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.3)]`}>
       
       {/* ═══════════════════════════════════════════════════════════════════════
           HEADER SECTION
@@ -403,19 +404,19 @@ export default function Layer2Table({
         
         {/* Active Filters Display */}
         <div className="flex items-center gap-2 mt-3 min-h-[32px]">
-          <span className="text-xs text-gray-500">Active:</span>
+          <span className={`text-xs ${BASE_THEME.text.muted}`}>Active:</span>
           {activeFilters.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {activeFilters.map((filter, idx) => (
                 <span
                   key={`${filter.columnKey}-${filter.value}-${idx}`}
-                  className="px-2 py-1 rounded-lg text-xs bg-gray-800 text-gray-300 border border-gray-700 flex items-center gap-1"
+                  className={`px-2 py-1 rounded-lg text-xs ${BASE_THEME.container.secondary} ${BASE_THEME.text.secondary} border ${BASE_THEME.border.default} flex items-center gap-1`}
                 >
-                  <span className="text-gray-500">{filter.columnLabel}:</span>
+                  <span className={BASE_THEME.text.muted}>{filter.columnLabel}:</span>
                   <span>{filter.displayValue}</span>
                   <button
                     onClick={() => handleRemoveFilter(filter.columnKey, filter.value)}
-                    className="ml-1 text-gray-500 hover:text-gray-300"
+                    className={`ml-1 ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary}`}
                   >
                     ✕
                   </button>
@@ -423,7 +424,7 @@ export default function Layer2Table({
               ))}
             </div>
           ) : (
-            <span className="text-xs text-gray-600 italic">No filters applied</span>
+            <span className={`text-xs ${BASE_THEME.text.muted} italic`}>No filters applied</span>
           )}
         </div>
       </div>
@@ -444,15 +445,15 @@ export default function Layer2Table({
           ═══════════════════════════════════════════════════════════════════════ */}
       <div className={`overflow-x-auto min-h-[400px] story-scrollbar-thin ${storyId}`}>
         <table className="w-full text-lg">
-          
+
           {/* Table Header */}
-          <thead className="bg-gray-800">
+          <thead className={BASE_THEME.container.secondary}>
             {/* Drag mode indicator */}
             {draggedColumn && (
               <tr>
                 <td
                   colSpan={columnDefs.length + 1}
-                  className="py-1 text-center text-xs text-gray-400 border-b border-gray-700"
+                  className={`py-1 text-center text-xs ${BASE_THEME.text.muted} border-b ${BASE_THEME.border.default}`}
                   style={{ backgroundColor: `${theme.color}15` }}
                 >
                   <span className="animate-pulse">
@@ -461,7 +462,7 @@ export default function Layer2Table({
                 </td>
               </tr>
             )}
-            <tr className="border-b border-gray-700">
+            <tr className={`border-b ${BASE_THEME.border.default}`}>
               {columnDefs.map((col, idx) => (
                 <ColumnHeader
                   key={col.key}
@@ -493,7 +494,7 @@ export default function Layer2Table({
               <th className="py-3 px-2 w-12 relative">
                 <button
                   onClick={() => setShowAddColumn(!showAddColumn)}
-                  className="w-8 h-8 rounded-lg bg-gray-700 text-gray-400 hover:text-white hover:bg-gray-600 flex items-center justify-center text-lg font-bold transition-colors"
+                  className={`w-8 h-8 rounded-lg ${BASE_THEME.border.light} ${BASE_THEME.text.muted} hover:text-white hover:${BASE_THEME.border.default} flex items-center justify-center text-lg font-bold transition-colors`}
                 >
                   +
                 </button>
@@ -515,10 +516,10 @@ export default function Layer2Table({
             {loading ? (
               // Loading skeleton
               Array.from({ length: 5 }).map((_, idx) => (
-                <tr key={idx} className="border-b border-gray-800">
+                <tr key={idx} className="border-b border-numerro-border/20">
                   {columnDefs.map(col => (
                     <td key={col.key} className="py-3 px-4">
-                      <div className="h-4 bg-gray-800 rounded animate-pulse" />
+                      <div className={`h-4 ${BASE_THEME.container.secondary} rounded animate-pulse`} />
                     </td>
                   ))}
                   <td className="py-3 px-2" />
@@ -539,7 +540,7 @@ export default function Layer2Table({
               ))
             ) : (
               <tr>
-                <td colSpan={columnDefs.length + 1} className="py-12 text-center text-gray-500">
+                <td colSpan={columnDefs.length + 1} className={`py-12 text-center ${BASE_THEME.text.muted}`}>
                   No data matching current filters
                 </td>
               </tr>
@@ -551,7 +552,7 @@ export default function Layer2Table({
       {/* ═══════════════════════════════════════════════════════════════════════
           FOOTER WITH PAGINATION
           ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="bg-gray-800/50 px-4 py-3 text-sm text-gray-500 flex justify-between items-center border-t border-gray-700">
+      <div className={`${BASE_THEME.container.secondary}/50 px-4 py-3 text-sm ${BASE_THEME.text.muted} flex justify-between items-center border-t ${BASE_THEME.border.default}`}>
         {/* Left: Count info */}
         <span>
           Showing <span className={`font-semibold ${theme.text}`}>
@@ -564,7 +565,7 @@ export default function Layer2Table({
               </span>
             </>
           )}
-          {' '}of <span className="text-gray-300">{processedData.length}</span>
+          {' '}of <span className={BASE_THEME.text.secondary}>{processedData.length}</span>
           {processedData.length !== data.length && (
             <> (filtered from {data.length})</>
           )} calls
@@ -579,8 +580,8 @@ export default function Layer2Table({
               disabled={currentPage === 1}
               className={`px-3 py-1.5 rounded-lg transition-colors ${
                 currentPage === 1
-                  ? 'text-gray-600 cursor-not-allowed'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  ? `${BASE_THEME.text.muted} cursor-not-allowed`
+                  : `${BASE_THEME.text.muted} hover:text-white hover:${BASE_THEME.border.light}`
               }`}
             >
               ← Prev
@@ -590,7 +591,7 @@ export default function Layer2Table({
             <div className="flex items-center gap-1 mx-2">
               {getPageNumbers().map((page, idx) => (
                 page === '...' ? (
-                  <span key={`ellipsis-${idx}`} className="px-2 text-gray-600">...</span>
+                  <span key={`ellipsis-${idx}`} className={`px-2 ${BASE_THEME.text.muted}`}>...</span>
                 ) : (
                   <button
                     key={page}
@@ -598,7 +599,7 @@ export default function Layer2Table({
                     className={`min-w-[36px] px-2 py-1.5 rounded-lg transition-colors ${
                       currentPage === page
                         ? `${theme.bg} text-white font-semibold`
-                        : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                        : `${BASE_THEME.text.muted} hover:text-white hover:${BASE_THEME.border.light}`
                     }`}
                   >
                     {page}
@@ -613,8 +614,8 @@ export default function Layer2Table({
               disabled={currentPage === totalPages}
               className={`px-3 py-1.5 rounded-lg transition-colors ${
                 currentPage === totalPages
-                  ? 'text-gray-600 cursor-not-allowed'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  ? `${BASE_THEME.text.muted} cursor-not-allowed`
+                  : `${BASE_THEME.text.muted} hover:text-white hover:${BASE_THEME.border.light}`
               }`}
             >
               Next →
@@ -626,7 +627,7 @@ export default function Layer2Table({
         <div className="flex items-center gap-4">
           {/* Page size selector */}
           <div className="flex items-center gap-2">
-            <span className="text-gray-500">Show:</span>
+            <span className={BASE_THEME.text.muted}>Show:</span>
             {[20, 50, 100].map(size => (
               <button
                 key={size}
@@ -637,7 +638,7 @@ export default function Layer2Table({
                 className={`px-2 py-1 rounded transition-colors ${
                   pageSize === size
                     ? `${theme.bg} text-white font-semibold`
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                    : `${BASE_THEME.text.muted} hover:text-white hover:${BASE_THEME.border.light}`
                 }`}
               >
                 {size}
@@ -645,11 +646,11 @@ export default function Layer2Table({
             ))}
           </div>
 
-          <span className="text-gray-600">|</span>
+          <span className={BASE_THEME.text.muted}>|</span>
           <span>{visibleColumns.length} columns</span>
           {sortConfig.key && (
             <>
-              <span className="text-gray-600">|</span>
+              <span className={BASE_THEME.text.muted}>|</span>
               <span>
                 Sort: {getColumn(sortConfig.key)?.label} {sortConfig.direction === 'desc' ? '↓' : '↑'}
               </span>

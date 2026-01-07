@@ -443,7 +443,7 @@ export default function TraceTree({ callId, conversationId }) {
             return (
               <div key={turn.turn_number} className={`border ${BASE_THEME.border.default} rounded-lg overflow-hidden ${BASE_THEME.container.primary}`}>
                 {/* Turn header */}
-                <div className={`bg-gradient-to-r from-gray-800 to-gray-900 px-3 py-3 border-b ${BASE_THEME.border.default}`}>
+                <div className={`${BASE_THEME.container.secondary} px-3 py-3 border-b ${BASE_THEME.border.default}`}>
                   <div className="flex items-center gap-2">
                     {/* Left side - matches the spacing of grouped calls */}
                     <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -504,7 +504,7 @@ export default function TraceTree({ callId, conversationId }) {
               This Call Only
             </button>
             <button
-              className={`px-4 py-2 rounded-t font-medium ${BASE_THEME.container.secondary} ${BASE_THEME.text.secondary} hover:bg-gray-700`}
+              className={`px-4 py-2 rounded-t font-medium ${BASE_THEME.container.secondary} ${BASE_THEME.text.secondary} hover:${BASE_THEME.container.tertiary}`}
               onClick={() => {
                 window.location.href = `/api/calls/conversations/${trace.root_call.conversation_id}/tree`;
               }}

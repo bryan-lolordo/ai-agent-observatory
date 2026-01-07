@@ -120,7 +120,7 @@ function MessageBlock({
               e.stopPropagation();
               handleCopy();
             }}
-            className={`px-3 py-1 ${BASE_THEME.container.secondary} hover:bg-gray-600 ${BASE_THEME.text.secondary} rounded text-xs transition-colors`}
+            className={`px-3 py-1 ${BASE_THEME.container.secondary} hover:${BASE_THEME.container.tertiary} ${BASE_THEME.text.secondary} rounded text-xs transition-colors`}
           >
             Copy Text
           </button>
@@ -278,7 +278,7 @@ export default function CacheablePromptView({
   return (
     <div className="space-y-6">
       {/* Summary Stats */}
-      <div className={`bg-gradient-to-r from-gray-800 to-gray-900 p-5 rounded-lg border ${BASE_THEME.border.default}`}>
+      <div className={`${BASE_THEME.container.secondary} p-5 rounded-lg border ${BASE_THEME.border.default}`}>
         <h3 className={`text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide mb-4`}>
           📊 Prompt Structure Overview
         </h3>

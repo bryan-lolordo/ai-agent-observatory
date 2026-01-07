@@ -1,11 +1,14 @@
 /**
  * StatusBadge Component
- * 
+ *
  * Displays status indicators (🔴🟡🟢) or text badges.
  * Used in tables and story headers.
+ *
+ * UPDATED: Uses BASE_THEME - no hardcoded colors!
  */
 
 import { Badge } from '../ui/badge';
+import { BASE_THEME } from '../../utils/themeUtils';
 
 /**
  * @param {object} props
@@ -68,14 +71,15 @@ export default function StatusBadge({
 
 /**
  * HealthScore Component
- * 
+ *
  * Displays health score with color coding
+ * Uses BASE_THEME.status for colors
  */
 export function HealthScore({ score, showLabel = true, className = '' }) {
   const getColor = (score) => {
-    if (score >= 80) return 'text-green-400';
-    if (score >= 50) return 'text-yellow-400';
-    return 'text-red-400';
+    if (score >= 80) return BASE_THEME.status.success.text;
+    if (score >= 50) return BASE_THEME.status.warning.text;
+    return BASE_THEME.status.error.text;
   };
 
   const getStatus = (score) => {
@@ -90,7 +94,7 @@ export function HealthScore({ score, showLabel = true, className = '' }) {
         {Math.round(score)}
       </span>
       {showLabel && (
-        <span className="text-sm text-gray-400">
+        <span className={`text-sm ${BASE_THEME.text.muted}`}>
           / 100 {getStatus(score)}
         </span>
       )}

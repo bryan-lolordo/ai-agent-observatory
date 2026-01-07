@@ -19,32 +19,32 @@ import { STORY_THEMES } from '../config/theme';
 // Change these once to update your entire app's base color scheme
 
 export const BASE_THEME = {
-  // Container colors
+  // Container colors (Numerro palette)
   container: {
-    primary: 'bg-gray-900',      // Main card backgrounds
-    secondary: 'bg-gray-800',    // Nested/hover backgrounds
-    tertiary: 'bg-gray-950',     // Page background
+    primary: 'bg-numerro-bg-secondary',   // Main card backgrounds (#242424)
+    secondary: 'bg-numerro-bg-tertiary',  // Nested/hover backgrounds (#2B2B2B)
+    tertiary: 'bg-numerro-bg-primary',    // Page background (#1E1E1E)
   },
-  
-  // Border colors
+
+  // Border colors (Numerro palette)
   border: {
-    default: 'border-gray-700',  // Standard borders
-    light: 'border-gray-600',    // Lighter variant
-    hover: 'border-gray-600',    // Hover state
+    default: 'border-numerro-border',       // Standard borders (#343434)
+    light: 'border-numerro-border-light',   // Lighter variant (#404040)
+    hover: 'border-numerro-border-light',   // Hover state (#404040)
   },
-  
-  // Text colors
+
+  // Text colors (Numerro palette)
   text: {
-    primary: 'text-gray-100',    // Main text
-    secondary: 'text-gray-300',  // Secondary text
-    muted: 'text-gray-500',      // Muted/helper text
+    primary: 'text-numerro-text-primary',     // Main text (#EDEDED)
+    secondary: 'text-numerro-text-secondary', // Secondary text (#C7C7C7)
+    muted: 'text-numerro-text-muted',         // Muted/helper text (#9CA3AF)
   },
   
-  // State colors
+  // State colors (Numerro palette)
   state: {
-    hover: 'hover:bg-gray-800/50',
-    active: 'bg-gray-800',
-    disabled: 'bg-gray-800/30',
+    hover: 'hover:bg-numerro-bg-tertiary/50',
+    active: 'bg-numerro-bg-tertiary',
+    disabled: 'bg-numerro-bg-tertiary/30',
   },
   
   // Status colors (for alerts, badges, notifications)
@@ -55,6 +55,8 @@ export const BASE_THEME = {
       text: 'text-red-400',
       textBold: 'text-red-400',
       hover: 'hover:bg-red-900/30',
+      bgSolid: 'bg-red-600',
+      bgSolidHover: 'hover:bg-red-700',
     },
     warning: {
       bg: 'bg-yellow-900/20',
@@ -62,6 +64,8 @@ export const BASE_THEME = {
       text: 'text-yellow-400',
       textBold: 'text-yellow-400',
       hover: 'hover:bg-yellow-900/30',
+      bgSolid: 'bg-yellow-600',
+      bgSolidHover: 'hover:bg-yellow-700',
     },
     success: {
       bg: 'bg-green-900/20',
@@ -69,6 +73,8 @@ export const BASE_THEME = {
       text: 'text-green-400',
       textBold: 'text-green-400',
       hover: 'hover:bg-green-900/30',
+      bgSolid: 'bg-green-600',
+      bgSolidHover: 'hover:bg-green-700',
     },
     info: {
       bg: 'bg-blue-900/20',
@@ -76,6 +82,8 @@ export const BASE_THEME = {
       text: 'text-blue-400',
       textBold: 'text-blue-400',
       hover: 'hover:bg-blue-900/30',
+      bgSolid: 'bg-blue-600',
+      bgSolidHover: 'hover:bg-blue-700',
     },
   },
 };

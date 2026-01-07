@@ -227,90 +227,90 @@ export const getRowHoverStyle = (theme) => ({
 });
 
 // =============================================================================
-// CHART CONFIGURATION
+// CHART CONFIGURATION - Numerro Theme
 // =============================================================================
 
 export const CHART_CONFIG = {
   // Grid styling
   grid: {
     strokeDasharray: '3 3',
-    stroke: '#374151', // gray-700
+    stroke: '#3A3A3A',
   },
 
   // Axis styling
   axis: {
-    stroke: '#6b7280', // gray-500
-    tick: { fill: '#9ca3af', fontSize: 11 }, // gray-400
-    axisLine: { stroke: '#374151' }, // gray-700
+    stroke: '#A1A1AA',
+    tick: { fill: '#A1A1AA', fontSize: 11 },
+    axisLine: { stroke: '#3A3A3A' },
   },
 
   // Tooltip styling
   tooltip: {
     contentStyle: {
-      backgroundColor: '#1f2937', // gray-800
-      border: '1px solid #374151', // gray-700
+      backgroundColor: '#2B2B2B',
+      border: '1px solid #404040',
       borderRadius: '8px',
-      color: '#f3f4f6', // gray-100
+      color: '#EDEDED',
     },
     cursor: {
-      stroke: '#6b7280', // gray-500
+      stroke: '#404040',
     },
   },
 
   // Legend styling
   legend: {
     wrapperStyle: {
-      color: '#9ca3af', // gray-400
+      color: '#C7C7C7',
     },
   },
 
   // Reference lines
   referenceLine: {
-    critical: '#ef4444', // red-500
-    warning: '#eab308', // yellow-500
-    info: '#3b82f6', // blue-500
+    critical: '#ef4444',
+    warning: '#eab308',
+    info: '#3b82f6',
   },
 
   // Status-based bar colors (for charts with status indicators)
   statusColors: {
-    severe: '#ef4444', // red-500
-    high: '#f97316', // orange-500
-    moderate: '#eab308', // yellow-500
-    good: '#22c55e', // green-500
+    severe: '#ef4444',
+    high: '#f97316',
+    moderate: '#eab308',
+    good: '#22c55e',
   },
 
   // Opportunity colors (for routing)
   opportunityColors: {
-    upgrade: '#ef4444', // red-500
-    downgrade: '#3b82f6', // blue-500
-    keep: '#22c55e', // green-500
+    upgrade: '#ef4444',
+    downgrade: '#3b82f6',
+    keep: '#22c55e',
   },
 };
 
 // =============================================================================
-// GENERAL COLORS
+// GENERAL COLORS - Numerro-Inspired Palette
 // =============================================================================
 
 export const COLORS = {
   // Status colors
-  success: '#22c55e', // green-500
-  warning: '#eab308', // yellow-500
-  error: '#ef4444', // red-500
-  info: '#3b82f6', // blue-500
+  success: '#22c55e',
+  warning: '#f59e0b',
+  error: '#ef4444',
+  info: '#3b82f6',
   
-  // Background
-  bgPrimary: '#030712', // gray-950
-  bgSecondary: '#111827', // gray-900
-  bgTertiary: '#1f2937', // gray-800
+  // Background (Numerro dark gray palette)
+  bgPrimary: '#1E1E1E',     // main app background
+  bgSecondary: '#242424',   // nav, panels
+  bgTertiary: '#2B2B2B',    // cards, tables, code blocks
   
-  // Text
-  textPrimary: '#f9fafb', // gray-50
-  textSecondary: '#d1d5db', // gray-300
-  textMuted: '#9ca3af', // gray-400
+  // Text (high readability)
+  textPrimary: '#EDEDED',   // main text
+  textSecondary: '#C7C7C7', // labels
+  textMuted: '#9CA3AF',     // helper/metadata
   
-  // Borders
-  border: '#374151', // gray-700
-  borderLight: '#4b5563', // gray-600
+  // Borders & Dividers
+  border: '#343434',
+  borderLight: '#404040',
 };
 
 // =============================================================================
@@ -346,7 +346,7 @@ export const DATA_COLORS = {
   tokens: {
     huge: { threshold: 8000, color: '#ef4444', class: 'text-red-400' },
     large: { threshold: 4000, color: '#f97316', class: 'text-orange-400' },
-    normal: { threshold: 0, color: '#d1d5db', class: 'text-gray-300' },
+    normal: { threshold: 0, color: '#d1d5db', class: 'text-numerro-text-secondary' },
   },
 };
 
@@ -354,7 +354,7 @@ export const DATA_COLORS = {
  * Get color class for a latency value
  */
 export const getLatencyColor = (ms) => {
-  if (ms == null) return 'text-gray-400';
+  if (ms == null) return 'text-numerro-text-muted';
   if (ms > DATA_COLORS.latency.critical.threshold) return DATA_COLORS.latency.critical.class;
   if (ms > DATA_COLORS.latency.slow.threshold) return DATA_COLORS.latency.slow.class;
   if (ms > DATA_COLORS.latency.warning.threshold) return DATA_COLORS.latency.warning.class;
@@ -365,7 +365,7 @@ export const getLatencyColor = (ms) => {
  * Get color class for a quality score
  */
 export const getQualityColor = (score) => {
-  if (score == null) return 'text-gray-400';
+  if (score == null) return 'text-numerro-text-muted';
   if (score < DATA_COLORS.quality.bad.threshold) return DATA_COLORS.quality.bad.class;
   if (score < DATA_COLORS.quality.medium.threshold) return DATA_COLORS.quality.medium.class;
   if (score < DATA_COLORS.quality.good.threshold) return DATA_COLORS.quality.good.class;
@@ -376,11 +376,26 @@ export const getQualityColor = (score) => {
  * Get color class for a cost value
  */
 export const getCostColor = (cost) => {
-  if (cost == null) return 'text-gray-400';
+  if (cost == null) return 'text-numerro-text-muted';
   if (cost > DATA_COLORS.cost.expensive.threshold) return DATA_COLORS.cost.expensive.class;
   if (cost > DATA_COLORS.cost.moderate.threshold) return DATA_COLORS.cost.moderate.class;
   if (cost > DATA_COLORS.cost.low.threshold) return DATA_COLORS.cost.low.class;
   return DATA_COLORS.cost.cheap.class;
+};
+
+// =============================================================================
+// UI EFFECTS - Numerro Visual Polish
+// =============================================================================
+
+export const UI_EFFECTS = {
+  // Card shadow for depth
+  cardShadow: '0 8px 24px rgba(0,0,0,0.35)',
+  
+  // Glowing divider (pass RGB string like "249, 115, 22")
+  dividerGlow: (rgb) => `0 0 10px rgba(${rgb}, 0.45)`,
+  
+  // Subtle row hover (pass hex color)
+  rowHover: (hex) => `${hex}0D`, // 5-8% opacity
 };
 
 export default STORY_THEMES;

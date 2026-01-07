@@ -106,7 +106,7 @@ function GroupNode({ group, depth = 0 }) {
         className={`
           flex items-center gap-2 py-3 px-3
           ${colors.border} ${colors.bg}
-          hover:bg-gray-750 cursor-pointer transition-colors
+          hover:${BASE_THEME.container.tertiary} cursor-pointer transition-colors
           border-r ${BASE_THEME.border.default}
         `}
         style={{ paddingLeft: `${indent + 12}px` }}

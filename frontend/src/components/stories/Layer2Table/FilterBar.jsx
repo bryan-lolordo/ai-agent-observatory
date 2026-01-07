@@ -1,12 +1,13 @@
 /**
  * FilterBar - Column filter dropdowns
- * 
+ *
  * Shows Operation and Agent (or other configurable) filter dropdowns
  * with a single "Clear" button to clear column filters.
  */
 
 import { useState, useRef, useEffect } from 'react';
 import { getColumn } from '../../../config/columnDefinitions';
+import { BASE_THEME } from '../../../utils/themeUtils';
 
 export default function FilterBar({
   columns = [],
@@ -27,7 +28,7 @@ export default function FilterBar({
   
   return (
     <div className="flex items-center gap-3">
-      <span className="text-sm text-gray-500 font-semibold w-28 flex-shrink-0">
+      <span className={`text-sm ${BASE_THEME.text.muted} font-semibold w-28 flex-shrink-0`}>
         FILTERS
       </span>
       <div className="flex items-center gap-2">
@@ -51,7 +52,7 @@ export default function FilterBar({
         {hasColumnFilters && (
           <button
             onClick={handleClearColumnFilters}
-            className="px-3 py-2 text-sm text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg transition-colors"
+            className={`px-3 py-2 text-sm ${BASE_THEME.text.muted} hover:text-white ${BASE_THEME.container.secondary} hover:${BASE_THEME.border.light} border ${BASE_THEME.border.default} rounded-lg transition-colors`}
           >
             Clear
           </button>
@@ -116,7 +117,7 @@ function FilterDropdown({
           flex items-center gap-2 transition-all
           ${hasSelection
             ? `${theme.bgLight} ${theme.text} border ${theme.border}`
-            : 'bg-gray-800 text-gray-400 border border-gray-700 hover:border-gray-600'
+            : `${BASE_THEME.container.secondary} ${BASE_THEME.text.muted} border ${BASE_THEME.border.default} hover:${BASE_THEME.border.light}`
           }
         `}
       >
@@ -127,30 +128,30 @@ function FilterDropdown({
             {selectedValues.length}
           </span>
         )}
-        <span className="text-gray-600 ml-1">▼</span>
+        <span className={`${BASE_THEME.text.muted} ml-1`}>▼</span>
       </button>
-      
+
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-64 bg-gray-900 rounded-lg border border-gray-700 shadow-xl z-50 overflow-hidden">
+        <div className={`absolute top-full left-0 mt-1 w-64 ${BASE_THEME.container.primary} rounded-lg border ${BASE_THEME.border.default} shadow-xl z-50 overflow-hidden`}>
           {/* Header */}
-          <div className="p-2 border-b border-gray-800 flex justify-between items-center">
-            <span className="text-xs text-gray-400 font-semibold">{column.label}</span>
+          <div className={`p-2 border-b ${BASE_THEME.container.secondary} flex justify-between items-center`}>
+            <span className={`text-xs ${BASE_THEME.text.muted} font-semibold`}>{column.label}</span>
             <div className="flex gap-2">
               <button
                 onClick={selectAll}
-                className="text-xs text-gray-500 hover:text-gray-300"
+                className={`text-xs ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary}`}
               >
                 All
               </button>
               <button
                 onClick={deselectAll}
-                className="text-xs text-gray-500 hover:text-gray-300"
+                className={`text-xs ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary}`}
               >
                 None
               </button>
             </div>
           </div>
-          
+
           {/* Options */}
           <div className="max-h-64 overflow-y-auto">
             {uniqueValues.length > 0 ? (
@@ -159,30 +160,30 @@ function FilterDropdown({
                 return (
                   <label
                     key={value}
-                    className="flex items-center gap-2 px-3 py-2 hover:bg-gray-800 cursor-pointer"
+                    className={`flex items-center gap-2 px-3 py-2 hover:${BASE_THEME.container.secondary} cursor-pointer`}
                   >
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleValue(value)}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-orange-500 focus:ring-0 focus:ring-offset-0"
+                      className={`w-4 h-4 rounded ${BASE_THEME.border.light} ${BASE_THEME.container.secondary} text-orange-500 focus:ring-0 focus:ring-offset-0`}
                       style={{ accentColor: theme.color }}
                     />
-                    <span className={`text-sm ${isSelected ? 'text-gray-200' : 'text-gray-400'}`}>
+                    <span className={`text-sm ${isSelected ? BASE_THEME.text.primary : BASE_THEME.text.muted}`}>
                       {value}
                     </span>
                   </label>
                 );
               })
             ) : (
-              <div className="px-3 py-4 text-center text-gray-500 text-sm">
+              <div className={`px-3 py-4 text-center ${BASE_THEME.text.muted} text-sm`}>
                 No values available
               </div>
             )}
           </div>
-          
+
           {/* Footer with apply button */}
-          <div className="p-2 border-t border-gray-800">
+          <div className={`p-2 border-t ${BASE_THEME.container.secondary}`}>
             <button
               onClick={() => setIsOpen(false)}
               className={`w-full py-1.5 rounded-lg text-xs font-semibold ${theme.bg} text-white hover:opacity-90`}

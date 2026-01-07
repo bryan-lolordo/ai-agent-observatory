@@ -233,7 +233,7 @@ export default function Layer3Shell({
 
           <Link
             to="/optimization"
-            className={`flex items-center gap-2 px-4 py-2 ${BASE_THEME.container.secondary} hover:bg-gray-700 border ${BASE_THEME.border.default} rounded-lg text-sm transition-colors`}
+            className={`flex items-center gap-2 px-4 py-2 ${BASE_THEME.container.secondary} hover:${BASE_THEME.container.tertiary} border ${BASE_THEME.border.default} rounded-lg text-sm transition-colors`}
           >
             <span>🔧</span>
             <span>Queue</span>

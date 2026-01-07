@@ -3,7 +3,9 @@
     "allow": [
       "Bash(cat:*)",
       "Bash(python:*)",
-      "Bash(dir /b \"c:\\\\Users\\\\bjlol\\\\Desktop\\\\ai-agent-observatory\")"
+      "Bash(dir /b \"c:\\\\Users\\\\bjlol\\\\Desktop\\\\ai-agent-observatory\")",
+      "Bash(powershell -Command \"cd ''c:\\\\Users\\\\bjlol\\\\Desktop\\\\ai-agent-observatory\\\\frontend''; Remove-Item -Recurse -Force node_modules\\\\.cache, .vite, dist -ErrorAction SilentlyContinue; Write-Host ''Cache cleared''\")",
+      "Bash(powershell -Command:*)"
     ]
   }
 }

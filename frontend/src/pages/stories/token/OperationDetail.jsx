@@ -1,8 +1,10 @@
 /**
- * Layer 2: Cost Analysis Operation Detail
- * 
+ * Layer 2: Token Efficiency Operation Detail
+ *
  * Uses Layer2Table component for full-featured data exploration.
  * Shows all calls for a specific operation (or all calls if no operation selected).
+ *
+ * UPDATED: Uses common components - BackButton, ErrorDisplay, StatBadge
  */
 
 import { useMemo } from 'react';
@@ -16,6 +18,11 @@ import { useCalls } from '../../../hooks/useCalls';
 import { BASE_THEME } from '../../../utils/themeUtils';
 import PageContainer from '../../../components/layout/PageContainer';
 
+// Common components
+import BackButton from '../../../components/common/BackButton';
+import ErrorDisplay from '../../../components/common/ErrorDisplay';
+import StatBadge from '../../../components/common/StatBadge';
+
 const STORY_ID = 'token_imbalance';
 const theme = STORY_THEMES.token_imbalance;
 
@@ -23,13 +30,13 @@ export default function TokenOperationDetail() {
   const { agent, operation } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
+
   // Fetch data with automatic timeRange handling
   const { data, loading, error, refetch } = useCalls();
-  
+
   // Get initial filter from URL if coming from Layer 1
   const initialQuickFilter = searchParams.get('filter') || 'all';
-  
+
   // Build initial column filters if operation is specified
   const initialFilters = useMemo(() => {
     const filters = {};
@@ -42,20 +49,20 @@ export default function TokenOperationDetail() {
     return filters;
   }, [agent, operation]);
 
-  // Calculate stats from data 
+  // Calculate stats from data
   const stats = useMemo(() => {
     if (!data || data.length === 0) return null;
-    
+
     const totalPrompt = data.reduce((sum, c) => sum + (c.prompt_tokens || 0), 0);
     const totalCompletion = data.reduce((sum, c) => sum + (c.completion_tokens || 0), 0);
     const avgRatio = totalCompletion > 0 ? (totalPrompt / totalCompletion).toFixed(1) : '—';
-    
+
     // Cost calculations
     const costs = data.map(c => c.total_cost || 0);
     const totalCost = costs.reduce((a, b) => a + b, 0);
     const avgCost = data.length > 0 ? totalCost / data.length : 0;
     const maxCost = costs.length > 0 ? Math.max(...costs) : 0;
-    
+
     return {
       total: data.length,
       avgRatio,
@@ -67,7 +74,7 @@ export default function TokenOperationDetail() {
       errors: data.filter(c => c.status === 'error').length,
     };
   }, [data]);
-  
+
   // Navigation handlers
   const handleBack = () => {
     navigate('/stories/token_imbalance');
@@ -76,58 +83,44 @@ export default function TokenOperationDetail() {
   const handleRowClick = (row) => {
     navigate(`/stories/token_imbalance/calls/${row.call_id}`);
   };
-  
+
   // Loading state
   if (loading) return <StoryPageSkeleton />;
-  
+
   // Error state
   if (error) {
     return (
-      <div className={`min-h-screen ${BASE_THEME.container.tertiary} p-8`}>
-        <PageContainer>
-          <button
-            onClick={handleBack}
-            className={`mb-6 flex items-center gap-2 text-sm ${theme.text} hover:underline`}
-          >
-            ← Back to Token Efficiency Overview
-          </button>
-          <div className={`${BASE_THEME.status.error.bg} border ${BASE_THEME.status.error.border} rounded-lg p-6`}>
-            <h2 className={`text-xl font-bold ${BASE_THEME.status.error.textBold} mb-2`}>Error Loading Data</h2>
-            <p className={BASE_THEME.text.secondary}>{error}</p>
-            <button
-              onClick={refetch}
-              className={`mt-4 px-4 py-2 ${BASE_THEME.status.error.bgSolid} hover:bg-red-700 text-white rounded-lg`}
-            >
-              Retry
-            </button>
-          </div>
-        </PageContainer>
-      </div>
+      <ErrorDisplay
+        error={error}
+        onRetry={refetch}
+        onBack={handleBack}
+        backLabel="Token Efficiency Overview"
+        theme={theme}
+      />
     );
   }
-  
+
   // Build page title
-  const pageTitle = operation 
-    ? `${agent}.${operation}` 
-    : agent 
-      ? `${agent} Agent` 
+  const pageTitle = operation
+    ? `${agent}.${operation}`
+    : agent
+      ? `${agent} Agent`
       : 'All Calls';
-  
+
   return (
     <div className={`min-h-screen ${BASE_THEME.container.tertiary} ${BASE_THEME.text.primary}`}>
       {/* Story Navigation */}
       <StoryNavTabs activeStory="token_imbalance" />
 
       <PageContainer>
-        
+
         {/* Back Button */}
-        <button
+        <BackButton
           onClick={handleBack}
-          className={`mb-6 flex items-center gap-2 text-sm ${theme.text} hover:underline`}
-        >
-          ← Back to Token Efficiency Overview
-        </button>
-        
+          label="Token Efficiency Overview"
+          theme={theme}
+        />
+
         {/* Page Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
@@ -136,26 +129,26 @@ export default function TokenOperationDetail() {
               {pageTitle}
             </h1>
           </div>
-          <p className="text-gray-400">
+          <p className={BASE_THEME.text.muted}>
             Dashboard &gt; Token Efficiency &gt; {operation ? 'Operation Detail' : 'All Calls'}
           </p>
         </div>
-        
+
         {/* Summary Stats Bar */}
         {stats && (
           <div className="mb-6 flex flex-wrap gap-4">
             <StatBadge label="Total" value={formatNumber(stats.total)} />
             <StatBadge label="Total Cost" value={formatCurrency(stats.totalCost)} theme={theme} />
             <StatBadge label="Avg Cost" value={formatCurrency(stats.avgCost)} />
-            <StatBadge label="Max Cost" value={formatCurrency(stats.maxCost)} color="text-red-400" />
-            <StatBadge 
-              label="Errors" 
+            <StatBadge label="Max Cost" value={formatCurrency(stats.maxCost)} color={BASE_THEME.status.error.text} />
+            <StatBadge
+              label="Errors"
               value={`${stats.errors} (${((stats.errors / stats.total) * 100).toFixed(1)}%)`}
-              color={stats.errors > 0 ? 'text-red-400' : 'text-green-400'}
+              color={stats.errors > 0 ? BASE_THEME.status.error.text : BASE_THEME.status.success.text}
             />
           </div>
         )}
-        
+
         {/* Layer2Table */}
         <Layer2Table
           storyId={STORY_ID}
@@ -167,21 +160,6 @@ export default function TokenOperationDetail() {
         />
 
       </PageContainer>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// StatBadge - Summary stat display
-// ─────────────────────────────────────────────────────────────────────────────
-
-function StatBadge({ label, value, theme, color }) {
-  const textColor = color || (theme ? theme.text : BASE_THEME.text.secondary);
-
-  return (
-    <div className={`px-4 py-2 ${BASE_THEME.container.secondary} rounded-lg border ${BASE_THEME.border.default}`}>
-      <span className={`text-xs ${BASE_THEME.text.muted}`}>{label}: </span>
-      <span className={`font-semibold ${textColor}`}>{value}</span>
     </div>
   );
 }

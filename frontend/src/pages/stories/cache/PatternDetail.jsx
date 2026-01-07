@@ -167,34 +167,34 @@ export default function CachePatternDetail() {
         isHealthy: false, // Cache opportunities are never "healthy" - they're opportunities
         breakdownTitle: '📊 Impact Summary',
         breakdownComponent: (
-          <div className="bg-gray-900 rounded-lg p-4">
+          <div className={`${BASE_THEME.container.secondary} rounded-lg p-4`}>
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500">
+                <tr className={`text-left ${BASE_THEME.text.muted}`}>
                   <th className="pb-2">Metric</th>
                   <th className="pb-2">Current</th>
                   <th className="pb-2">With Cache</th>
                   <th className="pb-2">Savings</th>
                 </tr>
               </thead>
-              <tbody className="text-gray-300">
-                <tr className="border-t border-gray-700">
+              <tbody className={BASE_THEME.text.secondary}>
+                <tr className={`border-t ${BASE_THEME.border.default}`}>
                   <td className="py-2">LLM Calls</td>
                   <td>{repeat_count}</td>
                   <td>1</td>
-                  <td className="text-green-400">-{repeat_count - 1}</td>
+                  <td className={BASE_THEME.status.success.text}>-{repeat_count - 1}</td>
                 </tr>
-                <tr className="border-t border-gray-700">
+                <tr className={`border-t ${BASE_THEME.border.default}`}>
                   <td className="py-2">Cost</td>
                   <td>${((wasted_cost || 0) + (unit_cost || 0.034)).toFixed(3)}</td>
                   <td>${(unit_cost || 0.034).toFixed(3)}</td>
-                  <td className="text-green-400">-${(wasted_cost || 0).toFixed(3)}</td>
+                  <td className={BASE_THEME.status.success.text}>-${(wasted_cost || 0).toFixed(3)}</td>
                 </tr>
-                <tr className="border-t border-gray-700">
+                <tr className={`border-t ${BASE_THEME.border.default}`}>
                   <td className="py-2">Total Latency</td>
                   <td>~{((avg_latency_ms || 4000) * repeat_count / 1000).toFixed(0)}s</td>
                   <td>~{((avg_latency_ms || 4000) / 1000).toFixed(0)}s</td>
-                  <td className="text-green-400">-{repeat_count > 1 ? Math.round((1 - 1/repeat_count) * 100) : 0}%</td>
+                  <td className={BASE_THEME.status.success.text}>-{repeat_count > 1 ? Math.round((1 - 1/repeat_count) * 100) : 0}%</td>
                 </tr>
               </tbody>
             </table>
@@ -209,22 +209,22 @@ export default function CachePatternDetail() {
           {
             title: '🔑 Prompt Fingerprint',
             content: (
-              <div className="bg-gray-900 rounded-lg p-4 space-y-3">
+              <div className={`${BASE_THEME.container.secondary} rounded-lg p-4 space-y-3`}>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Hash:</span>
-                  <code className="text-gray-300">{prompt_hash || group_id}</code>
+                  <span className={BASE_THEME.text.muted}>Hash:</span>
+                  <code className={BASE_THEME.text.secondary}>{prompt_hash || group_id}</code>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">First Seen:</span>
-                  <span className="text-gray-300">{first_seen || 'Unknown'}</span>
+                  <span className={BASE_THEME.text.muted}>First Seen:</span>
+                  <span className={BASE_THEME.text.secondary}>{first_seen || 'Unknown'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Last Seen:</span>
-                  <span className="text-gray-300">{last_seen || 'Unknown'}</span>
+                  <span className={BASE_THEME.text.muted}>Last Seen:</span>
+                  <span className={BASE_THEME.text.secondary}>{last_seen || 'Unknown'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Occurrences:</span>
-                  <span className="text-gray-300">{repeat_count} calls</span>
+                  <span className={BASE_THEME.text.muted}>Occurrences:</span>
+                  <span className={BASE_THEME.text.secondary}>{repeat_count} calls</span>
                 </div>
               </div>
             ),
@@ -233,28 +233,28 @@ export default function CachePatternDetail() {
           {
             title: '📝 Prompt Structure Analysis',
             content: (
-              <div className="bg-gray-900 rounded-lg p-4">
+              <div className={`${BASE_THEME.container.secondary} rounded-lg p-4`}>
                 <div className="flex items-center gap-3 mb-4">
-                  <span className="px-3 py-1 bg-green-900/50 text-green-300 rounded text-sm font-medium">
+                  <span className={`px-3 py-1 ${BASE_THEME.status.success.bg} ${BASE_THEME.status.success.text} rounded text-sm font-medium`}>
                     {cache_type_emoji} {cache_type === 'exact' ? 'STATIC' : 'VARIABLE'}
                   </span>
-                  <span className="text-gray-400">
-                    {cache_type === 'exact' 
+                  <span className={BASE_THEME.text.muted}>
+                    {cache_type === 'exact'
                       ? '100% identical across all calls'
                       : 'Has variable components'}
                   </span>
                 </div>
-                
+
                 <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2 text-green-400">
+                  <div className={`flex items-center gap-2 ${BASE_THEME.status.success.text}`}>
                     <span>✅</span>
                     <span>No dynamic variables detected</span>
                   </div>
-                  <div className="flex items-center gap-2 text-green-400">
+                  <div className={`flex items-center gap-2 ${BASE_THEME.status.success.text}`}>
                     <span>✅</span>
                     <span>No timestamps or session IDs</span>
                   </div>
-                  <div className="flex items-center gap-2 text-green-400">
+                  <div className={`flex items-center gap-2 ${BASE_THEME.status.success.text}`}>
                     <span>✅</span>
                     <span>Safe for exact-match caching</span>
                   </div>
@@ -266,26 +266,26 @@ export default function CachePatternDetail() {
           response_similarity != null && {
             title: '📤 Response Consistency',
             content: (
-              <div className="bg-gray-900 rounded-lg p-4">
-                <div className="mb-3 text-sm text-gray-400">
+              <div className={`${BASE_THEME.container.secondary} rounded-lg p-4`}>
+                <div className={`mb-3 text-sm ${BASE_THEME.text.muted}`}>
                   All {repeat_count} responses were compared:
                 </div>
                 <div className="mb-3">
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-400">Response Similarity</span>
-                    <span className={response_similarity === 100 ? 'text-green-400' : 'text-yellow-400'}>
+                    <span className={BASE_THEME.text.muted}>Response Similarity</span>
+                    <span className={response_similarity === 100 ? BASE_THEME.status.success.text : BASE_THEME.status.warning.text}>
                       {response_similarity}%
                     </span>
                   </div>
-                  <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full ${response_similarity === 100 ? 'bg-green-500' : 'bg-yellow-500'}`}
+                  <div className={`h-3 ${BASE_THEME.container.tertiary} rounded-full overflow-hidden`}>
+                    <div
+                      className={`h-full ${response_similarity === 100 ? BASE_THEME.status.success.bgSolid : BASE_THEME.status.warning.bgSolid}`}
                       style={{ width: `${response_similarity}%` }}
                     />
                   </div>
                 </div>
-                <div className={`text-sm ${response_similarity === 100 ? 'text-green-400' : 'text-yellow-400'}`}>
-                  {response_similarity === 100 
+                <div className={`text-sm ${response_similarity === 100 ? BASE_THEME.status.success.text : BASE_THEME.status.warning.text}`}>
+                  {response_similarity === 100
                     ? '✅ Caching will return correct results'
                     : '⚠️ Responses vary slightly - verify cache validity'}
                 </div>

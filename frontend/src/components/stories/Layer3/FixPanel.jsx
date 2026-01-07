@@ -46,7 +46,7 @@ function FixCard({ fix, isImplemented, isRecommended, onSelect, onMarkImplemente
       {fix.metrics && fix.metrics.length > 0 && (
         <div className={`grid gap-4 mb-5`} style={{ gridTemplateColumns: `repeat(${fix.metrics.length}, 1fr)` }}>
           {fix.metrics.map(metric => (
-            <div key={metric.label} className="bg-gray-700 rounded-lg p-5 text-center flex-1">
+            <div key={metric.label} className={`${BASE_THEME.container.tertiary} rounded-lg p-5 text-center flex-1`}>
               <div className={`text-3xl font-bold ${BASE_THEME.text.primary}`}>
                 {metric.after}
               </div>
@@ -85,7 +85,7 @@ function FixCard({ fix, isImplemented, isRecommended, onSelect, onMarkImplemente
         )}
         <button
           onClick={() => onSelect(fix.id)}
-          className={`px-3 py-1 ${BASE_THEME.container.primary} border ${BASE_THEME.border.default} hover:bg-gray-700 ${theme.text} rounded text-sm`}
+          className={`px-3 py-1 ${BASE_THEME.container.primary} border ${BASE_THEME.border.default} hover:${BASE_THEME.container.tertiary} ${theme.text} rounded text-sm`}
         >
           View Details →
         </button>
@@ -437,7 +437,7 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
         {fix.metrics && fix.metrics.length > 0 && (
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${fix.metrics.length}, 1fr)` }}>
             {fix.metrics.map(metric => (
-              <div key={metric.label} className="bg-gray-700 rounded-lg p-5 text-center">
+              <div key={metric.label} className={`${BASE_THEME.container.tertiary} rounded-lg p-5 text-center`}>
                 <div className={`text-4xl font-bold ${BASE_THEME.text.primary}`}>{metric.after}</div>
                 <div className={`text-lg font-medium ${metric.changePercent < 0 ? BASE_THEME.status.success.text : metric.changePercent > 0 ? BASE_THEME.status.error.text : BASE_THEME.text.muted}`}>
                   {metric.changePercent === 0 ? '—' : `${metric.changePercent}%`}
@@ -462,12 +462,12 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
                 <span className={`text-sm ${BASE_THEME.status.error.text} font-medium`}>BEFORE</span>
                 <button
                   onClick={() => handleCopy(fix.codeBefore)}
-                  className={`text-sm px-3 py-1 bg-gray-600 hover:bg-gray-500 ${BASE_THEME.text.secondary} rounded`}
+                  className={`text-sm px-3 py-1 ${BASE_THEME.container.secondary} hover:${BASE_THEME.container.tertiary} ${BASE_THEME.text.secondary} rounded`}
                 >
                   Copy
                 </button>
               </div>
-              <pre className="bg-gray-700 rounded-lg p-4 text-base font-mono text-gray-200 overflow-x-auto max-h-64 overflow-y-auto">
+              <pre className={`${BASE_THEME.container.tertiary} rounded-lg p-4 text-base font-mono ${BASE_THEME.text.secondary} overflow-x-auto max-h-64 overflow-y-auto`}>
                 {fix.codeBefore}
               </pre>
             </div>
@@ -481,7 +481,7 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
                   Copy
                 </button>
               </div>
-              <pre className="bg-gray-700 rounded-lg p-4 text-base font-mono text-gray-200 overflow-x-auto max-h-64 overflow-y-auto">
+              <pre className={`${BASE_THEME.container.tertiary} rounded-lg p-4 text-base font-mono ${BASE_THEME.text.secondary} overflow-x-auto max-h-64 overflow-y-auto`}>
                 {fix.codeAfter}
               </pre>
             </div>
@@ -492,12 +492,12 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
               <span className={`text-sm ${BASE_THEME.status.success.text} font-medium`}>IMPLEMENTATION</span>
               <button
                 onClick={() => handleCopy(fix.codeAfter)}
-                className={`text-sm px-3 py-1 bg-gray-600 hover:bg-gray-500 ${BASE_THEME.text.secondary} rounded`}
+                className={`text-sm px-3 py-1 ${BASE_THEME.container.secondary} hover:${BASE_THEME.container.tertiary} ${BASE_THEME.text.secondary} rounded`}
               >
                 Copy
               </button>
             </div>
-            <pre className="bg-gray-700 rounded-lg p-4 text-base font-mono text-gray-200 overflow-x-auto max-h-64 overflow-y-auto">
+            <pre className={`${BASE_THEME.container.tertiary} rounded-lg p-4 text-base font-mono ${BASE_THEME.text.secondary} overflow-x-auto max-h-64 overflow-y-auto`}>
               {fix.codeAfter}
             </pre>
           </div>
@@ -625,8 +625,8 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
                         <span className={`text-sm ${BASE_THEME.text.muted}`}>{beforeTokens.toLocaleString()} tokens</span>
                       )}
                     </div>
-                    <div className="bg-gray-700 rounded-lg p-4 max-h-48 overflow-y-auto">
-                      <pre className="text-base font-mono text-gray-200 whitespace-pre-wrap">
+                    <div className={`${BASE_THEME.container.tertiary} rounded-lg p-4 max-h-48 overflow-y-auto`}>
+                      <pre className={`text-base font-mono ${BASE_THEME.text.secondary} whitespace-pre-wrap`}>
                         {typeof beforeOutput === 'string' ? beforeOutput.substring(0, 1500) : beforeOutput}
                         {typeof beforeOutput === 'string' && beforeOutput.length > 1500 ? '...' : ''}
                       </pre>
@@ -648,8 +648,8 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
                         <span className={`text-sm ${BASE_THEME.text.muted}`}>~{afterTokens.toLocaleString()} tokens</span>
                       )}
                     </div>
-                    <div className="bg-gray-700 rounded-lg p-4 max-h-48 overflow-y-auto">
-                      <pre className="text-base font-mono text-gray-200 whitespace-pre-wrap">
+                    <div className={`${BASE_THEME.container.tertiary} rounded-lg p-4 max-h-48 overflow-y-auto`}>
+                      <pre className={`text-base font-mono ${BASE_THEME.text.secondary} whitespace-pre-wrap`}>
                         {afterOutput}
                       </pre>
                     </div>
@@ -663,12 +663,12 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
               );
             } else if (fix.outputPreview) {
               return (
-                <div className="bg-gray-700 rounded-lg p-4">
-                  <pre className="text-base font-mono text-gray-200 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                <div className={`${BASE_THEME.container.tertiary} rounded-lg p-4`}>
+                  <pre className={`text-base font-mono ${BASE_THEME.text.secondary} whitespace-pre-wrap max-h-48 overflow-y-auto`}>
                     {fix.outputPreview}
                   </pre>
                   {fix.outputNote && (
-                    <div className={`mt-3 pt-3 border-t border-gray-600 ${fix.outputNoteColor || BASE_THEME.status.success.text} text-base font-medium`}>
+                    <div className={`mt-3 pt-3 border-t ${BASE_THEME.border.default} ${fix.outputNoteColor || BASE_THEME.status.success.text} text-base font-medium`}>
                       {fix.outputNote}
                     </div>
                   )}
@@ -678,8 +678,8 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
               return (
                 <div>
                   <div className={`text-sm ${BASE_THEME.text.secondary} mb-2`}>Current Output</div>
-                  <div className="bg-gray-700 rounded-lg p-4 max-h-48 overflow-y-auto">
-                    <pre className="text-base font-mono text-gray-200 whitespace-pre-wrap">
+                  <div className={`${BASE_THEME.container.tertiary} rounded-lg p-4 max-h-48 overflow-y-auto`}>
+                    <pre className={`text-base font-mono ${BASE_THEME.text.secondary} whitespace-pre-wrap`}>
                       {typeof beforeOutput === 'string' ? beforeOutput.substring(0, 500) : beforeOutput}
                       {typeof beforeOutput === 'string' && beforeOutput.length > 500 ? '...' : ''}
                     </pre>
@@ -700,7 +700,7 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
               <h4 className={`text-base font-medium ${BASE_THEME.status.error.text} mb-4`}>⚠️ Trade-offs</h4>
               <ul className="space-y-3">
                 {fix.tradeoffs.map((t, i) => (
-                  <li key={i} className="text-base text-gray-200 flex items-start gap-2">
+                  <li key={i} className={`text-base ${BASE_THEME.text.secondary} flex items-start gap-2`}>
                     <span>•</span> {t}
                   </li>
                 ))}
@@ -712,7 +712,7 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
               <h4 className={`text-base font-medium ${BASE_THEME.status.success.text} mb-4`}>✅ Benefits</h4>
               <ul className="space-y-3">
                 {fix.benefits.map((b, i) => (
-                  <li key={i} className="text-base text-gray-200 flex items-start gap-2">
+                  <li key={i} className={`text-base ${BASE_THEME.text.secondary} flex items-start gap-2`}>
                     <span>•</span> {b}
                   </li>
                 ))}
@@ -726,14 +726,14 @@ function FixDetailView({ fix, isImplemented, onBack, onMarkImplemented, similarC
       {fix.bestFor && (
         <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-5`}>
           <span className={`text-base ${theme.text} font-medium`}>✅ Best For: </span>
-          <span className="text-base text-gray-200">{fix.bestFor}</span>
+          <span className={`text-base ${BASE_THEME.text.secondary}`}>{fix.bestFor}</span>
         </div>
       )}
 
       {/* Similar Count */}
       {similarCount > 1 && (
         <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg p-5`}>
-          <div className="text-base text-gray-200">
+          <div className={`text-base ${BASE_THEME.text.secondary}`}>
             <span className={`${theme.text} font-semibold text-lg`}>{similarCount} similar calls</span> have this same issue.
             Fixing this will multiply your savings by {similarCount}x.
           </div>

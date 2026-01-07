@@ -111,7 +111,7 @@ export default function OptimizationComparisonDetail() {
               All Calls
             </h1>
           </div>
-          <p className="text-gray-400">
+          <p className={BASE_THEME.text.muted}>
             Dashboard &gt; Optimization Impact &gt; All Calls
           </p>
         </div>

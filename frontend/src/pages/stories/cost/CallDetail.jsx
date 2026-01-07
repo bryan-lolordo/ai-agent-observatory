@@ -11,6 +11,7 @@ import { useTimeRange } from '../../../context/TimeRangeContext';
 
 import Layer3Shell from '../../../components/stories/Layer3';
 import { STORY_THEMES } from '../../../config/theme';
+import { BASE_THEME } from '../../../utils/themeUtils';
 import { getFixesForCall } from '../../../config/fixes';
 
 import {
@@ -186,7 +187,7 @@ function AlternativeModelsTable({ currentModel, currentCost, alternatives }) {
   }
   
   return (
-    <div className="bg-gray-900 rounded-lg overflow-hidden">
+    <div className={`${BASE_THEME.container.secondary} rounded-lg overflow-hidden`}>
       <table className="w-full text-sm">
         <thead className="bg-gray-800">
           <tr>

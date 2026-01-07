@@ -50,7 +50,7 @@ function ExpandableSection({ title, tokens, content, defaultExpanded = false, hi
         </div>
         <button
           onClick={handleCopy}
-          className={`text-xs px-2 py-1 ${BASE_THEME.container.primary} hover:bg-gray-600 ${BASE_THEME.text.secondary} rounded`}
+          className={`text-xs px-2 py-1 ${BASE_THEME.container.primary} hover:${BASE_THEME.container.tertiary} ${BASE_THEME.text.secondary} rounded`}
         >
           Copy
         </button>

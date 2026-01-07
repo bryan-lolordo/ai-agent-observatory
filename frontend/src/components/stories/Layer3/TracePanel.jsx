@@ -70,7 +70,7 @@ export default function TracePanel({
       <div className="space-y-6">
         {/* Conversation Statistics - Top */}
         {conversationStats && (
-          <div className={`bg-gradient-to-r from-gray-800 to-gray-900 p-6 rounded-lg border ${BASE_THEME.border.default}`}>
+          <div className={`${BASE_THEME.container.secondary} p-6 rounded-lg border ${BASE_THEME.border.default}`}>
             <h3 className={`text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide mb-4`}>
               📊 Conversation Statistics
             </h3>
@@ -123,7 +123,7 @@ export default function TracePanel({
       <div className="space-y-6">
         {/* Conversation Statistics - Top */}
         {conversationStats && (
-          <div className={`bg-gradient-to-r from-gray-800 to-gray-900 p-6 rounded-lg border ${BASE_THEME.border.default}`}>
+          <div className={`${BASE_THEME.container.secondary} p-6 rounded-lg border ${BASE_THEME.border.default}`}>
             <h3 className={`text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide mb-4`}>
               📊 Conversation Statistics
             </h3>

@@ -10,6 +10,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
+import { BASE_THEME } from '../../../utils/themeUtils';
 
 export default function ColumnHeader({
   column,
@@ -104,7 +105,7 @@ export default function ColumnHeader({
   const isPrimaryMetric = column.key === primaryMetric;
 
   // Header text color
-  const textColor = isSorted || isPrimaryMetric ? theme.text : 'text-gray-500';
+  const textColor = isSorted || isPrimaryMetric ? theme.text : BASE_THEME.text.muted;
 
   return (
     <th
@@ -126,8 +127,8 @@ export default function ColumnHeader({
       }}
       className={`
         py-3 px-4 text-center text-sm font-semibold relative select-none transition-all duration-150 cursor-grab active:cursor-grabbing
-        ${isDragging ? 'opacity-40 scale-95 bg-gray-900' : ''}
-        ${isDragOver ? 'bg-gray-700/50' : ''}
+        ${isDragging ? `opacity-40 scale-95 ${BASE_THEME.container.primary}` : ''}
+        ${isDragOver ? `${BASE_THEME.border.light}/50` : ''}
       `}
       style={{
         width: columnWidth ? `${columnWidth}px` : 'auto',
@@ -148,7 +149,7 @@ export default function ColumnHeader({
       <div className="flex items-center justify-center gap-1">
         {/* Drag Handle indicator */}
         <span
-          className="text-gray-600 hover:text-gray-400"
+          className={`${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary}`}
           title="Drag to reorder"
         >
           ⋮⋮
@@ -157,11 +158,11 @@ export default function ColumnHeader({
         {/* Column Name (click to sort) */}
         <button
           onClick={onSort}
-          className={`flex items-center gap-1 hover:text-gray-300 ${textColor}`}
+          className={`flex items-center gap-1 hover:${BASE_THEME.text.secondary} ${textColor}`}
         >
           <span>{column.label}</span>
           {column.sortable && (
-            <span className={isSorted ? theme.text : 'text-gray-600'}>
+            <span className={isSorted ? theme.text : BASE_THEME.text.muted}>
               {isSorted
                 ? (sortDirection === 'desc' ? '↓' : '↑')
                 : '↕'
@@ -177,7 +178,7 @@ export default function ColumnHeader({
               onClick={() => setShowFilter(!showFilter)}
               className={`
                 text-xs ml-1 px-1 rounded
-                ${filterValues.length > 0 ? theme.text : 'text-gray-600 hover:text-gray-400'}
+                ${filterValues.length > 0 ? theme.text : `${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary}`}
               `}
               title="Filter column"
             >
@@ -189,35 +190,35 @@ export default function ColumnHeader({
 
             {/* Filter Dropdown */}
             {showFilter && (
-              <div className="absolute top-full left-0 mt-1 w-48 bg-gray-900 rounded-lg border border-gray-700 shadow-xl z-50 overflow-hidden">
-                <div className="p-2 border-b border-gray-800">
-                  <span className="text-xs text-gray-400">Filter {column.label}</span>
+              <div className={`absolute top-full left-0 mt-1 w-48 ${BASE_THEME.container.primary} rounded-lg border ${BASE_THEME.border.default} shadow-xl z-50 overflow-hidden`}>
+                <div className={`p-2 border-b ${BASE_THEME.container.secondary}`}>
+                  <span className={`text-xs ${BASE_THEME.text.muted}`}>Filter {column.label}</span>
                 </div>
                 <div className="max-h-48 overflow-y-auto">
                   {uniqueValues.length > 0 ? (
                     uniqueValues.map(value => (
                       <label
                         key={value}
-                        className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 cursor-pointer"
+                        className={`flex items-center gap-2 px-3 py-1.5 hover:${BASE_THEME.container.secondary} cursor-pointer`}
                       >
                         <input
                           type="checkbox"
                           checked={filterValues.includes(value)}
                           onChange={() => toggleFilterValue(value)}
-                          className="w-3 h-3 rounded border-gray-600 bg-gray-800"
+                          className={`w-3 h-3 rounded ${BASE_THEME.border.light} ${BASE_THEME.container.secondary}`}
                           style={{ accentColor: theme.color }}
                         />
-                        <span className="text-xs text-gray-300 truncate">{value}</span>
+                        <span className={`text-xs ${BASE_THEME.text.secondary} truncate`}>{value}</span>
                       </label>
                     ))
                   ) : (
-                    <div className="px-3 py-2 text-xs text-gray-500">No values</div>
+                    <div className={`px-3 py-2 text-xs ${BASE_THEME.text.muted}`}>No values</div>
                   )}
                 </div>
-                <div className="p-2 border-t border-gray-800 flex justify-between">
+                <div className={`p-2 border-t ${BASE_THEME.container.secondary} flex justify-between`}>
                   <button
                     onClick={() => onFilterChange([])}
-                    className="text-xs text-gray-500 hover:text-gray-300"
+                    className={`text-xs ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary}`}
                   >
                     Clear
                   </button>
@@ -240,7 +241,7 @@ export default function ColumnHeader({
           onClick={onRemove}
           className={`
             absolute top-1/2 -translate-y-1/2 right-4
-            text-gray-600 hover:text-red-400 transition-opacity
+            ${BASE_THEME.text.muted} hover:text-red-400 transition-opacity
             ${isHovered ? 'opacity-100' : 'opacity-0'}
           `}
           title="Remove column"
@@ -255,11 +256,11 @@ export default function ColumnHeader({
         className={`
           absolute top-0 right-0 w-2 h-full cursor-col-resize
           group flex items-center justify-center
-          ${isResizing ? 'bg-blue-500/50' : 'hover:bg-gray-600'}
+          ${isResizing ? 'bg-blue-500/50' : `hover:${BASE_THEME.border.light}`}
         `}
         title="Drag to resize"
       >
-        <div className={`w-0.5 h-4 rounded ${isResizing ? 'bg-blue-400' : 'bg-gray-500 group-hover:bg-gray-400'}`} />
+        <div className={`w-0.5 h-4 rounded ${isResizing ? 'bg-blue-400' : `${BASE_THEME.text.muted} group-hover:${BASE_THEME.text.secondary}`}`} />
       </div>
     </th>
   );

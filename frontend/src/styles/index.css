@@ -29,45 +29,70 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       SCROLLBAR COLORS (always dark - matches Numerro theme)
+       ═══════════════════════════════════════════════════════════════════════════ */
+    --scrollbar-track: #1E1E1E;        /* Same as numerro-bg-primary */
+    --scrollbar-thumb: #404040;        /* Same as numerro-border-light */
+    --scrollbar-thumb-hover: #505050;  /* Slightly lighter on hover */
+
+    /* Story accent colors */
+    --color-latency: #f97316;
+    --color-latency-hover: #ea580c;
+    --color-cache: #ec4899;
+    --color-cache-hover: #db2777;
+    --color-routing: #8b5cf6;
+    --color-routing-hover: #7c3aed;
+    --color-quality: #ef4444;
+    --color-quality-hover: #dc2626;
+    --color-token: #eab308;
+    --color-token-hover: #ca8a04;
+    --color-prompt: #06b6d4;
+    --color-prompt-hover: #0891b2;
+    --color-cost: #f59e0b;
+    --color-cost-hover: #d97706;
+    --color-optimization: #22c55e;
+    --color-optimization-hover: #16a34a;
   }
 
   .dark {
     /* Base colors - dark background */
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-    
+
     /* Cards - slightly lighter than background */
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
-    
+
     /* Popovers */
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-    
+
     /* Primary - purple for main actions */
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
-    
+
     /* Secondary - subtle gray */
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
-    
+
     /* Muted - for less important text */
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-    
+
     /* Accent - cyan for highlights */
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
-    
+
     /* Destructive - red for errors/warnings */
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    
+
     /* Borders - visible but subtle */
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    
+
     /* Focus ring - purple like primary */
     --ring: 212.7 26.8% 83.9%;
     --chart-1: 220 70% 50%;
@@ -97,21 +122,21 @@
 }
 
 *::-webkit-scrollbar-track {
-  background: #1f2937;
+  background: var(--scrollbar-track);
 }
 
 *::-webkit-scrollbar-thumb {
-  background: #4b5563;
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
+  background: var(--scrollbar-thumb-hover);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #4b5563 #1f2937;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 /* ============================================================================
@@ -126,7 +151,7 @@
 }
 
 .story-scrollbar::-webkit-scrollbar-track {
-  background: #1f2937; /* gray-800 */
+  background: var(--scrollbar-track);
   border-radius: 6px;
 }
 
@@ -140,7 +165,7 @@
 }
 
 .story-scrollbar::-webkit-scrollbar-corner {
-  background: #1f2937; /* gray-800 */
+  background: var(--scrollbar-track);
 }
 
 /* Thin variant for tables and compact areas */
@@ -150,7 +175,7 @@
 }
 
 .story-scrollbar-thin::-webkit-scrollbar-track {
-  background: #1f2937;
+  background: var(--scrollbar-track);
   border-radius: 4px;
 }
 
@@ -162,216 +187,216 @@
    STORY 1: LATENCY - Orange 🌐
    ============================================================================ */
 .story-scrollbar.latency::-webkit-scrollbar-thumb {
-  background: #f97316; /* orange-500 */
-  border: 2px solid #1f2937;
+  background: var(--color-latency);
+  border: 2px solid var(--scrollbar-track);
 }
 
 .story-scrollbar.latency::-webkit-scrollbar-thumb:hover {
-  background: #ea580c; /* orange-600 */
+  background: var(--color-latency-hover);
 }
 
 .story-scrollbar-thin.latency::-webkit-scrollbar-thumb {
-  background: #f97316;
+  background: var(--color-latency);
 }
 
 .story-scrollbar-thin.latency::-webkit-scrollbar-thumb:hover {
-  background: #ea580c;
+  background: var(--color-latency-hover);
 }
 
 /* Firefox */
 .story-scrollbar.latency,
 .story-scrollbar-thin.latency {
   scrollbar-width: thin;
-  scrollbar-color: #f97316 #1f2937;
+  scrollbar-color: var(--color-latency) var(--scrollbar-track);
 }
 
 /* ============================================================================
    STORY 2: CACHE - Pink 💾
    ============================================================================ */
 .story-scrollbar.cache::-webkit-scrollbar-thumb {
-  background: #ec4899; /* pink-500 */
-  border: 2px solid #1f2937;
+  background: var(--color-cache);
+  border: 2px solid var(--scrollbar-track);
 }
 
 .story-scrollbar.cache::-webkit-scrollbar-thumb:hover {
-  background: #db2777; /* pink-600 */
+  background: var(--color-cache-hover);
 }
 
 .story-scrollbar-thin.cache::-webkit-scrollbar-thumb {
-  background: #ec4899;
+  background: var(--color-cache);
 }
 
 .story-scrollbar-thin.cache::-webkit-scrollbar-thumb:hover {
-  background: #db2777;
+  background: var(--color-cache-hover);
 }
 
 /* Firefox */
 .story-scrollbar.cache,
 .story-scrollbar-thin.cache {
   scrollbar-width: thin;
-  scrollbar-color: #ec4899 #1f2937;
+  scrollbar-color: var(--color-cache) var(--scrollbar-track);
 }
 
 /* ============================================================================
    STORY 3: ROUTING - Purple 🔀
    ============================================================================ */
 .story-scrollbar.routing::-webkit-scrollbar-thumb {
-  background: #8b5cf6; /* purple-500 */
-  border: 2px solid #1f2937;
+  background: var(--color-routing);
+  border: 2px solid var(--scrollbar-track);
 }
 
 .story-scrollbar.routing::-webkit-scrollbar-thumb:hover {
-  background: #7c3aed; /* purple-600 */
+  background: var(--color-routing-hover);
 }
 
 .story-scrollbar-thin.routing::-webkit-scrollbar-thumb {
-  background: #8b5cf6;
+  background: var(--color-routing);
 }
 
 .story-scrollbar-thin.routing::-webkit-scrollbar-thumb:hover {
-  background: #7c3aed;
+  background: var(--color-routing-hover);
 }
 
 /* Firefox */
 .story-scrollbar.routing,
 .story-scrollbar-thin.routing {
   scrollbar-width: thin;
-  scrollbar-color: #8b5cf6 #1f2937;
+  scrollbar-color: var(--color-routing) var(--scrollbar-track);
 }
 
 /* ============================================================================
    STORY 4: QUALITY - Red ❌
    ============================================================================ */
 .story-scrollbar.quality::-webkit-scrollbar-thumb {
-  background: #ef4444; /* red-500 */
-  border: 2px solid #1f2937;
+  background: var(--color-quality);
+  border: 2px solid var(--scrollbar-track);
 }
 
 .story-scrollbar.quality::-webkit-scrollbar-thumb:hover {
-  background: #dc2626; /* red-600 */
+  background: var(--color-quality-hover);
 }
 
 .story-scrollbar-thin.quality::-webkit-scrollbar-thumb {
-  background: #ef4444;
+  background: var(--color-quality);
 }
 
 .story-scrollbar-thin.quality::-webkit-scrollbar-thumb:hover {
-  background: #dc2626;
+  background: var(--color-quality-hover);
 }
 
 /* Firefox */
 .story-scrollbar.quality,
 .story-scrollbar-thin.quality {
   scrollbar-width: thin;
-  scrollbar-color: #ef4444 #1f2937;
+  scrollbar-color: var(--color-quality) var(--scrollbar-track);
 }
 
 /* ============================================================================
    STORY 5: TOKEN - Yellow ⚖️
    ============================================================================ */
 .story-scrollbar.token::-webkit-scrollbar-thumb {
-  background: #eab308; /* yellow-500 */
-  border: 2px solid #1f2937;
+  background: var(--color-token);
+  border: 2px solid var(--scrollbar-track);
 }
 
 .story-scrollbar.token::-webkit-scrollbar-thumb:hover {
-  background: #ca8a04; /* yellow-600 */
+  background: var(--color-token-hover);
 }
 
 .story-scrollbar-thin.token::-webkit-scrollbar-thumb {
-  background: #eab308;
+  background: var(--color-token);
 }
 
 .story-scrollbar-thin.token::-webkit-scrollbar-thumb:hover {
-  background: #ca8a04;
+  background: var(--color-token-hover);
 }
 
 /* Firefox */
 .story-scrollbar.token,
 .story-scrollbar-thin.token {
   scrollbar-width: thin;
-  scrollbar-color: #eab308 #1f2937;
+  scrollbar-color: var(--color-token) var(--scrollbar-track);
 }
 
 /* ============================================================================
    STORY 6: PROMPT - Cyan 📝
    ============================================================================ */
 .story-scrollbar.prompt::-webkit-scrollbar-thumb {
-  background: #06b6d4; /* cyan-500 */
-  border: 2px solid #1f2937;
+  background: var(--color-prompt);
+  border: 2px solid var(--scrollbar-track);
 }
 
 .story-scrollbar.prompt::-webkit-scrollbar-thumb:hover {
-  background: #0891b2; /* cyan-600 */
+  background: var(--color-prompt-hover);
 }
 
 .story-scrollbar-thin.prompt::-webkit-scrollbar-thumb {
-  background: #06b6d4;
+  background: var(--color-prompt);
 }
 
 .story-scrollbar-thin.prompt::-webkit-scrollbar-thumb:hover {
-  background: #0891b2;
+  background: var(--color-prompt-hover);
 }
 
 /* Firefox */
 .story-scrollbar.prompt,
 .story-scrollbar-thin.prompt {
   scrollbar-width: thin;
-  scrollbar-color: #06b6d4 #1f2937;
+  scrollbar-color: var(--color-prompt) var(--scrollbar-track);
 }
 
 /* ============================================================================
    STORY 7: COST - Amber 💰
    ============================================================================ */
 .story-scrollbar.cost::-webkit-scrollbar-thumb {
-  background: #f59e0b; /* amber-500 */
-  border: 2px solid #1f2937;
+  background: var(--color-cost);
+  border: 2px solid var(--scrollbar-track);
 }
 
 .story-scrollbar.cost::-webkit-scrollbar-thumb:hover {
-  background: #d97706; /* amber-600 */
+  background: var(--color-cost-hover);
 }
 
 .story-scrollbar-thin.cost::-webkit-scrollbar-thumb {
-  background: #f59e0b;
+  background: var(--color-cost);
 }
 
 .story-scrollbar-thin.cost::-webkit-scrollbar-thumb:hover {
-  background: #d97706;
+  background: var(--color-cost-hover);
 }
 
 /* Firefox */
 .story-scrollbar.cost,
 .story-scrollbar-thin.cost {
   scrollbar-width: thin;
-  scrollbar-color: #f59e0b #1f2937;
+  scrollbar-color: var(--color-cost) var(--scrollbar-track);
 }
 
 /* ============================================================================
    STORY 8: OPTIMIZATION - Green 🎯
    ============================================================================ */
 .story-scrollbar.optimization::-webkit-scrollbar-thumb {
-  background: #22c55e; /* green-500 */
-  border: 2px solid #1f2937;
+  background: var(--color-optimization);
+  border: 2px solid var(--scrollbar-track);
 }
 
 .story-scrollbar.optimization::-webkit-scrollbar-thumb:hover {
-  background: #16a34a; /* green-600 */
+  background: var(--color-optimization-hover);
 }
 
 .story-scrollbar-thin.optimization::-webkit-scrollbar-thumb {
-  background: #22c55e;
+  background: var(--color-optimization);
 }
 
 .story-scrollbar-thin.optimization::-webkit-scrollbar-thumb:hover {
-  background: #16a34a;
+  background: var(--color-optimization-hover);
 }
 
 /* Firefox */
 .story-scrollbar.optimization,
 .story-scrollbar-thin.optimization {
   scrollbar-width: thin;
-  scrollbar-color: #22c55e #1f2937;
+  scrollbar-color: var(--color-optimization) var(--scrollbar-track);
 }
 
 /* ============================================================================
@@ -383,23 +408,23 @@
 }
 
 .default-scrollbar::-webkit-scrollbar-track {
-  background: #1f2937;
+  background: var(--scrollbar-track);
   border-radius: 4px;
 }
 
 .default-scrollbar::-webkit-scrollbar-thumb {
-  background: #4b5563; /* gray-600 */
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 .default-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #6b7280; /* gray-500 */
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Firefox */
 .default-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #4b5563 #1f2937;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 /* ============================================================================

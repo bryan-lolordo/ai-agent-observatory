@@ -6,6 +6,8 @@
  * All data is centered.
  */
 
+import { BASE_THEME } from '../../../utils/themeUtils';
+
 export default function TableRow({
   row,
   columns,
@@ -18,7 +20,7 @@ export default function TableRow({
   return (
     <tr
       onClick={onClick}
-      className="border-b border-gray-800 cursor-pointer transition-all hover:bg-gray-800/50"
+      className="border-b border-numerro-border/20 cursor-pointer transition-all"
       style={{
         // Subtle hover effect with story color
         '--hover-bg': `${theme.color}10`,
@@ -33,7 +35,7 @@ export default function TableRow({
         const formattedValue = col.formatter ? col.formatter(value) : value ?? '—';
 
         // Determine text color class
-        let colorClass = col.className || 'text-gray-300';
+        let colorClass = col.className || BASE_THEME.text.secondary;
 
         // Apply colorizer if exists
         if (col.colorizer) {

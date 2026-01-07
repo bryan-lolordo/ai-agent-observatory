@@ -9,10 +9,11 @@ import { useStory } from '../../../hooks/useStories';
 import { STORY_THEMES, CHART_CONFIG } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
-import { formatNumber, truncateText } from '../../../utils/formatters';
+import { formatNumber } from '../../../utils/formatters';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { BASE_THEME } from '../../../utils/themeUtils';
 import PageContainer from '../../../components/layout/PageContainer';
+import Layer1Table from '../../../components/stories/Layer1Table';
 
 export default function Quality() {
   const navigate = useNavigate();
@@ -157,85 +158,56 @@ export default function Quality() {
         )}
 
         {/* Operations Table */}
-        <div className={`mb-8 rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} overflow-hidden`}>
-          <div className={`h-1 ${theme.bg}`} />
-          <div className={`p-4 border-b ${BASE_THEME.border.default}`}>
-            <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide`}>
-              📊 Operations
-              <span className={`${BASE_THEME.text.muted} normal-case ml-2 font-normal`}>Click row to drill down</span>
-            </h3>
-          </div>
-          
-          <div className="overflow-x-auto overflow-y-auto max-h-80">
-            <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
-              <thead className={BASE_THEME.container.secondary}>
-                <tr className={`border-b ${BASE_THEME.border.default}`}>
-                  <th style={{ width: '4%' }} className={`text-left py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Status</th>
-                  <th style={{ width: '14%' }} className={`text-left py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Agent</th>
-                  <th style={{ width: '34%' }} className={`text-left py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Operation</th>
-                  <th style={{ width: '12%' }} className={`text-center py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Avg Score</th>
-                  <th style={{ width: '9%' }} className={`text-center py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Min</th>
-                  <th style={{ width: '9%' }} className={`text-center py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Errors</th>
-                  <th style={{ width: '9%' }} className={`text-center py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Halluc.</th>
-                  <th style={{ width: '9%' }} className={`text-right py-3 px-4 ${BASE_THEME.text.muted} font-medium`}>Calls</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail_table.length > 0 ? (
-                  detail_table.map((row, idx) => (
-                    <tr
-                      key={idx}
-                      onClick={() => handleOperationClick(row)}
-                      className={`border-b ${BASE_THEME.border.default} cursor-pointer ${BASE_THEME.state.hover} transition-colors`}
-                    >
-                      <td className="py-3 px-4 text-lg">{row.status_emoji}</td>
-                      <td className="py-3 px-4 font-semibold text-purple-400">
-                        {row.agent_name}
-                      </td>
-                      <td className={`py-3 px-4 font-mono ${theme.text}`}>
-                        {truncateText(row.operation_name, 25)}
-                      </td>
-                      <td className={`py-3 px-4 text-center font-bold ${
-                        row.status === 'good' ? BASE_THEME.status.success.text :
-                        row.status === 'ok' ? BASE_THEME.status.warning.text :
-                        row.status === 'low' ? 'text-orange-400' :
-                        row.status === 'critical' ? BASE_THEME.status.error.text :
-                        BASE_THEME.text.muted
-                      }`}>
-                        {row.avg_score_formatted}
-                      </td>
-                      <td className={`py-3 px-4 text-center ${BASE_THEME.text.muted}`}>
-                        {row.min_score_formatted}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {row.error_count > 0 ? (
-                          <span className={BASE_THEME.status.error.text}>❌ {row.error_count}</span>
-                        ) : (
-                          <span className="text-gray-600">—</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {row.hallucination_count > 0 ? (
-                          <span className={BASE_THEME.status.warning.text}>⚠️ {row.hallucination_count}</span>
-                        ) : (
-                          <span className="text-gray-600">—</span>
-                        )}
-                      </td>
-                      <td className={`py-3 px-4 text-right ${BASE_THEME.text.muted}`}>
-                        {formatNumber(row.call_count)}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={8} className={`py-8 text-center ${BASE_THEME.text.muted}`}>
-                      No quality data available
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="mb-8">
+          <Layer1Table
+            data={detail_table.map(row => ({
+              ...row,
+              operation: row.operation_name,
+            }))}
+            theme={theme}
+            storyId="quality"
+            onRowClick={handleOperationClick}
+            columns={[
+              { key: 'avg_score_formatted', label: 'Avg Score', width: '12%' },
+              { key: 'min_score_formatted', label: 'Min', width: '9%' },
+              { key: 'error_count', label: 'Errors', width: '9%' },
+              { key: 'hallucination_count', label: 'Halluc.', width: '9%' },
+              { key: 'call_count', label: 'Calls', width: '9%' },
+            ]}
+            renderMetricCells={(row) => (
+              <>
+                <td className={`py-3 px-4 text-right font-bold ${
+                  row.status === 'good' ? BASE_THEME.status.success.text :
+                  row.status === 'ok' ? BASE_THEME.status.warning.text :
+                  row.status === 'low' ? 'text-orange-400' :
+                  row.status === 'critical' ? BASE_THEME.status.error.text :
+                  BASE_THEME.text.muted
+                }`}>
+                  {row.avg_score_formatted}
+                </td>
+                <td className={`py-3 px-4 text-right ${BASE_THEME.text.muted}`}>
+                  {row.min_score_formatted}
+                </td>
+                <td className="py-3 px-4 text-right">
+                  {row.error_count > 0 ? (
+                    <span className={BASE_THEME.status.error.text}>❌ {row.error_count}</span>
+                  ) : (
+                    <span className={BASE_THEME.text.muted}>—</span>
+                  )}
+                </td>
+                <td className="py-3 px-4 text-right">
+                  {row.hallucination_count > 0 ? (
+                    <span className={BASE_THEME.status.warning.text}>⚠️ {row.hallucination_count}</span>
+                  ) : (
+                    <span className={BASE_THEME.text.muted}>—</span>
+                  )}
+                </td>
+                <td className={`py-3 px-4 text-right ${BASE_THEME.text.muted}`}>
+                  {formatNumber(row.call_count)}
+                </td>
+              </>
+            )}
+          />
         </div>
 
         {/* Chart */}

@@ -7,9 +7,10 @@ import { useStory } from '../../../hooks/useStories';
 import { STORY_THEMES } from '../../../config/theme';
 import { StoryPageSkeleton } from '../../../components/common/Loading';
 import StoryNavTabs from '../../../components/stories/StoryNavTabs';
-import { formatNumber, truncateText } from '../../../utils/formatters';
+import { formatNumber } from '../../../utils/formatters';
 import { BASE_THEME } from '../../../utils/themeUtils';
 import PageContainer from '../../../components/layout/PageContainer';
+import Layer1Table from '../../../components/stories/Layer1Table';
 
 export default function PromptComposition() {
   const navigate = useNavigate();
@@ -66,59 +67,59 @@ export default function PromptComposition() {
               <span className="text-4xl">{theme.emoji}</span>
               {theme.name}
             </h1>
-            <div className="px-4 py-2 rounded-full border border-gray-700 bg-gray-900">
+            <div className={`px-4 py-2 rounded-full border ${BASE_THEME.border.default} ${BASE_THEME.container.primary}`}>
               <span className={`text-sm font-semibold ${theme.text}`}>
                 {Math.round(health_score)}% Health
               </span>
             </div>
           </div>
-          <p className="text-gray-500 text-sm">
+          <p className={`${BASE_THEME.text.muted} text-sm`}>
             Dashboard › Prompt Composition
           </p>
         </div>
 
         {/* KPI Cards */}
         <div className="grid grid-cols-4 gap-4 mb-8">
-          <div 
+          <div
             onClick={() => navigate('/stories/system_prompt/calls?filter=all')}
-            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+            className={`rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} p-4 cursor-pointer ${BASE_THEME.state.hover} transition-colors`}
           >
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Avg System</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} uppercase tracking-wide mb-1`}>Avg System</div>
             <div className="text-2xl font-bold text-blue-400">{avg_system_formatted}</div>
-            <div className="text-xs text-gray-500 mt-1">{system_pct}% of prompt</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} mt-1`}>{system_pct}% of prompt</div>
           </div>
-          
-          <div 
+
+          <div
             onClick={() => navigate('/stories/system_prompt/calls?filter=all')}
-            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+            className={`rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} p-4 cursor-pointer ${BASE_THEME.state.hover} transition-colors`}
           >
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Avg User</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} uppercase tracking-wide mb-1`}>Avg User</div>
             <div className="text-2xl font-bold text-green-400">{avg_user_formatted}</div>
-            <div className="text-xs text-gray-500 mt-1">{user_pct}% of prompt</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} mt-1`}>{user_pct}% of prompt</div>
           </div>
-          
-          <div 
+
+          <div
             onClick={() => navigate('/stories/system_prompt/calls?filter=large')}
-            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+            className={`rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} p-4 cursor-pointer ${BASE_THEME.state.hover} transition-colors`}
           >
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Avg History</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} uppercase tracking-wide mb-1`}>Avg History</div>
             <div className="text-2xl font-bold text-orange-400">{avg_history_formatted}</div>
-            <div className="text-xs text-gray-500 mt-1">{history_pct}% of prompt</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} mt-1`}>{history_pct}% of prompt</div>
           </div>
-          
-          <div 
+
+          <div
             onClick={() => navigate('/stories/system_prompt/calls?filter=all')}
-            className="rounded-lg border border-gray-700 bg-gray-900 p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+            className={`rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} p-4 cursor-pointer ${BASE_THEME.state.hover} transition-colors`}
           >
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Cache Ready</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} uppercase tracking-wide mb-1`}>Cache Ready</div>
             <div className={`text-2xl font-bold ${theme.text}`}>{cache_ready_count}/{total_operations}</div>
-            <div className="text-xs text-gray-500 mt-1">Operations</div>
+            <div className={`text-xs ${BASE_THEME.text.muted} mt-1`}>Operations</div>
           </div>
         </div>
 
         {/* Composition Overview */}
         {composition_chart.length > 0 && (
-          <div className="mb-8 rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
+          <div className={`mb-8 rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary} overflow-hidden`}>
             <div className={`h-1 ${theme.bg}`} />
             <div className="p-6">
               <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide mb-4`}>
@@ -164,74 +165,48 @@ export default function PromptComposition() {
         )}
 
         {/* Operations Table */}
-        <div className="rounded-lg border border-gray-700 bg-gray-900 overflow-hidden">
-          <div className={`h-1 ${theme.bg}`} />
-          <div className="p-4 border-b border-gray-700">
-            <h3 className={`text-sm font-medium ${theme.text} uppercase tracking-wide`}>
-              📊 Operations
-              <span className="text-gray-500 normal-case ml-2 font-normal">Click row to analyze</span>
-            </h3>
-          </div>
-          
-          <div className="overflow-x-auto overflow-y-auto max-h-96">
-            <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
-              <thead className="bg-gray-800/50">
-                <tr className="border-b border-gray-700">
-                  <th style={{ width: '16%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Agent</th>
-                  <th style={{ width: '36%' }} className="text-left py-3 px-4 text-gray-400 font-medium">Operation</th>
-                  <th style={{ width: '12%' }} className="text-right py-3 px-4 text-gray-400 font-medium">System</th>
-                  <th style={{ width: '12%' }} className="text-right py-3 px-4 text-gray-400 font-medium">User</th>
-                  <th style={{ width: '12%' }} className="text-right py-3 px-4 text-gray-400 font-medium">History</th>
-                  <th style={{ width: '6%' }} className="text-center py-3 px-4 text-gray-400 font-medium">Cache</th>
-                  <th style={{ width: '6%' }} className="text-right py-3 px-4 text-gray-400 font-medium">Calls</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail_table.length > 0 ? (
-                  detail_table.map((row, idx) => (
-                    <tr
-                      key={idx}
-                      onClick={() => handleOperationClick(row)}
-                      className="border-b border-gray-800 cursor-pointer hover:bg-gray-800/50 transition-colors"
-                    >
-                      <td className="py-3 px-4 font-semibold text-purple-400">
-                        {row.agent_name || '—'}
-                      </td>
-                      <td className={`py-3 px-4 font-mono ${theme.text}`}>
-                        {truncateText(row.operation_name, 25)}
-                      </td>
-                      <td className="py-3 px-4 text-right text-blue-400">
-                        {row.avg_system_formatted}
-                      </td>
-                      <td className="py-3 px-4 text-right text-green-400">
-                        {row.avg_user_formatted}
-                      </td>
-                      <td className="py-3 px-4 text-right text-orange-400">
-                        {row.avg_history_formatted}
-                      </td>
-                      <td className="py-3 px-4 text-center text-lg">
-                        {row.cache_emoji}
-                      </td>
-                      <td className="py-3 px-4 text-right text-gray-400">
-                        {formatNumber(row.call_count)}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-gray-500">
-                      No prompt data available
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="mb-8">
+          <Layer1Table
+            data={detail_table.map(row => ({
+              ...row,
+              operation: row.operation_name,
+              status_emoji: row.cache_emoji,
+            }))}
+            theme={theme}
+            storyId="system_prompt"
+            onRowClick={handleOperationClick}
+            columns={[
+              { key: 'avg_system_formatted', label: 'System', width: '12%' },
+              { key: 'avg_user_formatted', label: 'User', width: '12%' },
+              { key: 'avg_history_formatted', label: 'History', width: '12%' },
+              { key: 'cache_emoji', label: 'Cache', width: '6%' },
+              { key: 'call_count', label: 'Calls', width: '6%' },
+            ]}
+            renderMetricCells={(row) => (
+              <>
+                <td className="py-3 px-4 text-right text-blue-400">
+                  {row.avg_system_formatted}
+                </td>
+                <td className="py-3 px-4 text-right text-green-400">
+                  {row.avg_user_formatted}
+                </td>
+                <td className="py-3 px-4 text-right text-orange-400">
+                  {row.avg_history_formatted}
+                </td>
+                <td className="py-3 px-4 text-center text-lg">
+                  {row.cache_emoji}
+                </td>
+                <td className={`py-3 px-4 text-right ${BASE_THEME.text.muted}`}>
+                  {formatNumber(row.call_count)}
+                </td>
+              </>
+            )}
+          />
         </div>
 
         {/* Insight */}
-        <div className="mt-6 p-4 rounded-lg border border-gray-700 bg-gray-900">
-          <p className="text-sm text-gray-400">
+        <div className={`mt-6 p-4 rounded-lg border ${BASE_THEME.border.default} ${BASE_THEME.container.primary}`}>
+          <p className={`text-sm ${BASE_THEME.text.muted}`}>
             ✅ <span className="text-green-400">{cache_ready_count}</span> operations have static system prompts → cache ready
             {total_operations - cache_ready_count > 0 && (
               <span className="ml-4">

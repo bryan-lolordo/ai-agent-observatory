@@ -8,6 +8,7 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { BASE_THEME } from './utils/themeUtils';
 
 // Context
 import TimeRangeContext from './context/TimeRangeContext';
@@ -90,7 +91,7 @@ function App() {
     <TimeRangeContext.Provider value={{ timeRange, setTimeRange }}>
       <BrowserRouter>
         <ScrollToTop />
-        <div className="min-h-screen bg-gray-950 flex flex-col">
+        <div className={`min-h-screen ${BASE_THEME.container.primary} flex flex-col`}>
           
           {/* Header - Sticky navigation with filters */}
           <Header 

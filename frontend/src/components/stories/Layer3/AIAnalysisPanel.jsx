@@ -161,14 +161,14 @@ export default function AIAnalysisPanel({ callId, responseText = null }) {
         {callAnalysis && (
           <div className="space-y-6">
             {/* Purpose - Prominent section */}
-            <div className="bg-gray-700 rounded-lg p-4">
+            <div className={`${BASE_THEME.container.tertiary} rounded-lg p-4`}>
               <div className={`text-base font-bold ${BASE_THEME.text.muted} uppercase tracking-wide mb-2`}>Purpose</div>
               <p className={`${BASE_THEME.text.primary} text-base`}>{safeRender(callAnalysis.purpose)}</p>
             </div>
 
             {/* Output Format Assessment */}
             {callAnalysis.output_format_assessment && (
-              <div className="bg-gray-700 rounded-lg p-4">
+              <div className={`${BASE_THEME.container.tertiary} rounded-lg p-4`}>
                 <div className={`text-base font-bold ${BASE_THEME.text.muted} uppercase tracking-wide mb-2`}>Output Format</div>
                 <p className={`${BASE_THEME.text.primary} text-base`}>{safeRender(callAnalysis.output_format_assessment)}</p>
               </div>
@@ -176,7 +176,7 @@ export default function AIAnalysisPanel({ callId, responseText = null }) {
 
             {/* Essential vs Redundant - Side by side */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-700 rounded-lg p-4">
+              <div className={`${BASE_THEME.container.tertiary} rounded-lg p-4`}>
                 <div className={`text-base font-bold ${BASE_THEME.status.success.text} uppercase tracking-wide mb-3`}>Essential Output</div>
                 <ul className="space-y-2">
                   {callAnalysis.essential_output?.map((item, i) => (
@@ -187,7 +187,7 @@ export default function AIAnalysisPanel({ callId, responseText = null }) {
                   ))}
                 </ul>
               </div>
-              <div className="bg-gray-700 rounded-lg p-4">
+              <div className={`${BASE_THEME.container.tertiary} rounded-lg p-4`}>
                 <div className={`text-base font-bold ${BASE_THEME.status.warning.text} uppercase tracking-wide mb-3`}>Redundant Output</div>
                 <ul className="space-y-2">
                   {callAnalysis.redundant_output?.map((item, i) => (
@@ -202,7 +202,7 @@ export default function AIAnalysisPanel({ callId, responseText = null }) {
 
             {/* Prompt Issues */}
             {callAnalysis.prompt_issues?.length > 0 && (
-              <div className="bg-gray-700 rounded-lg p-4">
+              <div className={`${BASE_THEME.container.tertiary} rounded-lg p-4`}>
                 <div className={`text-base font-bold ${BASE_THEME.status.error.text} uppercase tracking-wide mb-3`}>Prompt Issues</div>
                 <ul className="space-y-2">
                   {callAnalysis.prompt_issues.map((issue, i) => (
@@ -334,11 +334,11 @@ function RecommendationCard({
 
           {/* Problem & Solution - Side by side */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-700 rounded-lg p-4">
+            <div className={`${BASE_THEME.container.tertiary} rounded-lg p-4`}>
               <div className={`text-base font-bold ${BASE_THEME.status.error.text} uppercase tracking-wide mb-2`}>Problem</div>
               <p className={`text-base ${BASE_THEME.text.primary}`}>{safeRender(rec.problem)}</p>
             </div>
-            <div className="bg-gray-700 rounded-lg p-4">
+            <div className={`${BASE_THEME.container.tertiary} rounded-lg p-4`}>
               <div className={`text-base font-bold ${BASE_THEME.status.success.text} uppercase tracking-wide mb-2`}>Solution</div>
               <p className={`text-base ${BASE_THEME.text.primary}`}>{safeRender(rec.solution)}</p>
             </div>
@@ -346,7 +346,7 @@ function RecommendationCard({
 
           {/* Impact metrics - Larger and more prominent */}
           {rec.estimated_impact && (
-            <div className="bg-gray-700 rounded-lg p-5">
+            <div className={`${BASE_THEME.container.tertiary} rounded-lg p-5`}>
               <div className={`text-base font-bold ${BASE_THEME.text.muted} uppercase tracking-wide mb-4`}>Estimated Impact</div>
               <div className="grid grid-cols-3 gap-4">
                 <ImpactMetric
@@ -369,7 +369,7 @@ function RecommendationCard({
 
           {/* Implementation Code - Before/After (like static recommendations) */}
           {rec.implementation && (rec.implementation.code_before || rec.implementation.code_after) && (
-            <div className="bg-gray-700 rounded-lg p-5">
+            <div className={`${BASE_THEME.container.tertiary} rounded-lg p-5`}>
               <div className={`text-base font-bold ${BASE_THEME.text.muted} uppercase tracking-wide mb-4`}>📝 Implementation</div>
               <div className="grid grid-cols-2 gap-4">
                 {/* Before */}
@@ -378,12 +378,12 @@ function RecommendationCard({
                     <div className={`text-base font-bold ${BASE_THEME.status.error.text}`}>BEFORE</div>
                     <button
                       onClick={() => onCopyCode(rec.implementation.code_before)}
-                      className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded"
+                      className={`px-3 py-1 ${BASE_THEME.container.secondary} hover:opacity-80 ${BASE_THEME.text.secondary} text-xs rounded`}
                     >
                       Copy
                     </button>
                   </div>
-                  <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-300 overflow-x-auto max-h-64 whitespace-pre-wrap font-mono">
+                  <pre className={`${BASE_THEME.container.primary} rounded-lg p-4 text-sm ${BASE_THEME.text.secondary} overflow-x-auto max-h-64 whitespace-pre-wrap font-mono`}>
                     {safeRender(rec.implementation.code_before)}
                   </pre>
                 </div>
@@ -398,7 +398,7 @@ function RecommendationCard({
                       Copy
                     </button>
                   </div>
-                  <pre className="bg-gray-800 rounded-lg p-4 text-sm text-gray-200 overflow-x-auto max-h-64 whitespace-pre-wrap font-mono">
+                  <pre className={`${BASE_THEME.container.primary} rounded-lg p-4 text-sm ${BASE_THEME.text.primary} overflow-x-auto max-h-64 whitespace-pre-wrap font-mono`}>
                     {safeRender(rec.implementation.code_after)}
                   </pre>
                 </div>
@@ -408,7 +408,7 @@ function RecommendationCard({
 
           {/* Prompt Change (if applicable) */}
           {rec.new_prompt && rec.new_prompt !== 'N/A' && rec.new_prompt !== 'N/A - no prompt change needed' && (
-            <div className="bg-gray-700 rounded-lg p-5">
+            <div className={`${BASE_THEME.container.tertiary} rounded-lg p-5`}>
               <div className="flex items-center justify-between mb-4">
                 <div className={`text-base font-bold ${BASE_THEME.text.muted} uppercase tracking-wide`}>📄 Prompt Change</div>
                 <button
@@ -418,7 +418,7 @@ function RecommendationCard({
                   {isCopied ? '✓ Copied!' : 'Copy New Prompt'}
                 </button>
               </div>
-              <pre className="bg-gray-800 rounded-lg p-4 text-base text-gray-200 overflow-x-auto max-h-48 whitespace-pre-wrap">
+              <pre className={`${BASE_THEME.container.primary} rounded-lg p-4 text-base ${BASE_THEME.text.primary} overflow-x-auto max-h-48 whitespace-pre-wrap`}>
                 {safeRender(rec.new_prompt)}
               </pre>
             </div>
@@ -426,14 +426,14 @@ function RecommendationCard({
 
           {/* Output Comparison (optional - only show if expected_output_example exists) */}
           {rec.expected_output_example && (
-            <div className="bg-gray-700 rounded-lg p-5">
+            <div className={`${BASE_THEME.container.tertiary} rounded-lg p-5`}>
               <div className={`text-base font-bold ${BASE_THEME.text.muted} uppercase tracking-wide mb-4`}>📤 Expected Output Change</div>
 
               {responseText ? (
                 <div className="space-y-4">
                   <div>
                     <div className={`text-base font-bold ${BASE_THEME.status.error.text} mb-2`}>Current Output</div>
-                    <pre className="bg-gray-800 rounded-lg p-4 text-base text-gray-300 overflow-x-auto max-h-32 whitespace-pre-wrap">
+                    <pre className={`${BASE_THEME.container.primary} rounded-lg p-4 text-base ${BASE_THEME.text.secondary} overflow-x-auto max-h-32 whitespace-pre-wrap`}>
                       {safeRender(responseText).substring(0, 500)}{responseText?.length > 500 ? '...' : ''}
                     </pre>
                   </div>
@@ -442,7 +442,7 @@ function RecommendationCard({
                   </div>
                   <div>
                     <div className={`text-base font-bold ${BASE_THEME.status.success.text} mb-2`}>Expected After Fix</div>
-                    <pre className="bg-gray-800 rounded-lg p-4 text-base text-gray-200 overflow-x-auto max-h-32 whitespace-pre-wrap">
+                    <pre className={`${BASE_THEME.container.primary} rounded-lg p-4 text-base ${BASE_THEME.text.primary} overflow-x-auto max-h-32 whitespace-pre-wrap`}>
                       {safeRender(rec.expected_output_example)}
                     </pre>
                   </div>
@@ -450,7 +450,7 @@ function RecommendationCard({
               ) : (
                 <div>
                   <div className={`text-base font-bold ${BASE_THEME.status.success.text} mb-2`}>Expected Output</div>
-                  <pre className="bg-gray-800 rounded-lg p-4 text-base text-gray-200 overflow-x-auto max-h-32 whitespace-pre-wrap">
+                  <pre className={`${BASE_THEME.container.primary} rounded-lg p-4 text-base ${BASE_THEME.text.primary} overflow-x-auto max-h-32 whitespace-pre-wrap`}>
                     {safeRender(rec.expected_output_example)}
                   </pre>
                 </div>
@@ -462,7 +462,7 @@ function RecommendationCard({
           {(rec.preserves?.length > 0 || rec.tradeoffs?.length > 0) && (
             <div className="grid grid-cols-2 gap-4">
               {rec.preserves?.length > 0 && (
-                <div className="bg-gray-700 rounded-lg p-4">
+                <div className={`${BASE_THEME.container.tertiary} rounded-lg p-4`}>
                   <div className={`text-base font-bold ${BASE_THEME.status.success.text} uppercase tracking-wide mb-3`}>Preserves</div>
                   <ul className="space-y-2">
                     {rec.preserves.map((item, i) => (
@@ -475,7 +475,7 @@ function RecommendationCard({
                 </div>
               )}
               {rec.tradeoffs?.length > 0 && (
-                <div className="bg-gray-700 rounded-lg p-4">
+                <div className={`${BASE_THEME.container.tertiary} rounded-lg p-4`}>
                   <div className={`text-base font-bold ${BASE_THEME.status.warning.text} uppercase tracking-wide mb-3`}>Trade-offs</div>
                   <ul className="space-y-2">
                     {rec.tradeoffs.map((item, i) => (
@@ -521,7 +521,7 @@ function ImpactMetric({ label, before, after, change }) {
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4 text-center">
+    <div className={`${BASE_THEME.container.primary} rounded-lg p-4 text-center`}>
       <div className={`text-sm ${BASE_THEME.text.muted} uppercase tracking-wide mb-2`}>{label}</div>
       {before != null && after != null && (
         <div className={`text-base ${BASE_THEME.text.secondary} mb-1`}>
