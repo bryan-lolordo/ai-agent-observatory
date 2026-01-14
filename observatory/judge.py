@@ -5,13 +5,10 @@ Location: observatory/judge.py
 Configurable LLM-as-a-judge for evaluating response quality.
 Applications configure which operations to judge and domain-specific criteria.
 
-UPDATED: Now supports multiple client types:
+Supports multiple client types:
   - OpenAI / Azure OpenAI clients
   - Semantic Kernel
   - Generic async/sync callables
-
-UPDATED (Phase 2): Added token breakdown, routing decision, and cache metadata
-to all judge call tracking for complete Observatory metrics coverage.
 """
 
 import asyncio
@@ -27,6 +24,7 @@ from observatory.models import (
     RoutingDecision,
     CacheMetadata,
 )
+from observatory.utils import ClientType, detect_client_type
 
 if TYPE_CHECKING:
     from observatory.collector import Observatory
@@ -45,43 +43,6 @@ DEFAULT_CRITERIA = {
 }
 
 DEFAULT_SAMPLE_RATE = 0.5
-
-
-# =============================================================================
-# CLIENT TYPE DETECTION
-# =============================================================================
-
-class ClientType:
-    """Enum for supported client types."""
-    OPENAI = "openai"
-    SEMANTIC_KERNEL = "semantic_kernel"
-    CALLABLE = "callable"
-    UNKNOWN = "unknown"
-
-
-def detect_client_type(client: Any) -> str:
-    """
-    Detect the type of LLM client.
-    
-    Args:
-        client: The LLM client to detect
-        
-    Returns:
-        ClientType string
-    """
-    # OpenAI / Azure OpenAI style (has .chat.completions.create)
-    if hasattr(client, 'chat') and hasattr(client.chat, 'completions'):
-        return ClientType.OPENAI
-    
-    # Semantic Kernel (has .invoke_prompt)
-    if hasattr(client, 'invoke_prompt'):
-        return ClientType.SEMANTIC_KERNEL
-    
-    # Generic callable (function or lambda)
-    if callable(client):
-        return ClientType.CALLABLE
-    
-    return ClientType.UNKNOWN
 
 
 # =============================================================================
@@ -124,6 +85,7 @@ class LLMJudge:
         domain_context: str = "AI assistant responses",
         judge_model: str = "gpt-4o-mini",
         track_judge_calls: bool = True,
+        enabled: bool = True, 
     ):
         """
         Initialize LLM Judge.
@@ -146,6 +108,7 @@ class LLMJudge:
         self.domain_context = domain_context
         self.judge_model = judge_model
         self.track_judge_calls = track_judge_calls
+        self.enabled = enabled 
         
         # Statistics
         self._total_evaluated = 0
@@ -192,6 +155,10 @@ class LLMJudge:
         Returns:
             True if should evaluate
         """
+        # Check if judge is enabled
+        if not self.enabled:  # ADD THIS CHECK
+            return False
+        
         # Skip if in skip list
         if operation in self.skip_operations:
             return False
@@ -776,6 +743,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         hallucination_rate = self._total_hallucinations / self._total_evaluated if self._total_evaluated > 0 else 0
         
         return {
+            "enabled": self.enabled, 
             "total_evaluated": self._total_evaluated,
             "total_skipped": self._total_skipped,
             "total_hallucinations": self._total_hallucinations,

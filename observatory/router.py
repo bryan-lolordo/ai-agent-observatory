@@ -4,16 +4,30 @@ Location: observatory/router.py
 
 Routes LLM requests to appropriate models based on configurable rules.
 Tracks routing decisions for Observatory analysis.
+
+DETECTION_ONLY MODE (Baseline):
+    - Calculates routing decision (which model SHOULD be used)
+    - Logs routing opportunities (upgrades/downgrades)
+    - Returns default_model (doesn't actually route)
+    - Tracks opportunity metrics for reporting
+
+ACTIVE MODE (Optimized):
+    - Calculates routing decision
+    - Returns the routed model (actually routes)
 """
 
 import re
+import logging
 from typing import Optional, Dict, List, Any, Callable, TYPE_CHECKING
 from dataclasses import dataclass
 
 from observatory.models import RoutingDecision
+from observatory.utils import MODEL_PRICING, estimate_tokens
 
 if TYPE_CHECKING:
     from observatory.collector import Observatory
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -79,44 +93,39 @@ class RoutingRule:
 class ModelRouter:
     """
     Intelligent model selection with Observatory tracking.
-    
+
     Usage:
+        # Baseline mode - detect routing opportunities
         router = ModelRouter(
             observatory=obs,
             default_model="gpt-4o-mini",
-            rules=[
-                {"operations": ["find_jobs", "list_resumes"], 
-                 "model": "gpt-4o-mini", "reason": "Simple retrieval"},
-                {"operations": ["deep_analyze_job"], 
-                 "model": "gpt-4o", "reason": "Complex analysis"},
-                {"min_complexity": 0.7, 
-                 "model": "gpt-4o", "reason": "High complexity task"},
-            ]
+            rules=[...],
+            enabled=True,
+            detection_only=True,  # Track opportunities, don't actually route
         )
         
+        # Optimized mode - actually route
+        router = ModelRouter(
+            observatory=obs,
+            default_model="gpt-4o-mini",
+            rules=[...],
+            enabled=True,
+            detection_only=False,  # Return routed model
+        )
+
         # Select model
         model, decision = router.select(
             operation="find_jobs",
             prompt="Find Python jobs",
             estimated_tokens=500
         )
-        
+
         # Make LLM call with selected model...
-        
+
         # Track with routing decision
         track_llm_call(..., routing_decision=decision)
     """
-    
-    # Model pricing (cost per 1K tokens: input, output)
-    MODEL_PRICING = {
-        "gpt-4o": (0.0025, 0.01),
-        "gpt-4o-mini": (0.00015, 0.0006),
-        "gpt-4": (0.03, 0.06),
-        "gpt-3.5-turbo": (0.0005, 0.0015),
-        "claude-sonnet-4": (0.003, 0.015),
-        "claude-opus-4": (0.015, 0.075),
-    }
-    
+
     def __init__(
         self,
         observatory: Optional['Observatory'] = None,
@@ -124,6 +133,8 @@ class ModelRouter:
         fallback_model: Optional[str] = None,
         rules: Optional[List[Dict[str, Any]]] = None,
         complexity_calculator: Optional[Callable[[str], float]] = None,
+        enabled: bool = True,  # NEW
+        detection_only: bool = False,  # NEW
     ):
         """
         Initialize Model Router.
@@ -134,11 +145,15 @@ class ModelRouter:
             fallback_model: Fallback if selected model fails
             rules: List of routing rule dicts
             complexity_calculator: Custom function to calculate complexity
+            enabled: Whether routing is active (NEW)
+            detection_only: If True, detect opportunities but don't route (NEW)
         """
         self.observatory = observatory
         self.default_model = default_model
         self.fallback_model = fallback_model or default_model
         self.complexity_calculator = complexity_calculator or self._default_complexity
+        self.enabled = enabled  # NEW
+        self.detection_only = detection_only  # NEW
         
         # Convert rule dicts to RoutingRule objects
         self._rules: List[RoutingRule] = []
@@ -150,6 +165,7 @@ class ModelRouter:
         self._total_decisions = 0
         self._decisions_by_model: Dict[str, int] = {}
         self._total_estimated_savings = 0.0
+        self._total_opportunities = 0  # NEW: Routing opportunities in detection_only mode
         
         # Last decision for easy retrieval
         self._last_decision: Optional[RoutingDecision] = None
@@ -240,6 +256,14 @@ class ModelRouter:
         """
         Select the best model based on rules.
         
+        DETECTION_ONLY MODE (baseline):
+            - Calculates which model SHOULD be used
+            - Returns default_model (doesn't actually route)
+            - Logs routing opportunity if different from default
+        
+        ACTIVE MODE (optimized):
+            - Returns the routed model (actually routes)
+        
         Args:
             operation: Operation name
             agent: Agent name
@@ -250,13 +274,21 @@ class ModelRouter:
         Returns:
             Tuple of (model_name, RoutingDecision)
         """
+        # Check if enabled
+        if not self.enabled:
+            decision = RoutingDecision(
+                chosen_model=self.default_model,
+                reasoning="Routing disabled",
+            )
+            return self.default_model, decision
+        
         # Calculate complexity if not provided
         if complexity is None and prompt:
             complexity = self.complexity_calculator(prompt)
         
         # Estimate tokens if not provided
         if estimated_tokens is None and prompt:
-            estimated_tokens = self._estimate_tokens(prompt)
+            estimated_tokens = estimate_tokens(prompt)
         
         # Find matching rule
         matched_rule = None
@@ -265,27 +297,72 @@ class ModelRouter:
                 matched_rule = rule
                 break
         
-        # Determine selected model
+        # Determine which model the rule suggests
         if matched_rule:
-            selected_model = matched_rule.model
+            routed_model = matched_rule.model
             reasoning = matched_rule.reason
             rule_triggered = matched_rule.name
         else:
-            selected_model = self.default_model
+            routed_model = self.default_model
             reasoning = "No matching rule - using default model"
             rule_triggered = None
         
         # Calculate alternative models and potential savings
-        alternatives = self._get_alternative_models(selected_model)
+        alternatives = self._get_alternative_models(routed_model)
         estimated_savings = self._estimate_savings(
-            selected_model, 
+            routed_model, 
             alternatives[0] if alternatives else None,
             estimated_tokens or 500
         )
         
+        # ═══════════════════════════════════════════════════════════════
+        # NEW: DETECTION_ONLY MODE
+        # ═══════════════════════════════════════════════════════════════
+        if self.detection_only:
+            # Track opportunity if routing would change the model
+            if routed_model != self.default_model:
+                self._total_opportunities += 1
+                
+                # Determine if upgrade or downgrade
+                action = "upgrade" if self._is_upgrade(self.default_model, routed_model) else "downgrade"
+                
+                logger.info(
+                    f"💡 ROUTING OPPORTUNITY: Would {action} {operation or 'call'} "
+                    f"from {self.default_model} → {routed_model} ({reasoning})"
+                )
+            
+            # Create decision with routed model for tracking
+            decision = RoutingDecision(
+                chosen_model=routed_model,  # Track what SHOULD be used
+                alternative_models=alternatives,
+                reasoning=f"[Detection] {reasoning}",
+                rule_triggered=rule_triggered,
+                complexity_score=complexity,
+                estimated_cost_savings=estimated_savings if estimated_savings > 0 else None,
+                routing_strategy=self._determine_strategy(matched_rule),
+            )
+            
+            # Update statistics
+            self._total_decisions += 1
+            self._decisions_by_model[self.default_model] = self._decisions_by_model.get(self.default_model, 0) + 1
+            self._last_decision = decision
+            
+            # Return default model (don't actually route)
+            return self.default_model, decision
+        
+        # ═══════════════════════════════════════════════════════════════
+        # ACTIVE MODE - Actually route
+        # ═══════════════════════════════════════════════════════════════
+        if routed_model != self.default_model:
+            action = "Upgrading" if self._is_upgrade(self.default_model, routed_model) else "Routing"
+            logger.info(
+                f"✅ ROUTING: {action} {operation or 'call'} "
+                f"from {self.default_model} → {routed_model} ({reasoning})"
+            )
+        
         # Create routing decision
         decision = RoutingDecision(
-            chosen_model=selected_model,
+            chosen_model=routed_model,
             alternative_models=alternatives,
             reasoning=reasoning,
             rule_triggered=rule_triggered,
@@ -296,13 +373,29 @@ class ModelRouter:
         
         # Update statistics
         self._total_decisions += 1
-        self._decisions_by_model[selected_model] = self._decisions_by_model.get(selected_model, 0) + 1
+        self._decisions_by_model[routed_model] = self._decisions_by_model.get(routed_model, 0) + 1
         if estimated_savings > 0:
             self._total_estimated_savings += estimated_savings
         
         self._last_decision = decision
         
-        return selected_model, decision
+        return routed_model, decision
+    
+    def _is_upgrade(self, from_model: str, to_model: str) -> bool:
+        """Check if routing represents an upgrade (cheaper → more expensive)."""
+        # Simple heuristic: check if "mini" or "3.5" in from_model but not in to_model
+        from_lower = from_model.lower()
+        to_lower = to_model.lower()
+        
+        # From cheap model to expensive
+        if ("mini" in from_lower or "3.5" in from_lower) and ("mini" not in to_lower and "3.5" not in to_lower):
+            return True
+        
+        # From gpt-4o-mini to gpt-4o
+        if "4o-mini" in from_lower and "4o" in to_lower and "mini" not in to_lower:
+            return True
+        
+        return False
     
     def _determine_strategy(self, rule: Optional[RoutingRule]) -> str:
         """Determine routing strategy name."""
@@ -326,25 +419,28 @@ class ModelRouter:
         return [m for m in all_models if m != selected][:3]
     
     def _estimate_savings(
-        self, 
-        selected: str, 
+        self,
+        selected: str,
         expensive_alternative: Optional[str],
         tokens: int
     ) -> float:
         """Estimate cost savings vs expensive alternative."""
         if not expensive_alternative:
             return 0.0
-        
-        selected_price = self.MODEL_PRICING.get(selected, (0.001, 0.002))
-        alt_price = self.MODEL_PRICING.get(expensive_alternative, (0.001, 0.002))
-        
+
+        # MODEL_PRICING uses per-token pricing, convert to per-1K for calculation
+        default_price = (0.001 / 1000, 0.002 / 1000)
+        selected_price = MODEL_PRICING.get(selected, default_price)
+        alt_price = MODEL_PRICING.get(expensive_alternative, default_price)
+
         # Assume 70% input, 30% output tokens
         input_tokens = int(tokens * 0.7)
         output_tokens = int(tokens * 0.3)
-        
-        selected_cost = (input_tokens * selected_price[0] / 1000) + (output_tokens * selected_price[1] / 1000)
-        alt_cost = (input_tokens * alt_price[0] / 1000) + (output_tokens * alt_price[1] / 1000)
-        
+
+        # MODEL_PRICING stores per-token prices, multiply directly
+        selected_cost = (input_tokens * selected_price[0]) + (output_tokens * selected_price[1])
+        alt_cost = (input_tokens * alt_price[0]) + (output_tokens * alt_price[1])
+
         return max(0, alt_cost - selected_cost)
     
     # =========================================================================
@@ -407,11 +503,7 @@ class ModelRouter:
                 score -= 0.05
         
         return max(0.0, min(1.0, score))
-    
-    def _estimate_tokens(self, text: str) -> int:
-        """Rough token estimation (4 chars ≈ 1 token)."""
-        return len(text) // 4
-    
+
     def set_complexity_calculator(
         self, 
         calculator: Callable[[str], float]
@@ -435,8 +527,15 @@ class ModelRouter:
     
     def get_stats(self) -> Dict[str, Any]:
         """Get routing statistics."""
+        opportunity_rate = self._total_opportunities / self._total_decisions if self._total_decisions > 0 else 0
+        
         return {
+            "enabled": self.enabled,
+            "detection_only": self.detection_only,
             "total_decisions": self._total_decisions,
+            "total_opportunities": self._total_opportunities,
+            "opportunity_rate": round(opportunity_rate, 3),
+            "opportunity_rate_pct": f"{opportunity_rate:.1%}",
             "decisions_by_model": dict(self._decisions_by_model),
             "total_estimated_savings": round(self._total_estimated_savings, 4),
             "default_model": self.default_model,
@@ -458,6 +557,7 @@ class ModelRouter:
         self._total_decisions = 0
         self._decisions_by_model.clear()
         self._total_estimated_savings = 0.0
+        self._total_opportunities = 0
 
 
 # =============================================================================

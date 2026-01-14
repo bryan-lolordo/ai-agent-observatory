@@ -14,7 +14,6 @@ Collects and manages metrics for AI agent sessions with support for:
 
 import os
 import uuid
-import hashlib
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from contextlib import contextmanager
@@ -37,55 +36,12 @@ from observatory.models import (
     ExperimentMetadata,
 )
 from observatory.storage import Storage
-from observatory.cache import normalize_prompt, compute_content_hash
-
-
-# =============================================================================
-# HELPER FUNCTIONS
-# =============================================================================
-
-def generate_prompt_hash(prompt: str, prefix_length: int = 500) -> str:
-    """
-    Generate a short hash from prompt prefix for version detection.
-    
-    Args:
-        prompt: Full prompt text
-        prefix_length: Number of characters to hash (default 500)
-    
-    Returns:
-        8-character hex hash
-    """
-    if not prompt:
-        return ""
-    return hashlib.md5(prompt[:prefix_length].encode()).hexdigest()[:8]
-
-
-def calculate_cost(provider: ModelProvider, model_name: str, prompt_tokens: int, completion_tokens: int) -> tuple:
-    """Calculate cost for LLM call. Returns (prompt_cost, completion_cost)."""
-    pricing = {
-        "gpt-4": (0.03 / 1000, 0.06 / 1000),
-        "gpt-4o": (0.0025 / 1000, 0.01 / 1000),
-        "gpt-4o-mini": (0.00015 / 1000, 0.0006 / 1000),
-        "gpt-3.5-turbo": (0.0005 / 1000, 0.0015 / 1000),
-        "claude-4": (0.015 / 1000, 0.075 / 1000),
-        "claude-sonnet-4": (0.003 / 1000, 0.015 / 1000),
-        "claude-3-5-sonnet": (0.003 / 1000, 0.015 / 1000),
-        "claude-opus-4": (0.015 / 1000, 0.075 / 1000),
-        "mistral-small": (0.0002 / 1000, 0.0006 / 1000),
-    }
-    
-    model_lower = model_name.lower()
-    prompt_price, completion_price = 0.001 / 1000, 0.002 / 1000  # Default
-    
-    for key, prices in pricing.items():
-        if key in model_lower:
-            prompt_price, completion_price = prices
-            break
-    
-    prompt_cost = prompt_tokens * prompt_price
-    completion_cost = completion_tokens * completion_price
-    
-    return prompt_cost, completion_cost
+from observatory.utils import (
+    normalize_prompt,
+    compute_content_hash,
+    generate_prompt_hash,
+    calculate_cost,
+)
 
 
 # =============================================================================

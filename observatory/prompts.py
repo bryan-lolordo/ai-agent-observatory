@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from observatory.models import PromptMetadata, PromptBreakdown
+from observatory.utils import estimate_tokens
 
 if TYPE_CHECKING:
     from observatory.collector import Observatory
@@ -451,7 +452,122 @@ class PromptManager:
             for variant in self._variant_usage[template_id]:
                 self._variant_usage[template_id][variant] = 0
 
+# =============================================================================
+# PROMPT OPTIMIZER
+# =============================================================================
 
+class PromptOptimizer:
+    """
+    Optimizes prompts through compression and token efficiency.
+    
+    BASELINE MODE (detection_only=True):
+        - Analyzes prompt size and recommends compressed variants
+        - Tracks potential token savings
+        - Does NOT actually use compressed prompts
+    
+    OPTIMIZED MODE (detection_only=False):
+        - Returns compressed prompts based on operation complexity
+        - Returns operation-specific max_tokens limits
+    
+    Usage:
+        optimizer = PromptOptimizer(
+            observatory=obs,
+            prompt_variants={
+                "simple": {"content": "Brief 50-token prompt", "max_tokens": 150},
+                "medium": {"content": "200-token prompt", "max_tokens": 500},
+                "complex": {"content": FULL_SYSTEM_PROMPT, "max_tokens": 1000},
+            },
+            operation_complexity={
+                "quick_score_job": "simple",
+                "generate_sql": "medium",
+                "deep_analyze_job": "complex",
+            },
+            detection_only=True,
+        )
+        
+        # Get optimized prompt and token limit
+        prompt, max_tokens, metadata = optimizer.get_optimized_prompt(
+            operation="quick_score_job",
+            default_prompt=FULL_SYSTEM_PROMPT
+        )
+    """
+    
+    def __init__(
+        self,
+        observatory: Optional['Observatory'] = None,
+        prompt_variants: Optional[Dict[str, Dict[str, Any]]] = None,
+        operation_complexity: Optional[Dict[str, str]] = None,
+        enabled: bool = True,
+        detection_only: bool = True,
+    ):
+        self.observatory = observatory
+        self.prompt_variants = prompt_variants or {}
+        self.operation_complexity = operation_complexity or {}
+        self.enabled = enabled
+        self.detection_only = detection_only
+        
+        self._stats = {
+            "opportunities_detected": 0,
+            "tokens_saved": 0,
+            "by_operation": {},
+        }
+    
+    def get_optimized_prompt(
+        self,
+        operation: str,
+        default_prompt: str,
+    ) -> Tuple[str, Optional[int], Dict[str, Any]]:
+        """
+        Get optimized prompt and max_tokens for operation.
+        
+        Returns:
+            Tuple of (prompt, max_tokens, metadata)
+        """
+        if not self.enabled:
+            return default_prompt, None, {}
+        
+        complexity = self.operation_complexity.get(operation, "complex")
+        variant = self.prompt_variants.get(complexity, {})
+        
+        optimized_prompt = variant.get("content", default_prompt)
+        max_tokens = variant.get("max_tokens")
+        
+        # Calculate savings
+        default_tokens = estimate_tokens(default_prompt)
+        optimized_tokens = estimate_tokens(optimized_prompt)
+        tokens_saved = default_tokens - optimized_tokens
+        
+        metadata = {
+            "complexity": complexity,
+            "default_tokens": default_tokens,
+            "optimized_tokens": optimized_tokens,
+            "tokens_saved": tokens_saved,
+            "compression_ratio": optimized_tokens / default_tokens if default_tokens > 0 else 1.0,
+        }
+        
+        # BASELINE: Log opportunity but return default
+        if self.detection_only:
+            if tokens_saved > 0:
+                self._stats["opportunities_detected"] += 1
+                self._stats["tokens_saved"] += tokens_saved
+                logger.info(
+                    f"💡 PROMPT COMPRESSION OPPORTUNITY: {operation} "
+                    f"({default_tokens} → {optimized_tokens} tokens, saves {tokens_saved})"
+                )
+            return default_prompt, None, metadata
+        
+        # OPTIMIZED: Return compressed prompt
+        self._stats["tokens_saved"] += tokens_saved
+        return optimized_prompt, max_tokens, metadata
+    
+    def get_stats(self) -> Dict[str, Any]:
+        return {
+            "enabled": self.enabled,
+            "detection_only": self.detection_only,
+            "opportunities_detected": self._stats["opportunities_detected"],
+            "tokens_saved": self._stats["tokens_saved"],
+        }
+    
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
@@ -491,11 +607,6 @@ def create_prompt_metadata(
     )
 
 
-
-from typing import Optional, List, Dict
-from observatory.models import PromptBreakdown
-
-
 def create_prompt_breakdown(
     system_prompt: Optional[str] = None,
     system_prompt_tokens: Optional[int] = None,
@@ -505,16 +616,14 @@ def create_prompt_breakdown(
     user_message: Optional[str] = None,
     user_message_tokens: Optional[int] = None,
     response_text: Optional[str] = None,
-    conversation_context: Optional[str] = None,          # NEW
-    conversation_context_tokens: Optional[int] = None,   # NEW
-    tool_definitions: Optional[List[Dict]] = None,       # NEW
-    tool_definitions_tokens: Optional[int] = None,       # NEW
+    conversation_context: Optional[str] = None,
+    conversation_context_tokens: Optional[int] = None,
+    tool_definitions: Optional[List[Dict]] = None,
+    tool_definitions_tokens: Optional[int] = None,
 ) -> PromptBreakdown:
     """
     Convenience function to create PromptBreakdown.
-    
-    UPDATED: Added conversation_context, tool_definitions, and ratio calculations
-    
+
     Args:
         system_prompt: System prompt text
         system_prompt_tokens: Token count
@@ -523,11 +632,11 @@ def create_prompt_breakdown(
         user_message: User message text
         user_message_tokens: Token count
         response_text: Response text
-        conversation_context: Memory/state text (NEW)
-        conversation_context_tokens: Context token count (NEW)
-        tool_definitions: Function calling schemas (NEW)
-        tool_definitions_tokens: Tool schemas token count (NEW)
-    
+        conversation_context: Memory/state text
+        conversation_context_tokens: Context token count
+        tool_definitions: Function calling schemas
+        tool_definitions_tokens: Tool schemas token count
+
     Returns:
         PromptBreakdown object with complete token breakdown
     """
@@ -539,7 +648,7 @@ def create_prompt_breakdown(
         (conversation_context_tokens or 0) +
         (tool_definitions_tokens or 0)
     )
-    
+
     # Calculate ratios
     system_ratio = (system_prompt_tokens or 0) / total_input if total_input > 0 else 0.0
     history_ratio = (chat_history_tokens or 0) / total_input if total_input > 0 else 0.0
@@ -548,42 +657,36 @@ def create_prompt_breakdown(
     # Use provided count, or auto-calculate from chat_history
     if chat_history_count is None:
         chat_history_count = len(chat_history) if chat_history else 0
-    
+
     return PromptBreakdown(
         # System prompt
         system_prompt=system_prompt[:2000] if system_prompt else None,
         system_prompt_tokens=system_prompt_tokens,
-        
+
         # Chat history
         chat_history=chat_history,
         chat_history_tokens=chat_history_tokens,
-        chat_history_count=chat_history_count,  # ✅ Use variable, not inline calculation
-        
+        chat_history_count=chat_history_count,
+
         # User message
         user_message=user_message[:1000] if user_message else None,
         user_message_tokens=user_message_tokens,
-        
+
         # Response
         response_text=response_text[:2000] if response_text else None,
-        
-        # NEW: Conversation context
+
+        # Conversation context
         conversation_context=conversation_context[:500] if conversation_context else None,
         conversation_context_tokens=conversation_context_tokens,
-        
-        # NEW: Tool definitions
+
+        # Tool definitions
         tool_definitions=tool_definitions,
         tool_definitions_tokens=tool_definitions_tokens,
         tool_definitions_count=len(tool_definitions) if tool_definitions else 0,
-        
-        # NEW: Totals and ratios
+
+        # Totals and ratios
         total_input_tokens=total_input,
         system_to_total_ratio=system_ratio,
         history_to_total_ratio=history_ratio,
         context_to_total_ratio=context_ratio,
     )
-
-def estimate_tokens(text: str) -> int:
-    """Estimate token count (rough: 4 chars ≈ 1 token)."""
-    if not text:
-        return 0
-    return len(text) // 4

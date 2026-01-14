@@ -7,6 +7,16 @@ Provides semantic (meaning-based) caching using vector embeddings.
 Unlike CacheManager (exact match), SemanticCache finds similar prompts
 even when wording differs.
 
+DETECTION_ONLY MODE (Baseline):
+    - Calculates similarity and identifies cache opportunities
+    - Logs "would-be hits" for analysis
+    - Does NOT return cached responses (baseline behavior unchanged)
+    - Tracks opportunity metrics for reporting
+
+ACTIVE MODE (Optimized):
+    - Returns cached responses for similar prompts
+    - Reduces LLM calls and costs
+
 Comparison:
     CacheManager (exact match):
         "Find Python jobs in NYC" → cached
@@ -31,6 +41,7 @@ Usage in observatory_config.py:
         },
         default_threshold=0.92,
         enabled=True,
+        detection_only=(CURRENT_PHASE == "baseline"),  # NEW
     )
 
 Usage in application code:
@@ -90,6 +101,7 @@ class SemanticCacheResult:
         stored_at: When the entry was cached
         operation: Operation that created the entry
         metadata: Additional stored metadata
+        would_be_hit: True in detection_only mode when similarity >= threshold (NEW)
     """
     hit: bool
     response: Optional[str] = None
@@ -99,6 +111,7 @@ class SemanticCacheResult:
     operation: Optional[str] = None
     original_prompt: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    would_be_hit: bool = False  # NEW: For detection_only mode
     
     def __bool__(self):
         """Allow `if result:` syntax."""
@@ -148,23 +161,24 @@ class SemanticCache:
         db_path: Path to ChromaDB storage (default: derived from project)
         collection_name: ChromaDB collection name (default: derived from project)
         enabled: Whether caching is active (default: True)
+        detection_only: If True, detect opportunities but don't return cached responses (NEW)
     
     Example:
+        # Baseline mode - detect opportunities
         semantic_cache = SemanticCache(
             observatory=obs,
-            operations={
-                "generate_sql": {"ttl": 86400, "threshold": 0.95},
-                "summarize": {"ttl": 3600, "threshold": 0.85},
-            },
+            operations={"generate_sql": {"ttl": 86400, "threshold": 0.95}},
+            enabled=True,
+            detection_only=True,  # Track opportunities, don't cache
         )
         
-        # Check cache
-        result = await semantic_cache.get(prompt, "generate_sql")
-        if result.hit:
-            return result.response
-        
-        # Store after LLM call
-        await semantic_cache.set(prompt, response, "generate_sql")
+        # Optimized mode - actually cache
+        semantic_cache = SemanticCache(
+            observatory=obs,
+            operations={"generate_sql": {"ttl": 86400, "threshold": 0.95}},
+            enabled=True,
+            detection_only=False,  # Return cached responses
+        )
     """
     
     def __init__(
@@ -176,11 +190,13 @@ class SemanticCache:
         db_path: Optional[str] = None,
         collection_name: Optional[str] = None,
         enabled: bool = True,
+        detection_only: bool = False,  # NEW
     ):
         self.observatory = observatory
         self.default_ttl = default_ttl
         self.default_threshold = default_threshold
         self.enabled = enabled
+        self.detection_only = detection_only  # NEW
         
         # Parse operation configs
         self.operations: Dict[str, SemanticCacheOperationConfig] = {}
@@ -214,6 +230,7 @@ class SemanticCache:
             "misses": 0,
             "stores": 0,
             "errors": 0,
+            "opportunities": 0,  # NEW: Would-be hits in detection_only mode
             "by_operation": {},
         }
         
@@ -251,7 +268,8 @@ class SemanticCache:
             
             self._initialized = True
             count = self._collection.count()
-            logger.info(f"✅ SemanticCache initialized: {count} entries in {self.collection_name}")
+            mode = "detection only" if self.detection_only else "active caching"
+            logger.info(f"✅ SemanticCache initialized ({mode}): {count} entries in {self.collection_name}")
             return True
             
         except ImportError:
@@ -354,6 +372,14 @@ class SemanticCache:
         """
         Check if a similar prompt exists in cache.
         
+        DETECTION_ONLY MODE (baseline):
+            - Calculates similarity
+            - Returns hit=False (doesn't use cache)
+            - Sets would_be_hit=True and tracks opportunity
+        
+        ACTIVE MODE (optimized):
+            - Returns cached response if similarity >= threshold
+        
         Args:
             prompt: The prompt to search for
             operation: Operation name (e.g., "generate_sql")
@@ -414,12 +440,41 @@ class SemanticCache:
                 logger.debug(f"Cache MISS (expired): {operation}")
                 return SemanticCacheResult(hit=False, operation=operation)
             
-            # Cache hit!
-            self._update_stats(operation, hit=True)
+            # Similarity threshold met and not expired
             cache_key = results['ids'][0][0]
             response = metadata.get("response", "")
             original_prompt = results['documents'][0][0] if results['documents'] else None
             
+            # ═══════════════════════════════════════════════════════════════
+            # NEW: DETECTION_ONLY MODE
+            # ═══════════════════════════════════════════════════════════════
+            if self.detection_only:
+                # Track opportunity but don't return cached response
+                self._update_stats(operation, hit=False, opportunity=True)
+                logger.info(
+                    f"💡 CACHE OPPORTUNITY ({similarity:.1%} similar): {operation} [{cache_key[:8]}]"
+                )
+                
+                return SemanticCacheResult(
+                    hit=False,  # Don't actually use cache
+                    response=None,  # Don't return cached response
+                    cache_key=cache_key,
+                    similarity=similarity,
+                    stored_at=metadata.get("stored_at"),
+                    operation=operation,
+                    original_prompt=original_prompt,
+                    would_be_hit=True,  # Track as opportunity
+                    metadata={
+                        **metadata,
+                        "detection_mode": True,
+                        "would_save_tokens": metadata.get("response_length", 0),
+                    },
+                )
+            
+            # ═══════════════════════════════════════════════════════════════
+            # ACTIVE MODE - Return cached response
+            # ═══════════════════════════════════════════════════════════════
+            self._update_stats(operation, hit=True)
             logger.info(
                 f"✅ Cache HIT ({similarity:.1%} similar): {operation} [{cache_key[:8]}]"
             )
@@ -449,6 +504,9 @@ class SemanticCache:
     ) -> Optional[str]:
         """
         Store a prompt-response pair in the cache.
+        
+        Works in both detection_only and active modes - we need to store
+        entries to detect future opportunities.
         
         Args:
             prompt: The prompt that was sent to the LLM
@@ -494,7 +552,8 @@ class SemanticCache:
             )
             
             self._stats["stores"] += 1
-            logger.debug(f"Cache STORE: {operation} [{cache_id[:8]}]")
+            mode = "[detection]" if self.detection_only else ""
+            logger.debug(f"Cache STORE {mode}: {operation} [{cache_id[:8]}]")
             
             return cache_id
             
@@ -602,46 +661,72 @@ class SemanticCache:
     # STATISTICS
     # =========================================================================
     
-    def _update_stats(self, operation: str, hit: bool):
-        """Update cache statistics."""
+    def _update_stats(self, operation: str, hit: bool, opportunity: bool = False):
+        """
+        Update cache statistics.
+        
+        Args:
+            operation: Operation name
+            hit: Whether this was a cache hit
+            opportunity: Whether this was a would-be hit in detection_only mode (NEW)
+        """
         if hit:
             self._stats["hits"] += 1
         else:
             self._stats["misses"] += 1
         
+        if opportunity:
+            self._stats["opportunities"] += 1
+        
         if operation not in self._stats["by_operation"]:
-            self._stats["by_operation"][operation] = {"hits": 0, "misses": 0}
+            self._stats["by_operation"][operation] = {
+                "hits": 0,
+                "misses": 0,
+                "opportunities": 0,
+            }
         
         if hit:
             self._stats["by_operation"][operation]["hits"] += 1
         else:
             self._stats["by_operation"][operation]["misses"] += 1
+        
+        if opportunity:
+            self._stats["by_operation"][operation]["opportunities"] += 1
     
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         total = self._stats["hits"] + self._stats["misses"]
         hit_rate = self._stats["hits"] / total if total > 0 else 0.0
         
-        # Calculate per-operation hit rates
+        # Calculate opportunity rate (for detection_only mode)
+        opportunity_rate = self._stats["opportunities"] / total if total > 0 else 0.0
+        
+        # Calculate per-operation stats
         by_operation = {}
         for op, stats in self._stats["by_operation"].items():
             op_total = stats["hits"] + stats["misses"]
             by_operation[op] = {
                 "hits": stats["hits"],
                 "misses": stats["misses"],
+                "opportunities": stats["opportunities"],
                 "hit_rate": stats["hits"] / op_total if op_total > 0 else 0.0,
+                "opportunity_rate": stats["opportunities"] / op_total if op_total > 0 else 0.0,
             }
         
         return {
             "enabled": self.enabled,
+            "detection_only": self.detection_only,
             "initialized": self._initialized,
             "total_entries": self._collection.count() if self._collection else 0,
             "total_hits": self._stats["hits"],
             "total_misses": self._stats["misses"],
+            "total_opportunities": self._stats["opportunities"],
             "total_stores": self._stats["stores"],
             "total_errors": self._stats["errors"],
             "hit_rate": round(hit_rate, 3),
             "hit_rate_pct": f"{hit_rate:.1%}",
+            "opportunity_rate": round(opportunity_rate, 3),
+            "opportunity_rate_pct": f"{opportunity_rate:.1%}",
             "by_operation": by_operation,
             "configured_operations": list(self.operations.keys()),
             "db_path": self.db_path,
@@ -655,6 +740,7 @@ class SemanticCache:
             "misses": 0,
             "stores": 0,
             "errors": 0,
+            "opportunities": 0,
             "by_operation": {},
         }
 

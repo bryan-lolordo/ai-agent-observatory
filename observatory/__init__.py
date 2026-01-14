@@ -37,11 +37,30 @@ __version__ = "0.3.0"  # Updated for comprehensive schema
 from observatory.collector import (
     Observatory,
     MetricsCollector,
-    calculate_cost,
-    generate_prompt_hash,
 )
 
 from observatory.storage import Storage
+
+# =============================================================================
+# UTILITY IMPORTS
+# =============================================================================
+
+from observatory.utils import (
+    # Token estimation
+    estimate_tokens,
+    # Hashing functions
+    compute_content_hash,
+    generate_content_hash,
+    generate_prompt_hash,
+    # Text normalization
+    normalize_prompt,
+    # Cost calculation
+    calculate_cost,
+    MODEL_PRICING,
+    # Client detection
+    ClientType,
+    detect_client_type,
+)
 
 # =============================================================================
 # MODEL IMPORTS (UPDATED)
@@ -93,8 +112,8 @@ from observatory.judge import (
 from observatory.cache import (
     CacheManager,
     CacheEntry,
+    PrefixCacheDetector,
     create_cache_metadata,
-    compute_content_hash,
 )
 
 from observatory.router import (
@@ -106,9 +125,9 @@ from observatory.router import (
 from observatory.prompts import (
     PromptManager,
     PromptTemplate,
+    PromptOptimizer,
     create_prompt_metadata,
     create_prompt_breakdown,
-    estimate_tokens,
 )
 
 from observatory.semantic_cache import (
@@ -116,6 +135,19 @@ from observatory.semantic_cache import (
     SemanticCacheResult,
     SemanticCacheOperationConfig,
     create_semantic_cache_metadata,
+)
+
+# =============================================================================
+# EXECUTION OPTIMIZATION IMPORTS (NEW)
+# =============================================================================
+
+from observatory.execution import (
+    BatchDetector,
+    ParallelDetector,
+    StreamingDetector,
+    BatchOpportunity,
+    ParallelOpportunity,
+    StreamingCandidate,
 )
 
 # =============================================================================
@@ -367,13 +399,23 @@ __all__ = [
     "LLMJudge",
     "CacheManager",
     "CacheEntry",
+    "PrefixCacheDetector",
     "ModelRouter",
     "RoutingRule",
     "PromptManager",
     "PromptTemplate",
+    "PromptOptimizer", 
     "SemanticCache",
     "SemanticCacheResult",
     "SemanticCacheOperationConfig",
+
+    # Execution optimization components
+    "BatchDetector",  
+    "ParallelDetector",  
+    "StreamingDetector",  
+    "BatchOpportunity",  
+    "ParallelOpportunity",  
+    "StreamingCandidate",  
     
     # Models (existing)
     "Session",
@@ -394,7 +436,7 @@ __all__ = [
     "CacheMetrics",
     "OptimizationSuggestion",
     
-    # NEW: Additional models
+    # Additional models
     "ModelConfig",
     "StreamingMetrics",
     "ExperimentMetadata",
@@ -409,8 +451,15 @@ __all__ = [
     "create_prompt_metadata",
     "create_prompt_breakdown",
     "create_semantic_cache_metadata",
+
+    # Utility functions (from utils.py)
     "estimate_tokens",
-    "calculate_cost",
-    "generate_prompt_hash",
     "compute_content_hash",
+    "generate_content_hash",
+    "generate_prompt_hash",
+    "normalize_prompt",
+    "calculate_cost",
+    "MODEL_PRICING",
+    "ClientType",
+    "detect_client_type",
 ]
