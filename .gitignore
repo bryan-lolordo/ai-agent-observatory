@@ -34,6 +34,7 @@ venv.bak/
 # IDEs
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
@@ -73,6 +74,7 @@ tests/__pycache__/
 
 # Observatory specific
 observatory.db
+observatory_cache/
 data/
 outputs/
 x.md

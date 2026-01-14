@@ -1,9 +1,0 @@
-confidence_reasoning": "High confidence due to explicit skill matches, but some uncertainty about experience depth",
-  "uncertainty_factors": [
-    "Resume mentions cloud experience but doesn't specify years",
-    "Job requires 'senior level' but resume doesn't state seniority explicitly"
-  ],
-  "score_breakdown": {
-    "skills_match": 90,
-    "experience_match": 80,
-    "requirements_match": 85,
