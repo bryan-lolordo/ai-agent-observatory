@@ -9,10 +9,11 @@
   </a>
 </p>
 
-<!-- TODO: Add dashboard screenshot -->
+<!-- TODO: Add dashboard screenshot
 <p align="center">
   <img src="docs/images/dashboard-screenshot.png" alt="Observatory Dashboard" width="800">
 </p>
+-->
 
 ---
 
@@ -36,7 +37,7 @@ Most teams discover their LLM costs are 10x higher than expected, but have no vi
 
 | | |
 |---|---|
-| **70+ Metrics** | Tokens, cost, latency, quality, cache, routing per call |
+| **139 Metrics** | Tokens, cost, latency, quality, cache, routing per call |
 | **7 Analytics Stories** | Cost, Latency, Tokens, Quality, Prompts, Cache, Routing |
 | **3-Layer Drill-Down** | KPIs → Operations → Individual Calls |
 | **6 SDK Components** | Observatory, LLMJudge, CacheManager, SemanticCache, ModelRouter, PromptManager |
@@ -74,38 +75,6 @@ Each story provides deep-dive analysis with 3-layer drill-down (KPIs → Operati
 
 ---
 
-## Quick Start
-
-```python
-from observatory import Observatory, track_llm_call
-import time
-
-# Initialize
-obs = Observatory(project_name="My AI App")
-
-# Make your LLM call
-start = time.time()
-response = openai.chat.completions.create(
-    model="gpt-4",
-    messages=[{"role": "user", "content": "Hello"}]
-)
-
-# Track it
-track_llm_call(
-    observatory=obs,
-    model_name="gpt-4",
-    prompt_tokens=response.usage.prompt_tokens,
-    completion_tokens=response.usage.completion_tokens,
-    latency_ms=(time.time() - start) * 1000,
-    agent_name="Chatbot",
-    operation="greeting"
-)
-```
-
-See [full SDK documentation](docs/METRICS.md) for all 70+ tracked fields.
-
----
-
 ## Architecture
 
 ```
@@ -130,21 +99,65 @@ ai-agent-observatory/
 
 ---
 
-## Installation
+## Getting Started
+
+### 1. Clone & Install
 
 ```bash
-# Clone and install SDK
-git clone https://github.com/yourusername/ai-agent-observatory.git
+git clone https://github.com/bryan-lolordo/ai-agent-observatory.git
 cd ai-agent-observatory
 pip install -e .
-
-# Run dashboard
-pip install -e ".[dashboard]"
-uvicorn api.main:app --port 8000 &
-cd frontend && npm install && npm run dev
 ```
 
-Dashboard: `http://localhost:5173` | API: `http://localhost:8000`
+### 2. Run the Dashboard
+
+```bash
+# Terminal 1: Start API
+pip install -e ".[dashboard]"
+uvicorn api.main:app --port 8000
+
+# Terminal 2: Start Frontend
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173` to view the dashboard.
+
+### 3. Add Tracking to Your Project
+
+```python
+from observatory import Observatory, track_llm_call
+
+# Point to the Observatory database
+obs = Observatory(
+    project_name="Your Project",
+    db_path="/path/to/ai-agent-observatory/observatory.db"
+)
+
+# After each LLM call, track it
+track_llm_call(
+    observatory=obs,
+    model_name="gpt-4",
+    prompt_tokens=100,
+    completion_tokens=50,
+    latency_ms=1200,
+    agent_name="MyAgent",
+    operation="analyze"
+)
+```
+
+### 4. Configure (Optional)
+
+Copy `.env.example` to `.env` and add your keys:
+
+```bash
+cp .env.example .env
+```
+
+Required for LLM Judge and Semantic Cache features:
+- `OPENAI_API_KEY` - For quality evaluation
+- `AZURE_OPENAI_*` - Alternative to OpenAI
 
 ---
 
@@ -160,7 +173,7 @@ Dashboard: `http://localhost:5173` | API: `http://localhost:8000`
 
 ## Tracked Metrics
 
-Observatory captures 70+ fields per LLM call across 12 categories:
+Observatory captures 139 fields per LLM call across 12 categories:
 
 **Core** · ID, timestamp, provider, model, success/error
 **Tokens** · prompt, completion, system, history, tools, cached
@@ -182,7 +195,7 @@ Observatory captures 70+ fields per LLM call across 12 categories:
 ## Roadmap
 
 ### Completed
-- [x] Core SDK with 70+ metrics
+- [x] Core SDK with 139 metrics
 - [x] 7 analytics stories with 3-layer drill-down
 - [x] FastAPI backend + React dashboard
 - [x] Semantic caching, LLM judge, model routing
