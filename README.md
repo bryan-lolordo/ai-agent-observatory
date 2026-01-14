@@ -51,11 +51,69 @@ Most teams discover their LLM costs are 10x higher than expected, but have no vi
 
 ---
 
-## Dashboard
+## Demo Walkthrough
 
-### 7 Analytics Stories
+### Dashboard Overview
 
-Each story provides deep-dive analysis with 3-layer drill-down (KPIs → Operations → Individual Calls):
+The main dashboard shows KPIs at a glance with quick access to all 7 analytics stories.
+
+<!-- TODO: Add screenshot
+<p align="center">
+  <img src="docs/images/01-dashboard.png" alt="Dashboard Overview" width="800">
+</p>
+-->
+
+### 3-Layer Drill-Down
+
+Every story follows the same pattern: **KPIs → Operations → Individual Calls**
+
+**Layer 1: Story KPIs** - High-level metrics and the operations table
+
+<!-- TODO: Add screenshot
+<p align="center">
+  <img src="docs/images/02-layer1-kpis.png" alt="Layer 1 - Story KPIs" width="800">
+</p>
+-->
+
+**Layer 2: Operation Detail** - Click any operation to see detailed breakdown
+
+<!-- TODO: Add screenshot
+<p align="center">
+  <img src="docs/images/03-layer2-operation.png" alt="Layer 2 - Operation Detail" width="800">
+</p>
+-->
+
+**Layer 3: Call Detail** - Click any call to see the full 139-field record
+
+<!-- TODO: Add screenshot
+<p align="center">
+  <img src="docs/images/04-layer3-call.png" alt="Layer 3 - Call Detail" width="800">
+</p>
+-->
+
+### Optimization Queue
+
+Prioritized list of optimization opportunities across all stories, ranked by impact.
+
+<!-- TODO: Add screenshot
+<p align="center">
+  <img src="docs/images/05-optimization-queue.png" alt="Optimization Queue" width="800">
+</p>
+-->
+
+### Optimization Impact
+
+Track before/after metrics to measure the effectiveness of your optimizations.
+
+<!-- TODO: Add screenshot
+<p align="center">
+  <img src="docs/images/06-optimization-impact.png" alt="Optimization Impact" width="800">
+</p>
+-->
+
+---
+
+## 7 Analytics Stories
 
 | Story | What It Shows |
 |-------|---------------|
@@ -66,12 +124,6 @@ Each story provides deep-dive analysis with 3-layer drill-down (KPIs → Operati
 | **Prompts** | System prompt analysis, chat history breakdown, token distribution |
 | **Cache** | Cacheable patterns (exact, prefix, semantic) with ROI estimates |
 | **Routing** | Model upgrade/downgrade recommendations with savings projections |
-
-### Additional Pages
-
-- **Dashboard** - Overview KPIs with trends and quick access to all stories
-- **Optimization Impact** - Before/after comparisons to measure effectiveness
-- **Optimization Queue** - Prioritized optimization opportunities across all stories
 
 ---
 
@@ -175,36 +227,22 @@ Required for LLM Judge and Semantic Cache features:
 
 Observatory captures 139 fields per LLM call across 12 categories:
 
-**Core** · ID, timestamp, provider, model, success/error
-**Tokens** · prompt, completion, system, history, tools, cached
-**Cost** · prompt cost, completion cost, total, savings
-**Latency** · total, TTFT, tool execution time
-**Context** · agent, operation, conversation, user
-**Model Config** · temperature, max_tokens, top_p, seed
-**Cache** · hit/miss, key, cluster, similarity score
-**Routing** · chosen model, alternatives, complexity, savings
-**Quality** · judge score, hallucination, confidence
-**Errors** · type, code, retry count, strategy
-**Streaming** · chunks, interrupted, TTFT
-**Experiments** · A/B test ID, variant, control group
+| Category | Fields |
+|----------|--------|
+| **Core** | ID, timestamp, provider, model, success/error |
+| **Tokens** | prompt, completion, system, history, tools, cached |
+| **Cost** | prompt cost, completion cost, total, savings |
+| **Latency** | total, TTFT, tool execution time |
+| **Context** | agent, operation, conversation, user |
+| **Model Config** | temperature, max_tokens, top_p, seed |
+| **Cache** | hit/miss, key, cluster, similarity score |
+| **Routing** | chosen model, alternatives, complexity, savings |
+| **Quality** | judge score, hallucination, confidence |
+| **Errors** | type, code, retry count, strategy |
+| **Streaming** | chunks, interrupted, TTFT |
+| **Experiments** | A/B test ID, variant, control group |
 
 → [Full metrics reference](docs/METRICS.md)
-
----
-
-## Roadmap
-
-### Completed
-- [x] Core SDK with 139 metrics
-- [x] 7 analytics stories with 3-layer drill-down
-- [x] FastAPI backend + React dashboard
-- [x] Semantic caching, LLM judge, model routing
-- [x] Optimization queue with prioritization
-
-### Planned
-- [ ] Real-time WebSocket updates
-- [ ] Alert system (email/Slack)
-- [ ] Distributed tracing support
 
 ---
 

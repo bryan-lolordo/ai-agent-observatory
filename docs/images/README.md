@@ -1,32 +1,33 @@
 # Screenshot Guide
 
-Add the following screenshots to this folder for the README:
+Add the following screenshots to this folder for the README demo walkthrough.
 
-## Required Screenshots
+## Screenshots Needed
 
-### 1. `dashboard-screenshot.png` (Required)
-**What to capture:** Main dashboard page showing:
-- KPI cards at the top
-- Story navigation
-- Overview charts
-
-**Dimensions:** ~1200x800px recommended
-
-### 2. `cost-story.png` (Optional)
-**What to capture:** Cost Analysis story showing:
-- Layer 1 KPIs
-- Operations table
-- Cost breakdown chart
-
-### 3. `optimization-queue.png` (Optional)
-**What to capture:** Optimization Queue page showing:
-- Prioritized list of opportunities
-- Impact estimates
-- Quick wins section
+| # | Filename | What to Capture |
+|---|----------|-----------------|
+| 1 | `01-dashboard.png` | Main dashboard with KPI cards and story navigation |
+| 2 | `02-layer1-kpis.png` | Any story's Layer 1 - KPI cards + operations table |
+| 3 | `03-layer2-operation.png` | Layer 2 - Operation detail after clicking a row |
+| 4 | `04-layer3-call.png` | Layer 3 - Individual call detail with all fields |
+| 5 | `05-optimization-queue.png` | Optimization Queue with prioritized opportunities |
+| 6 | `06-optimization-impact.png` | Optimization Impact with before/after tracking |
 
 ## Tips
 
-- Use a clean dataset (no sensitive/personal data visible)
-- Capture at 1x scale for crisp images
-- PNG format preferred
-- Dark mode or light mode - pick one and be consistent
+- **Dimensions:** ~1200x800px recommended
+- **Format:** PNG
+- **Data:** Use clean sample data (no sensitive info visible)
+- **Consistency:** Use same browser zoom level for all screenshots
+
+## After Adding Screenshots
+
+Remove the `<!-- TODO:` and `-->` comment markers in README.md to make them visible:
+
+```markdown
+<!-- TODO: Add screenshot     <-- DELETE THIS LINE
+<p align="center">
+  <img src="docs/images/01-dashboard.png" alt="Dashboard Overview" width="800">
+</p>
+-->                           <-- DELETE THIS LINE
+```
