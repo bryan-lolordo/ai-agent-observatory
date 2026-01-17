@@ -8,6 +8,7 @@ Integrates with Observatory for variant performance tracking.
 
 import hashlib
 import random
+import logging
 from typing import Optional, Dict, List, Any, Tuple, TYPE_CHECKING
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -18,6 +19,7 @@ from observatory.utils import estimate_tokens
 if TYPE_CHECKING:
     from observatory.collector import Observatory
 
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # PROMPT TEMPLATE

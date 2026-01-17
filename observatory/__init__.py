@@ -10,6 +10,7 @@ Core Components:
 - CacheManager: Response caching with tracking
 - ModelRouter: Intelligent model selection
 - PromptManager: Template versioning and A/B testing
+- OptimizationTracker: Compare baseline vs optimized phases
 
 Usage:
     from observatory import (
@@ -18,17 +19,19 @@ Usage:
         CacheManager,
         ModelRouter,
         PromptManager,
+        OptimizationTracker,
     )
-    
+
     # Initialize
     obs = Observatory(project_name="My App")
     judge = LLMJudge(observatory=obs, operations={"chat", "analyze"})
     cache = CacheManager(observatory=obs, operations={"search": {"ttl": 3600}})
     router = ModelRouter(observatory=obs, default_model="gpt-4o-mini")
     prompts = PromptManager(observatory=obs)
+    tracker = OptimizationTracker(observatory=obs)
 """
 
-__version__ = "0.3.0"  # Updated for comprehensive schema
+__version__ = "0.4.0"  # Added production hardening features
 
 # =============================================================================
 # CORE IMPORTS
@@ -113,6 +116,7 @@ from observatory.cache import (
     CacheManager,
     CacheEntry,
     PrefixCacheDetector,
+    PersistentCacheManager,
     create_cache_metadata,
 )
 
@@ -142,12 +146,79 @@ from observatory.semantic_cache import (
 # =============================================================================
 
 from observatory.execution import (
+    # Detectors
     BatchDetector,
     ParallelDetector,
+    SequentialCallDetector,
     StreamingDetector,
+    ContextGrowthDetector,
+    TokenEfficiencyDetector,
+    # Data classes
     BatchOpportunity,
     ParallelOpportunity,
+    BatchProcessor,        
+    ParallelExecutor, 
+    SequentialPattern,
     StreamingCandidate,
+    ContextGrowthAlert,
+    TokenEfficiencyAlert,
+)
+
+# =============================================================================
+# OPTIMIZATION TRACKER IMPORT (NEW)
+# =============================================================================
+
+from observatory.optimization_tracker import (
+    OptimizationTracker,
+)
+
+# =============================================================================
+# TRACKED LLM CALL - Context Manager for 10-step optimization pattern
+# =============================================================================
+
+from observatory.tracked_call import (
+    TrackedLLMCall,
+    TrackedLLMCallResult,
+    create_tracked_call,
+)
+
+# =============================================================================
+# PRODUCTION HARDENING IMPORTS (NEW)
+# =============================================================================
+
+from observatory.resilience import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerStats,
+    CircuitState,
+    CircuitOpenError,
+    create_circuit_breaker,
+)
+
+from observatory.async_writer import (
+    AsyncWriteQueue,
+    WriteOperation,
+    WriteTask,
+)
+
+from observatory.safe_wrapper import (
+    safe_call,
+    safe_method,
+    SafeObservatoryWrapper,
+    with_graceful_degradation,
+)
+
+from observatory.health import (
+    HealthStatus,
+    observatory_health_check,
+    check_storage_health,
+    check_cache_health,
+    check_persistent_cache_health,
+    check_semantic_cache_health,
+    check_judge_health,
+    check_router_health,
+    check_async_writer_health,
+    check_circuit_breaker_health,
 )
 
 # =============================================================================
@@ -214,7 +285,7 @@ def track_llm_call(
     system_prompt_tokens: int = None,
     user_message_tokens: int = None,
     chat_history_tokens: int = None,
-    chat_history_count: int = None,  # ✅ CHANGE 1: Added for conversation tracking
+    chat_history_count: int = None,
     conversation_context_tokens: int = None,
     tool_definitions_tokens: int = None,
     
@@ -242,7 +313,7 @@ def track_llm_call(
     request_id: str = None,
     environment: str = None,
 
-    # ADD THIS PARAMETER:
+    # Prefix cache detection
     prompt_prefix_hash: str = None,
     
     # NEW: Experiment tracking
@@ -272,8 +343,8 @@ def track_llm_call(
         success: Whether call succeeded
         error: Error message if failed
         prompt: Combined prompt text
-        response_text: Response text
-        prompt_normalized: Normalized prompt for cache key generation
+        response_text: Response text from the model
+        prompt_normalized: Normalized prompt for caching
         system_prompt: System prompt text (tracked separately)
         user_message: User message text (tracked separately)
         messages: Full conversation history as list of {role, content} dicts
@@ -357,7 +428,7 @@ def track_llm_call(
         system_prompt_tokens=system_prompt_tokens,
         user_message_tokens=user_message_tokens,
         chat_history_tokens=chat_history_tokens,
-        chat_history_count=chat_history_count,  # ✅ CHANGE 2: Pass to record_call
+        chat_history_count=chat_history_count,
         conversation_context_tokens=conversation_context_tokens,
         tool_definitions_tokens=tool_definitions_tokens,
         tool_calls_made=tool_calls_made,
@@ -400,6 +471,7 @@ __all__ = [
     "CacheManager",
     "CacheEntry",
     "PrefixCacheDetector",
+    "PersistentCacheManager",
     "ModelRouter",
     "RoutingRule",
     "PromptManager",
@@ -409,14 +481,31 @@ __all__ = [
     "SemanticCacheResult",
     "SemanticCacheOperationConfig",
 
-    # Execution optimization components
-    "BatchDetector",  
-    "ParallelDetector",  
-    "StreamingDetector",  
-    "BatchOpportunity",  
-    "ParallelOpportunity",  
-    "StreamingCandidate",  
+    # Execution optimization components - Detectors
+    "BatchDetector",
+    "ParallelDetector",
+    "SequentialCallDetector",
+    "StreamingDetector",
+    "ContextGrowthDetector",
+    "TokenEfficiencyDetector",
+    # Execution optimization components - Data classes
+    "BatchOpportunity",
+    "ParallelOpportunity",
+    'BatchProcessor',      
+    'ParallelExecutor',  
+    "SequentialPattern",
+    "StreamingCandidate",
+    "ContextGrowthAlert",
+    "TokenEfficiencyAlert",
     
+    # Optimization tracking
+    "OptimizationTracker",
+
+    # Tracked LLM Call - Context Manager
+    "TrackedLLMCall",
+    "TrackedLLMCallResult",
+    "create_tracked_call",
+
     # Models (existing)
     "Session",
     "LLMCall",
@@ -462,4 +551,35 @@ __all__ = [
     "MODEL_PRICING",
     "ClientType",
     "detect_client_type",
+
+    # Production hardening - Circuit breaker
+    "CircuitBreaker",
+    "CircuitBreakerConfig",
+    "CircuitBreakerStats",
+    "CircuitState",
+    "CircuitOpenError",
+    "create_circuit_breaker",
+
+    # Production hardening - Async writer
+    "AsyncWriteQueue",
+    "WriteOperation",
+    "WriteTask",
+
+    # Production hardening - Graceful degradation
+    "safe_call",
+    "safe_method",
+    "SafeObservatoryWrapper",
+    "with_graceful_degradation",
+
+    # Production hardening - Health checks
+    "HealthStatus",
+    "observatory_health_check",
+    "check_storage_health",
+    "check_cache_health",
+    "check_persistent_cache_health",
+    "check_semantic_cache_health",
+    "check_judge_health",
+    "check_router_health",
+    "check_async_writer_health",
+    "check_circuit_breaker_health",
 ]

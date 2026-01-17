@@ -10,12 +10,15 @@ Collects and manages metrics for AI agent sessions with support for:
 - Prompt/response tracking
 - Prompt breakdown and metadata
 - Auto-generated prompt hash for version detection
+- Async write queue for non-blocking database operations (optional)
+- Graceful degradation for production resilience
 """
 
 import os
 import uuid
+import logging
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from contextlib import contextmanager
 
 from observatory.models import (
@@ -43,6 +46,11 @@ from observatory.utils import (
     calculate_cost,
 )
 
+if TYPE_CHECKING:
+    from observatory.async_writer import AsyncWriteQueue
+
+logger = logging.getLogger(__name__)
+
 
 # =============================================================================
 # METRICS COLLECTOR
@@ -52,17 +60,51 @@ class MetricsCollector:
     """
     Core metrics collection class.
     Tracks sessions and LLM calls with comprehensive metrics.
+
+    Features:
+    - Comprehensive LLM call tracking with 139+ fields
+    - Session management for grouping related calls
+    - Optional async write queue for non-blocking database operations
+    - Graceful degradation (storage failures don't crash host app)
+
+    Usage:
+        # Basic usage
+        collector = MetricsCollector(project_name="my_app")
+
+        # With async writes (non-blocking)
+        from observatory.async_writer import AsyncWriteQueue
+        async_writer = AsyncWriteQueue(storage=storage)
+        async_writer.start()
+        collector = MetricsCollector(
+            project_name="my_app",
+            storage=storage,
+            async_writer=async_writer,
+        )
     """
-    
+
     def __init__(
         self,
         project_name: str = "default",
         enabled: bool = True,
         storage: Optional[Storage] = None,
+        async_writer: Optional["AsyncWriteQueue"] = None,
+        safe_mode: bool = True,
     ):
+        """
+        Initialize MetricsCollector.
+
+        Args:
+            project_name: Name of the project for grouping metrics
+            enabled: Enable/disable metrics collection
+            storage: Storage instance (created if not provided)
+            async_writer: Optional AsyncWriteQueue for non-blocking writes
+            safe_mode: If True, storage errors are logged but don't raise
+        """
         self.project_name = project_name
         self.enabled = enabled
         self.storage = storage or Storage()
+        self.async_writer = async_writer
+        self.safe_mode = safe_mode
         self.current_session: Optional[Session] = None
 
     def start_session(
@@ -87,7 +129,7 @@ class MetricsCollector:
         )
         
         self.current_session = session
-        self.storage.save_session(session)
+        self._save_session(session)
         return session
 
     def end_session(
@@ -118,11 +160,11 @@ class MetricsCollector:
             if quality_scores:
                 target_session.avg_quality_score = sum(quality_scores) / len(quality_scores)
         
-        self.storage.update_session(target_session)
-        
+        self._update_session(target_session)
+
         if target_session == self.current_session:
             self.current_session = None
-        
+
         return target_session
 
     def record_llm_call(
@@ -480,11 +522,50 @@ class MetricsCollector:
         if not success:
             target_session.total_errors += 1
         
-        # Persist
-        self.storage.save_llm_call(llm_call)
-        self.storage.update_session(target_session)
-        
+        # Persist (with optional async writes and graceful degradation)
+        self._save_llm_call(llm_call)
+        self._update_session(target_session)
+
         return llm_call
+
+    def _save_llm_call(self, llm_call: LLMCall) -> None:
+        """Save LLM call with async writer support and graceful degradation."""
+        try:
+            if self.async_writer and self.async_writer.enabled:
+                self.async_writer.enqueue_llm_call(llm_call)
+            else:
+                self.storage.save_llm_call(llm_call)
+        except Exception as e:
+            if self.safe_mode:
+                logger.warning(f"Failed to save LLM call (continuing): {e}")
+            else:
+                raise
+
+    def _update_session(self, session: Session) -> None:
+        """Update session with async writer support and graceful degradation."""
+        try:
+            if self.async_writer and self.async_writer.enabled:
+                self.async_writer.enqueue_session_update(session)
+            else:
+                self.storage.update_session(session)
+        except Exception as e:
+            if self.safe_mode:
+                logger.warning(f"Failed to update session (continuing): {e}")
+            else:
+                raise
+
+    def _save_session(self, session: Session) -> None:
+        """Save session with async writer support and graceful degradation."""
+        try:
+            if self.async_writer and self.async_writer.enabled:
+                self.async_writer.enqueue_session(session)
+            else:
+                self.storage.save_session(session)
+        except Exception as e:
+            if self.safe_mode:
+                logger.warning(f"Failed to save session (continuing): {e}")
+            else:
+                raise
 
     # =========================================================================
     # CONVENIENCE RECORDING METHODS
@@ -688,6 +769,16 @@ class Observatory:
             enabled=enabled,
             storage=storage,
         )
+
+    @property
+    def storage(self) -> Storage:
+        """
+        Access to storage layer for detectors and advanced use cases.
+        
+        Allows detectors to create optimization stories:
+            self.observatory.storage.create_optimization_story(...)
+        """
+        return self.collector.storage
     
     def start_session(self, operation_type: Optional[str] = None, **kwargs) -> Session:
         """Start a tracking session."""

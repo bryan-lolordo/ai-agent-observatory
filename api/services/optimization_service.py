@@ -100,7 +100,10 @@ def get_summary(
     # Step 6: Calculate KPIs
     kpis = _calculate_kpis(llm_calls, merged_stories)
 
-    # Step 7: Calculate health score
+    # Step 7: Calculate comparison data (baseline vs optimized)
+    comparison = _calculate_comparison(llm_calls, merged_stories)
+
+    # Step 8: Calculate health score
     total_stories = len(merged_stories)
     complete_stories = sum(1 for s in merged_stories if s.get("status") == "complete")
     health_score = (complete_stories / total_stories * 100) if total_stories > 0 else 100
@@ -113,6 +116,7 @@ def get_summary(
         "mode": "tracking",
         "hierarchy": hierarchy,
         "kpis": kpis,
+        "comparison": comparison,
     }
 
 
@@ -131,6 +135,11 @@ def _empty_response() -> Dict:
             "total_complete": 0,
         },
         "kpis": {},
+        "comparison": {
+            "baseline": {},
+            "optimized": {},
+            "improvements": {},
+        },
     }
 
 
@@ -651,6 +660,120 @@ def _calculate_kpis(calls: List[Dict], stories: List[Dict]) -> Dict:
 
 
 # =============================================================================
+# COMPARISON: Calculate baseline vs optimized metrics for Impact View
+# =============================================================================
+
+def _calculate_comparison(calls: List[Dict], stories: List[Dict]) -> Dict:
+    """
+    Calculate comparison data between baseline and optimized metrics.
+
+    Aggregates baseline values from stories and computes current (optimized)
+    values from the actual call data or completed story metrics.
+    """
+    # Group stories by type to aggregate baselines
+    baselines_by_type = defaultdict(list)
+    optimized_by_type = defaultdict(list)
+
+    for story in stories:
+        story_type = story.get("story_id")
+        baseline_val = story.get("baseline_value")
+        current_val = story.get("current_value")
+
+        if baseline_val is not None:
+            baselines_by_type[story_type].append(baseline_val)
+
+        # For completed stories, use current_value as optimized
+        if story.get("status") == "complete" and current_val is not None:
+            optimized_by_type[story_type].append(current_val)
+
+    # Calculate current metrics from calls (for metrics not yet optimized)
+    latencies = [c.get("latency_ms") or 0 for c in calls if c.get("latency_ms")]
+    avg_latency_current = sum(latencies) / len(latencies) if latencies else None
+
+    total_cost_current = sum(c.get("total_cost") or 0 for c in calls)
+
+    quality_scores = [c.get("judge_score") for c in calls if c.get("judge_score") is not None]
+    avg_quality_current = sum(quality_scores) / len(quality_scores) if quality_scores else None
+
+    cache_hits = sum(1 for c in calls if c.get("cache_hit"))
+    cache_rate_current = (cache_hits / len(calls) * 100) if calls else None
+
+    # Calculate token ratios
+    token_ratios = []
+    for c in calls:
+        prompt = c.get("prompt_tokens") or 0
+        completion = c.get("completion_tokens") or 1
+        if prompt > 0 and completion > 0:
+            token_ratios.append(prompt / completion)
+    avg_token_ratio_current = sum(token_ratios) / len(token_ratios) if token_ratios else None
+
+    # Calculate prompt percentages (system prompt % of total)
+    prompt_pcts = []
+    for c in calls:
+        prompt = c.get("prompt_tokens") or 0
+        completion = c.get("completion_tokens") or 0
+        total = prompt + completion
+        if total > 0:
+            # Estimate system prompt as ~50% of prompt tokens if not available directly
+            system_pct = c.get("_system_pct") or (prompt / total * 100 * 0.5)
+            prompt_pcts.append(system_pct)
+    avg_prompt_pct_current = sum(prompt_pcts) / len(prompt_pcts) if prompt_pcts else None
+
+    # Aggregate baseline averages
+    def avg_baseline(story_type):
+        vals = baselines_by_type.get(story_type, [])
+        return sum(vals) / len(vals) if vals else None
+
+    def avg_optimized(story_type, fallback):
+        vals = optimized_by_type.get(story_type, [])
+        if vals:
+            return sum(vals) / len(vals)
+        return fallback
+
+    # Build baseline object (from story baselines)
+    baseline = {
+        "avg_latency_ms": avg_baseline("latency"),
+        "total_cost": avg_baseline("cost"),
+        "avg_quality": avg_baseline("quality"),
+        "cache_hit_rate": avg_baseline("cache"),
+        "avg_token_ratio": avg_baseline("token"),
+        "avg_prompt_pct": avg_baseline("prompt"),
+    }
+
+    # Build optimized object (prefer completed story values, fallback to current)
+    optimized = {
+        "avg_latency_ms": avg_optimized("latency", avg_latency_current),
+        "total_cost": avg_optimized("cost", total_cost_current),
+        "avg_quality": avg_optimized("quality", avg_quality_current),
+        "cache_hit_rate": avg_optimized("cache", cache_rate_current),
+        "avg_token_ratio": avg_optimized("token", avg_token_ratio_current),
+        "avg_prompt_pct": avg_optimized("prompt", avg_prompt_pct_current),
+    }
+
+    # Calculate improvement percentages
+    def calc_improvement(baseline_val, optimized_val, higher_is_better=False):
+        if baseline_val is None or optimized_val is None or baseline_val == 0:
+            return None
+        change = ((optimized_val - baseline_val) / baseline_val) * 100
+        return change if higher_is_better else -change
+
+    improvements = {
+        "latency_pct": calc_improvement(baseline["avg_latency_ms"], optimized["avg_latency_ms"], False),
+        "cost_pct": calc_improvement(baseline["total_cost"], optimized["total_cost"], False),
+        "quality_pct": calc_improvement(baseline["avg_quality"], optimized["avg_quality"], True),
+        "cache_pct": calc_improvement(baseline["cache_hit_rate"], optimized["cache_hit_rate"], True),
+        "token_ratio_pct": calc_improvement(baseline["avg_token_ratio"], optimized["avg_token_ratio"], False),
+        "prompt_pct": calc_improvement(baseline["avg_prompt_pct"], optimized["avg_prompt_pct"], False),
+    }
+
+    return {
+        "baseline": baseline,
+        "optimized": optimized,
+        "improvements": improvements,
+    }
+
+
+# =============================================================================
 # DETAIL: Get single optimization story with full details
 # =============================================================================
 
@@ -747,3 +870,673 @@ def add_applied_fix(
 def delete_fix(fix_id: str) -> bool:
     """Delete an applied fix."""
     return ObservatoryStorage.delete_applied_fix(fix_id)
+
+
+# =============================================================================
+# DETAILED COMPARISON: Rich baseline vs optimized comparison
+# =============================================================================
+
+def get_detailed_comparison(
+    project: str = None,
+    baseline_start: str = None,
+    baseline_end: str = None,
+    optimized_start: str = None,
+    optimized_end: str = None,
+    limit: int = 5000,
+) -> Dict:
+    """
+    Get comprehensive baseline vs optimized comparison with detailed metrics.
+
+    Returns the full comparison table matching the console output format:
+    - Cost metrics (total, per call, per session, daily avg)
+    - Performance metrics (latency, P95, TTFT)
+    - Quality metrics (avg score, quality per dollar, success rate)
+    - Caching metrics (hit rate, hits, cost savings)
+    - Token metrics (total, avg prompt/completion, ratio)
+    - Routing metrics (decisions, routed to cheaper, savings)
+    - Operation-specific metrics breakdown
+    """
+    from datetime import datetime, timedelta
+
+    # Get all calls
+    all_calls = ObservatoryStorage.get_llm_calls(limit=limit)
+
+    # Filter by phase metadata or date range
+    baseline_calls = []
+    optimized_calls = []
+
+    for call in all_calls:
+        call_dict = call.__dict__ if hasattr(call, '__dict__') else call
+
+        # Get phase - now a direct column, with fallbacks for backward compatibility
+        phase = call_dict.get('phase')
+
+        # Fallback to metadata.phase if direct column is empty
+        if not phase:
+            import json
+            metadata = call_dict.get('metadata') or {}
+            if isinstance(metadata, str):
+                try:
+                    metadata = json.loads(metadata)
+                except:
+                    metadata = {}
+            phase = metadata.get('phase')
+
+        # Fallback to experiment_metadata.phase
+        if not phase:
+            experiment_metadata = call_dict.get('experiment_metadata') or {}
+            if isinstance(experiment_metadata, str):
+                try:
+                    experiment_metadata = json.loads(experiment_metadata)
+                except:
+                    experiment_metadata = {}
+            phase = experiment_metadata.get('phase')
+
+        # Final fallback to environment
+        if not phase:
+            phase = call_dict.get('environment')
+
+        # Also check explicit date ranges if provided
+        call_date = call_dict.get('timestamp')
+        if isinstance(call_date, str):
+            call_date = datetime.fromisoformat(call_date.replace('Z', '+00:00'))
+
+        if phase == 'baseline':
+            baseline_calls.append(call_dict)
+        elif phase == 'optimized':
+            optimized_calls.append(call_dict)
+        elif baseline_start and baseline_end and call_date:
+            # Date-based filtering
+            b_start = datetime.strptime(baseline_start, '%Y-%m-%d')
+            b_end = datetime.strptime(baseline_end, '%Y-%m-%d') + timedelta(days=1)
+            o_start = datetime.strptime(optimized_start, '%Y-%m-%d') if optimized_start else None
+            o_end = datetime.strptime(optimized_end, '%Y-%m-%d') + timedelta(days=1) if optimized_end else None
+
+            if b_start <= call_date < b_end:
+                baseline_calls.append(call_dict)
+            elif o_start and o_end and o_start <= call_date < o_end:
+                optimized_calls.append(call_dict)
+
+    # If no phase data, split by date (first half = baseline, second half = optimized)
+    if not baseline_calls and not optimized_calls and all_calls:
+        all_dicts = [c.__dict__ if hasattr(c, '__dict__') else c for c in all_calls]
+        sorted_calls = sorted(all_dicts, key=lambda x: x.get('timestamp', ''))
+        midpoint = len(sorted_calls) // 2
+        baseline_calls = sorted_calls[:midpoint] if midpoint > 0 else sorted_calls
+        optimized_calls = sorted_calls[midpoint:] if midpoint > 0 else []
+
+    # Calculate comprehensive metrics for each period
+    baseline_metrics = _calculate_period_metrics(baseline_calls, 'baseline')
+    optimized_metrics = _calculate_period_metrics(optimized_calls, 'optimized')
+
+    # Calculate improvements
+    comparison_rows = _build_comparison_rows(baseline_metrics, optimized_metrics)
+
+    # Get date ranges
+    baseline_dates = _get_date_range(baseline_calls)
+    optimized_dates = _get_date_range(optimized_calls)
+
+    return {
+        'baseline_period': baseline_dates,
+        'optimized_period': optimized_dates,
+        'baseline': baseline_metrics,
+        'optimized': optimized_metrics,
+        'comparison': comparison_rows,
+        'summary': {
+            'total_cost_saved': max(0, baseline_metrics.get('total_cost', 0) - optimized_metrics.get('total_cost', 0)),
+            'total_latency_saved_ms': max(0, baseline_metrics.get('avg_latency_ms', 0) - optimized_metrics.get('avg_latency_ms', 0)),
+            'cache_improvement_pp': optimized_metrics.get('cache_hit_rate', 0) - baseline_metrics.get('cache_hit_rate', 0),
+        }
+    }
+
+
+def _get_date_range(calls: List[Dict]) -> Dict:
+    """Get date range from calls."""
+    if not calls:
+        return {'start': None, 'end': None, 'days': 0}
+
+    timestamps = []
+    for c in calls:
+        ts = c.get('timestamp')
+        if ts:
+            if isinstance(ts, str):
+                try:
+                    ts = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                except:
+                    continue
+            timestamps.append(ts)
+
+    if not timestamps:
+        return {'start': None, 'end': None, 'days': 0}
+
+    min_ts = min(timestamps)
+    max_ts = max(timestamps)
+    days = (max_ts - min_ts).days + 1
+
+    return {
+        'start': min_ts.strftime('%Y-%m-%d'),
+        'end': max_ts.strftime('%Y-%m-%d'),
+        'days': days,
+    }
+
+
+def _calculate_period_metrics(calls: List[Dict], period_name: str) -> Dict:
+    """Calculate comprehensive metrics for a period."""
+    if not calls:
+        return {
+            'period': period_name,
+            'total_calls': 0,
+            'total_cost': 0,
+            'avg_latency_ms': 0,
+        }
+
+    total_calls = len(calls)
+
+    # Cost metrics
+    total_cost = sum(c.get('total_cost') or 0 for c in calls)
+    costs = [c.get('total_cost') or 0 for c in calls]
+    avg_cost_per_call = total_cost / total_calls if total_calls else 0
+
+    # Session-based cost (group by session_id)
+    sessions = set(c.get('session_id') for c in calls if c.get('session_id'))
+    cost_per_session = total_cost / len(sessions) if sessions else total_cost
+
+    # Daily cost
+    dates = set()
+    for c in calls:
+        ts = c.get('timestamp')
+        if ts:
+            if isinstance(ts, str):
+                try:
+                    ts = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                except:
+                    continue
+            dates.add(ts.date())
+    num_days = len(dates) or 1
+    daily_cost = total_cost / num_days
+
+    # Latency metrics
+    latencies = [c.get('latency_ms') or 0 for c in calls if c.get('latency_ms')]
+    avg_latency = sum(latencies) / len(latencies) if latencies else 0
+    sorted_latencies = sorted(latencies)
+    p95_idx = int(len(sorted_latencies) * 0.95) if sorted_latencies else 0
+    p95_latency = sorted_latencies[p95_idx] if p95_idx < len(sorted_latencies) else (sorted_latencies[-1] if sorted_latencies else 0)
+
+    # TTFT (time to first token) - estimate from streaming_metrics or use ~30% of latency
+    ttft_values = []
+    for c in calls:
+        streaming = c.get('streaming_metrics')
+        if streaming:
+            if isinstance(streaming, str):
+                try:
+                    import json
+                    streaming = json.loads(streaming)
+                except:
+                    streaming = {}
+            ttft = streaming.get('time_to_first_token_ms')
+            if ttft:
+                ttft_values.append(ttft)
+    avg_ttft = sum(ttft_values) / len(ttft_values) if ttft_values else avg_latency * 0.3
+
+    # Calls per second (max throughput estimate)
+    calls_per_second = 1000 / avg_latency if avg_latency > 0 else 0
+
+    # Quality metrics
+    quality_scores = [c.get('judge_score') for c in calls if c.get('judge_score') is not None]
+    avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else None
+    quality_per_dollar = avg_quality / avg_cost_per_call if avg_quality and avg_cost_per_call else None
+
+    # Success/Error rate
+    successes = sum(1 for c in calls if c.get('success', True))
+    success_rate = (successes / total_calls * 100) if total_calls else 100
+    error_rate = 100 - success_rate
+
+    # Cache metrics - check both direct cache_hit and cache_metadata.cache_hit
+    cache_hits = 0
+    for c in calls:
+        # Direct cache_hit field (from DB column)
+        if c.get('cache_hit'):
+            cache_hits += 1
+        else:
+            # Check cache_metadata object
+            cache_meta = c.get('cache_metadata')
+            if cache_meta:
+                if isinstance(cache_meta, dict):
+                    if cache_meta.get('cache_hit'):
+                        cache_hits += 1
+                elif hasattr(cache_meta, 'cache_hit') and cache_meta.cache_hit:
+                    cache_hits += 1
+
+    cache_hit_rate = (cache_hits / total_calls * 100) if total_calls else 0
+
+    # Estimate cache cost savings (avg cost * cache hits)
+    cache_cost_savings = avg_cost_per_call * cache_hits
+
+    # Cache latency (typically ~1ms for cache hits)
+    cache_latency = 1 if cache_hits > 0 else None
+
+    # Token metrics
+    total_tokens = sum((c.get('prompt_tokens') or 0) + (c.get('completion_tokens') or 0) for c in calls)
+    prompt_tokens = [c.get('prompt_tokens') or 0 for c in calls]
+    completion_tokens = [c.get('completion_tokens') or 0 for c in calls]
+    avg_prompt_tokens = sum(prompt_tokens) / len(prompt_tokens) if prompt_tokens else 0
+    avg_completion_tokens = sum(completion_tokens) / len(completion_tokens) if completion_tokens else 0
+    prompt_completion_ratio = avg_prompt_tokens / avg_completion_tokens if avg_completion_tokens else 0
+    tokens_per_dollar = total_tokens / total_cost if total_cost else 0
+
+    # Routing metrics
+    routing_decisions = sum(1 for c in calls if c.get('routing_decision'))
+    routed_to_cheaper = sum(
+        1 for c in calls
+        if c.get('routing_decision') and 'cheaper' in str(c.get('routing_decision', '')).lower()
+    )
+    routed_to_cheaper_pct = (routed_to_cheaper / total_calls * 100) if total_calls else 0
+
+    # Estimate routing savings (routed calls * avg cost difference)
+    routing_cost_savings = routed_to_cheaper * avg_cost_per_call * 0.3  # Assume 30% savings
+
+    # Routing overhead (estimate ~50ms)
+    routing_overhead = 50 if routing_decisions > 0 else None
+
+    # Operation-specific metrics
+    ops = defaultdict(lambda: {'count': 0, 'cost': 0, 'latency': 0, 'prompt_tokens': 0})
+    for c in calls:
+        op = c.get('operation') or 'unknown'
+        agent = c.get('agent_name') or 'unknown'
+        key = f"{agent}_{op}"
+        ops[key]['count'] += 1
+        ops[key]['cost'] += c.get('total_cost') or 0
+        ops[key]['latency'] += c.get('latency_ms') or 0
+        ops[key]['prompt_tokens'] += c.get('prompt_tokens') or 0
+        ops[key]['agent'] = agent
+        ops[key]['operation'] = op
+
+    operation_metrics = {}
+    for key, data in ops.items():
+        count = data['count']
+        operation_metrics[key] = {
+            'agent': data['agent'],
+            'operation': data['operation'],
+            'count': count,
+            'avg_latency': data['latency'] / count if count else 0,
+            'avg_cost': data['cost'] / count if count else 0,
+            'avg_prompt_tokens': data['prompt_tokens'] / count if count else 0,
+        }
+
+    return {
+        'period': period_name,
+        'total_calls': total_calls,
+        'num_sessions': len(sessions),
+        'num_days': num_days,
+
+        # Cost metrics
+        'total_cost': total_cost,
+        'avg_cost_per_call': avg_cost_per_call,
+        'cost_per_session': cost_per_session,
+        'daily_cost': daily_cost,
+
+        # Performance metrics
+        'avg_latency_ms': avg_latency,
+        'p95_latency_ms': p95_latency,
+        'avg_ttft_ms': avg_ttft,
+        'calls_per_second': calls_per_second,
+
+        # Quality metrics
+        'avg_quality': avg_quality,
+        'quality_per_dollar': quality_per_dollar,
+        'success_rate': success_rate,
+        'error_rate': error_rate,
+
+        # Cache metrics
+        'cache_hits': cache_hits,
+        'cache_hit_rate': cache_hit_rate,
+        'cache_cost_savings': cache_cost_savings,
+        'cache_latency_ms': cache_latency,
+
+        # Token metrics
+        'total_tokens': total_tokens,
+        'avg_prompt_tokens': avg_prompt_tokens,
+        'avg_completion_tokens': avg_completion_tokens,
+        'prompt_completion_ratio': prompt_completion_ratio,
+        'tokens_per_dollar': tokens_per_dollar,
+
+        # Routing metrics
+        'routing_decisions': routing_decisions,
+        'routed_to_cheaper_pct': routed_to_cheaper_pct,
+        'routing_cost_savings': routing_cost_savings,
+        'routing_overhead_ms': routing_overhead,
+
+        # Operation breakdown
+        'by_operation': operation_metrics,
+    }
+
+
+def _build_comparison_rows(baseline: Dict, optimized: Dict) -> List[Dict]:
+    """Build comparison table rows with impact indicators."""
+
+    def calc_impact(b_val, o_val, lower_is_better=True, is_percentage=False):
+        """Calculate impact percentage and direction."""
+        if b_val is None or o_val is None:
+            return {'pct': None, 'direction': 'neutral', 'indicator': '—'}
+        if b_val == 0:
+            if o_val == 0:
+                return {'pct': 0, 'direction': 'neutral', 'indicator': '0%'}
+            return {'pct': 100 if not lower_is_better else -100, 'direction': 'improved' if not lower_is_better else 'regressed', 'indicator': '+∞'}
+
+        if is_percentage:
+            # For percentage point change
+            change = o_val - b_val
+            indicator = f"{change:+.1f}pp"
+            direction = 'improved' if (change > 0 and not lower_is_better) or (change < 0 and lower_is_better) else 'regressed' if change != 0 else 'neutral'
+        else:
+            pct = ((o_val - b_val) / b_val) * 100
+            if lower_is_better:
+                direction = 'improved' if pct < 0 else 'regressed' if pct > 0 else 'neutral'
+            else:
+                direction = 'improved' if pct > 0 else 'regressed' if pct < 0 else 'neutral'
+            indicator = f"{pct:+.0f}%"
+            change = pct
+
+        return {
+            'pct': change,
+            'direction': direction,
+            'indicator': indicator,
+        }
+
+    rows = []
+
+    # Cost Metrics Section
+    rows.append({'section': 'cost', 'label': 'COST METRICS', 'is_header': True})
+    rows.append({
+        'section': 'cost',
+        'metric': 'Total Cost',
+        'baseline': baseline.get('total_cost'),
+        'baseline_fmt': f"${baseline.get('total_cost', 0):.2f}",
+        'optimized': optimized.get('total_cost'),
+        'optimized_fmt': f"${optimized.get('total_cost', 0):.2f}",
+        **calc_impact(baseline.get('total_cost'), optimized.get('total_cost'), lower_is_better=True),
+    })
+    rows.append({
+        'section': 'cost',
+        'metric': 'Cost per Call',
+        'baseline': baseline.get('avg_cost_per_call'),
+        'baseline_fmt': f"${baseline.get('avg_cost_per_call', 0):.3f}",
+        'optimized': optimized.get('avg_cost_per_call'),
+        'optimized_fmt': f"${optimized.get('avg_cost_per_call', 0):.3f}",
+        **calc_impact(baseline.get('avg_cost_per_call'), optimized.get('avg_cost_per_call'), lower_is_better=True),
+    })
+    rows.append({
+        'section': 'cost',
+        'metric': 'Cost per Session',
+        'baseline': baseline.get('cost_per_session'),
+        'baseline_fmt': f"${baseline.get('cost_per_session', 0):.3f}",
+        'optimized': optimized.get('cost_per_session'),
+        'optimized_fmt': f"${optimized.get('cost_per_session', 0):.3f}",
+        **calc_impact(baseline.get('cost_per_session'), optimized.get('cost_per_session'), lower_is_better=True),
+    })
+    rows.append({
+        'section': 'cost',
+        'metric': 'Daily Cost (Avg)',
+        'baseline': baseline.get('daily_cost'),
+        'baseline_fmt': f"${baseline.get('daily_cost', 0):.2f}",
+        'optimized': optimized.get('daily_cost'),
+        'optimized_fmt': f"${optimized.get('daily_cost', 0):.2f}",
+        **calc_impact(baseline.get('daily_cost'), optimized.get('daily_cost'), lower_is_better=True),
+    })
+
+    # Performance Metrics Section
+    rows.append({'section': 'performance', 'label': 'PERFORMANCE METRICS', 'is_header': True})
+    rows.append({
+        'section': 'performance',
+        'metric': 'Avg Latency',
+        'baseline': baseline.get('avg_latency_ms'),
+        'baseline_fmt': f"{baseline.get('avg_latency_ms', 0):,.0f} ms",
+        'optimized': optimized.get('avg_latency_ms'),
+        'optimized_fmt': f"{optimized.get('avg_latency_ms', 0):,.0f} ms",
+        **calc_impact(baseline.get('avg_latency_ms'), optimized.get('avg_latency_ms'), lower_is_better=True),
+    })
+    rows.append({
+        'section': 'performance',
+        'metric': 'P95 Latency',
+        'baseline': baseline.get('p95_latency_ms'),
+        'baseline_fmt': f"{baseline.get('p95_latency_ms', 0):,.0f} ms",
+        'optimized': optimized.get('p95_latency_ms'),
+        'optimized_fmt': f"{optimized.get('p95_latency_ms', 0):,.0f} ms",
+        **calc_impact(baseline.get('p95_latency_ms'), optimized.get('p95_latency_ms'), lower_is_better=True),
+    })
+    rows.append({
+        'section': 'performance',
+        'metric': 'Avg Time to First Token',
+        'baseline': baseline.get('avg_ttft_ms'),
+        'baseline_fmt': f"{baseline.get('avg_ttft_ms', 0):,.0f} ms",
+        'optimized': optimized.get('avg_ttft_ms'),
+        'optimized_fmt': f"{optimized.get('avg_ttft_ms', 0):,.0f} ms",
+        **calc_impact(baseline.get('avg_ttft_ms'), optimized.get('avg_ttft_ms'), lower_is_better=True),
+    })
+    rows.append({
+        'section': 'performance',
+        'metric': 'Calls per Second (Max)',
+        'baseline': baseline.get('calls_per_second'),
+        'baseline_fmt': f"{baseline.get('calls_per_second', 0):.1f}",
+        'optimized': optimized.get('calls_per_second'),
+        'optimized_fmt': f"{optimized.get('calls_per_second', 0):.1f}",
+        **calc_impact(baseline.get('calls_per_second'), optimized.get('calls_per_second'), lower_is_better=False),
+    })
+
+    # Quality Metrics Section
+    rows.append({'section': 'quality', 'label': 'QUALITY METRICS', 'is_header': True})
+    rows.append({
+        'section': 'quality',
+        'metric': 'Avg Quality Score',
+        'baseline': baseline.get('avg_quality'),
+        'baseline_fmt': f"{baseline.get('avg_quality', 0):.2f}" if baseline.get('avg_quality') else '—',
+        'optimized': optimized.get('avg_quality'),
+        'optimized_fmt': f"{optimized.get('avg_quality', 0):.2f}" if optimized.get('avg_quality') else '—',
+        **calc_impact(baseline.get('avg_quality'), optimized.get('avg_quality'), lower_is_better=False),
+    })
+    rows.append({
+        'section': 'quality',
+        'metric': 'Quality per Dollar',
+        'baseline': baseline.get('quality_per_dollar'),
+        'baseline_fmt': f"{baseline.get('quality_per_dollar', 0):.2f}" if baseline.get('quality_per_dollar') else '—',
+        'optimized': optimized.get('quality_per_dollar'),
+        'optimized_fmt': f"{optimized.get('quality_per_dollar', 0):.2f}" if optimized.get('quality_per_dollar') else '—',
+        **calc_impact(baseline.get('quality_per_dollar'), optimized.get('quality_per_dollar'), lower_is_better=False),
+    })
+    rows.append({
+        'section': 'quality',
+        'metric': 'Success Rate',
+        'baseline': baseline.get('success_rate'),
+        'baseline_fmt': f"{baseline.get('success_rate', 0):.0f}%",
+        'optimized': optimized.get('success_rate'),
+        'optimized_fmt': f"{optimized.get('success_rate', 0):.0f}%",
+        **calc_impact(baseline.get('success_rate'), optimized.get('success_rate'), lower_is_better=False, is_percentage=True),
+    })
+    rows.append({
+        'section': 'quality',
+        'metric': 'Error Rate',
+        'baseline': baseline.get('error_rate'),
+        'baseline_fmt': f"{baseline.get('error_rate', 0):.0f}%",
+        'optimized': optimized.get('error_rate'),
+        'optimized_fmt': f"{optimized.get('error_rate', 0):.0f}%",
+        **calc_impact(baseline.get('error_rate'), optimized.get('error_rate'), lower_is_better=True, is_percentage=True),
+    })
+
+    # Caching Metrics Section
+    rows.append({'section': 'caching', 'label': 'CACHING METRICS', 'is_header': True})
+    rows.append({
+        'section': 'caching',
+        'metric': 'Cache Hit Rate',
+        'baseline': baseline.get('cache_hit_rate'),
+        'baseline_fmt': f"{baseline.get('cache_hit_rate', 0):.1f}%",
+        'optimized': optimized.get('cache_hit_rate'),
+        'optimized_fmt': f"{optimized.get('cache_hit_rate', 0):.1f}%",
+        **calc_impact(baseline.get('cache_hit_rate'), optimized.get('cache_hit_rate'), lower_is_better=False, is_percentage=True),
+    })
+    rows.append({
+        'section': 'caching',
+        'metric': 'Cache Hits',
+        'baseline': baseline.get('cache_hits'),
+        'baseline_fmt': f"{baseline.get('cache_hits', 0):,}",
+        'optimized': optimized.get('cache_hits'),
+        'optimized_fmt': f"{optimized.get('cache_hits', 0):,}",
+        **calc_impact(baseline.get('cache_hits'), optimized.get('cache_hits'), lower_is_better=False),
+    })
+    rows.append({
+        'section': 'caching',
+        'metric': 'Cache Cost Savings',
+        'baseline': baseline.get('cache_cost_savings'),
+        'baseline_fmt': f"${baseline.get('cache_cost_savings', 0):.2f}",
+        'optimized': optimized.get('cache_cost_savings'),
+        'optimized_fmt': f"${optimized.get('cache_cost_savings', 0):.2f}",
+        **calc_impact(baseline.get('cache_cost_savings'), optimized.get('cache_cost_savings'), lower_is_better=False),
+    })
+    rows.append({
+        'section': 'caching',
+        'metric': 'Avg Cache Latency',
+        'baseline': baseline.get('cache_latency_ms'),
+        'baseline_fmt': f"{baseline.get('cache_latency_ms', 0)} ms" if baseline.get('cache_latency_ms') else 'N/A',
+        'optimized': optimized.get('cache_latency_ms'),
+        'optimized_fmt': f"{optimized.get('cache_latency_ms', 0)} ms" if optimized.get('cache_latency_ms') else 'N/A',
+        'pct': None,
+        'direction': 'neutral',
+        'indicator': 'N/A',
+    })
+
+    # Token Metrics Section
+    rows.append({'section': 'tokens', 'label': 'TOKEN METRICS', 'is_header': True})
+    rows.append({
+        'section': 'tokens',
+        'metric': 'Total Tokens',
+        'baseline': baseline.get('total_tokens'),
+        'baseline_fmt': f"{baseline.get('total_tokens', 0):,}",
+        'optimized': optimized.get('total_tokens'),
+        'optimized_fmt': f"{optimized.get('total_tokens', 0):,}",
+        **calc_impact(baseline.get('total_tokens'), optimized.get('total_tokens'), lower_is_better=True),
+    })
+    rows.append({
+        'section': 'tokens',
+        'metric': 'Avg Prompt Tokens',
+        'baseline': baseline.get('avg_prompt_tokens'),
+        'baseline_fmt': f"{baseline.get('avg_prompt_tokens', 0):,.0f}",
+        'optimized': optimized.get('avg_prompt_tokens'),
+        'optimized_fmt': f"{optimized.get('avg_prompt_tokens', 0):,.0f}",
+        **calc_impact(baseline.get('avg_prompt_tokens'), optimized.get('avg_prompt_tokens'), lower_is_better=True),
+    })
+    rows.append({
+        'section': 'tokens',
+        'metric': 'Avg Completion Tokens',
+        'baseline': baseline.get('avg_completion_tokens'),
+        'baseline_fmt': f"{baseline.get('avg_completion_tokens', 0):,.0f}",
+        'optimized': optimized.get('avg_completion_tokens'),
+        'optimized_fmt': f"{optimized.get('avg_completion_tokens', 0):,.0f}",
+        **calc_impact(baseline.get('avg_completion_tokens'), optimized.get('avg_completion_tokens'), lower_is_better=False),
+    })
+    rows.append({
+        'section': 'tokens',
+        'metric': 'Prompt/Completion Ratio',
+        'baseline': baseline.get('prompt_completion_ratio'),
+        'baseline_fmt': f"{baseline.get('prompt_completion_ratio', 0):.1f}:1",
+        'optimized': optimized.get('prompt_completion_ratio'),
+        'optimized_fmt': f"{optimized.get('prompt_completion_ratio', 0):.1f}:1",
+        **calc_impact(baseline.get('prompt_completion_ratio'), optimized.get('prompt_completion_ratio'), lower_is_better=True),
+    })
+    rows.append({
+        'section': 'tokens',
+        'metric': 'Tokens per Dollar',
+        'baseline': baseline.get('tokens_per_dollar'),
+        'baseline_fmt': f"{baseline.get('tokens_per_dollar', 0):,.0f}",
+        'optimized': optimized.get('tokens_per_dollar'),
+        'optimized_fmt': f"{optimized.get('tokens_per_dollar', 0):,.0f}",
+        **calc_impact(baseline.get('tokens_per_dollar'), optimized.get('tokens_per_dollar'), lower_is_better=False),
+    })
+
+    # Routing Metrics Section
+    rows.append({'section': 'routing', 'label': 'ROUTING METRICS', 'is_header': True})
+    rows.append({
+        'section': 'routing',
+        'metric': 'Routing Decisions Made',
+        'baseline': baseline.get('routing_decisions'),
+        'baseline_fmt': f"{baseline.get('routing_decisions', 0):,}",
+        'optimized': optimized.get('routing_decisions'),
+        'optimized_fmt': f"{optimized.get('routing_decisions', 0):,}",
+        **calc_impact(baseline.get('routing_decisions'), optimized.get('routing_decisions'), lower_is_better=False),
+    })
+    rows.append({
+        'section': 'routing',
+        'metric': 'Routed to Cheaper Model',
+        'baseline': baseline.get('routed_to_cheaper_pct'),
+        'baseline_fmt': f"{baseline.get('routed_to_cheaper_pct', 0):.0f}%",
+        'optimized': optimized.get('routed_to_cheaper_pct'),
+        'optimized_fmt': f"{optimized.get('routed_to_cheaper_pct', 0):.0f}%",
+        **calc_impact(baseline.get('routed_to_cheaper_pct'), optimized.get('routed_to_cheaper_pct'), lower_is_better=False, is_percentage=True),
+    })
+    rows.append({
+        'section': 'routing',
+        'metric': 'Routing Cost Savings',
+        'baseline': baseline.get('routing_cost_savings'),
+        'baseline_fmt': f"${baseline.get('routing_cost_savings', 0):.2f}",
+        'optimized': optimized.get('routing_cost_savings'),
+        'optimized_fmt': f"${optimized.get('routing_cost_savings', 0):.2f}",
+        **calc_impact(baseline.get('routing_cost_savings'), optimized.get('routing_cost_savings'), lower_is_better=False),
+    })
+    rows.append({
+        'section': 'routing',
+        'metric': 'Avg Routing Overhead',
+        'baseline': baseline.get('routing_overhead_ms'),
+        'baseline_fmt': f"{baseline.get('routing_overhead_ms', 0)} ms" if baseline.get('routing_overhead_ms') else 'N/A',
+        'optimized': optimized.get('routing_overhead_ms'),
+        'optimized_fmt': f"{optimized.get('routing_overhead_ms', 0)} ms" if optimized.get('routing_overhead_ms') else 'N/A',
+        'pct': None,
+        'direction': 'neutral',
+        'indicator': 'N/A',
+    })
+
+    # Operation-Specific Metrics Section
+    rows.append({'section': 'operations', 'label': 'OPERATION-SPECIFIC METRICS', 'is_header': True})
+
+    # Get top operations by count
+    baseline_ops = baseline.get('by_operation', {})
+    optimized_ops = optimized.get('by_operation', {})
+    all_ops = set(list(baseline_ops.keys()) + list(optimized_ops.keys()))
+
+    for op_key in sorted(all_ops, key=lambda k: baseline_ops.get(k, {}).get('count', 0) + optimized_ops.get(k, {}).get('count', 0), reverse=True)[:5]:
+        b_op = baseline_ops.get(op_key, {})
+        o_op = optimized_ops.get(op_key, {})
+        op_name = b_op.get('operation') or o_op.get('operation') or op_key
+        agent = b_op.get('agent') or o_op.get('agent') or ''
+
+        display_name = f"{agent} {op_name}".strip().replace('_', ' ').title()
+
+        # Latency for this operation
+        rows.append({
+            'section': 'operations',
+            'metric': f'{display_name} Avg Latency',
+            'baseline': b_op.get('avg_latency'),
+            'baseline_fmt': f"{b_op.get('avg_latency', 0):,.0f} ms",
+            'optimized': o_op.get('avg_latency'),
+            'optimized_fmt': f"{o_op.get('avg_latency', 0):,.0f} ms",
+            **calc_impact(b_op.get('avg_latency'), o_op.get('avg_latency'), lower_is_better=True),
+        })
+        # Cost for this operation
+        rows.append({
+            'section': 'operations',
+            'metric': f'{display_name} Avg Cost',
+            'baseline': b_op.get('avg_cost'),
+            'baseline_fmt': f"${b_op.get('avg_cost', 0):.3f}",
+            'optimized': o_op.get('avg_cost'),
+            'optimized_fmt': f"${o_op.get('avg_cost', 0):.3f}",
+            **calc_impact(b_op.get('avg_cost'), o_op.get('avg_cost'), lower_is_better=True),
+        })
+        # Prompt tokens for this operation
+        rows.append({
+            'section': 'operations',
+            'metric': f'{display_name} Avg Prompt Tokens',
+            'baseline': b_op.get('avg_prompt_tokens'),
+            'baseline_fmt': f"{b_op.get('avg_prompt_tokens', 0):,.0f}",
+            'optimized': o_op.get('avg_prompt_tokens'),
+            'optimized_fmt': f"{o_op.get('avg_prompt_tokens', 0):,.0f}",
+            **calc_impact(b_op.get('avg_prompt_tokens'), o_op.get('avg_prompt_tokens'), lower_is_better=True),
+        })
+
+    return rows

@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-agent-observatory"
-version = "0.2.0"
-description = "Comprehensive monitoring and optimization toolkit for AI/LLM applications"
+version = "0.4.0"
+description = "Production-ready observability platform for AI agents and LLM applications"
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
-    {name = "Bryan", email = "bryan@example.com"}
+    {name = "Bryan LoLordo"}
 ]
 keywords = [
     "ai",
@@ -22,6 +22,8 @@ keywords = [
     "openai",
     "azure",
     "anthropic",
+    "fastapi",
+    "react",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -29,7 +31,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -38,37 +39,57 @@ classifiers = [
 ]
 
 dependencies = [
-    # Core dependencies
+    # Core SDK
     "pydantic>=2.0.0",
     "sqlalchemy>=2.0.0",
-    # API dependencies
-    "fastapi>=0.104.0",
-    "uvicorn>=0.24.0",
     "python-dotenv>=1.0.0",
-    # Data analysis
+    # API Server
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "python-multipart>=0.0.6",
+    # Data Processing
     "pandas>=2.0.0",
     "openpyxl>=3.1.0",
+    # Token Counting
+    "tiktoken>=0.5.0",
 ]
 
 [project.optional-dependencies]
+# AI providers for LLM Judge and advanced features
+ai = [
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+]
+# Semantic caching with vector similarity
+semantic = [
+    "chromadb>=0.4.0",
+]
+# Full installation (SDK + AI + Semantic)
+full = [
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+    "chromadb>=0.4.0",
+]
+# Development tools
 dev = [
-    "pytest>=7.0.0",
+    "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.1.0",       # For coverage reports
-    "httpx>=0.25.0",           # For testing FastAPI
+    "pytest-cov>=4.1.0",
+    "httpx>=0.25.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
+    "mypy>=1.6.0",
 ]
-dashboard = [
-    "streamlit>=1.28.0",
-    "plotly>=5.18.0",
+# PostgreSQL support (instead of SQLite)
+postgres = [
+    "psycopg2-binary>=2.9.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/ai-agent-observatory"
-Documentation = "https://github.com/yourusername/ai-agent-observatory#readme"
-Repository = "https://github.com/yourusername/ai-agent-observatory"
-Issues = "https://github.com/yourusername/ai-agent-observatory/issues"
+Homepage = "https://github.com/bryan-lolordo/ai-agent-observatory"
+Documentation = "https://github.com/bryan-lolordo/ai-agent-observatory#readme"
+Repository = "https://github.com/bryan-lolordo/ai-agent-observatory"
+Issues = "https://github.com/bryan-lolordo/ai-agent-observatory/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -79,7 +100,7 @@ observatory = ["py.typed"]
 
 [tool.black]
 line-length = 100
-target-version = ["py39", "py310", "py311", "py312"]
+target-version = ["py310", "py311", "py312"]
 
 [tool.ruff]
 line-length = 100
@@ -96,10 +117,6 @@ addopts = [
     "-v",
     "--strict-markers",
     "--tb=short",
-    "--cov=api",
-    "--cov=observatory",
-    "--cov-report=term-missing",
-    "--cov-report=html",
 ]
 markers = [
     "unit: Unit tests",

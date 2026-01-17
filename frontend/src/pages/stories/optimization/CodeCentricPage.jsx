@@ -17,7 +17,7 @@ import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import { BASE_THEME } from '../../../utils/themeUtils';
 import PageContainer from '../../../components/layout/PageContainer';
 import CodeCentricView, { generateIssuesFromOperation } from '../../../components/stories/CodeCentricView';
-import { ChevronDown, ChevronRight, Code2, Layers, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Code2, Layers, AlertCircle, RefreshCw, Loader2, Table, BarChart3 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Operation Selector Sidebar
@@ -346,14 +346,23 @@ export default function CodeCentricPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => navigate('/stories/optimization')}
-                  className={`px-3 py-1.5 rounded text-sm ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary} hover:${BASE_THEME.container.tertiary} transition-colors`}
+                  className={`px-3 py-1.5 rounded text-sm ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary} hover:${BASE_THEME.container.tertiary} transition-colors flex items-center gap-1.5`}
                 >
+                  <Table className="w-4 h-4" />
                   Table View
                 </button>
                 <button
-                  className={`px-3 py-1.5 rounded text-sm ${theme.bg} text-white`}
+                  className={`px-3 py-1.5 rounded text-sm ${theme.bg} text-white flex items-center gap-1.5`}
                 >
+                  <Code2 className="w-4 h-4" />
                   Code View
+                </button>
+                <button
+                  onClick={() => navigate('/stories/optimization/comparison')}
+                  className={`px-3 py-1.5 rounded text-sm ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary} hover:${BASE_THEME.container.tertiary} transition-colors flex items-center gap-1.5`}
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  Impact
                 </button>
                 <button
                   onClick={refetch}

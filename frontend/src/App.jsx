@@ -174,6 +174,8 @@ function App() {
               {/* ============================================= */}
               <Route path="/stories/optimization" element={<Optimization />} />
               <Route path="/stories/optimization/code-view" element={<CodeCentricPage />} />
+              <Route path="/stories/optimization/impact-view" element={<Navigate to="/stories/optimization/comparison" replace />} />
+              <Route path="/stories/optimization/comparison" element={<OptimizationComparisonDetail />} />
               <Route path="/stories/optimization/calls" element={<OptimizationComparisonDetail />} />
               <Route path="/stories/optimization/comparisons/:comparisonId" element={<OptimizationComparisonDetail />} />
               

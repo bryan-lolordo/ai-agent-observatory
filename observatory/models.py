@@ -209,6 +209,7 @@ class CacheMetadata(BaseModel):
     cache_hit: bool = False
     cache_key: Optional[str] = None
     cache_cluster_id: Optional[str] = None
+    cache_type: Optional[str] = None  # "exact", "semantic", or "stable_prefix"
     normalization_strategy: Optional[str] = None
     similarity_score: Optional[float] = None
     eviction_info: Optional[str] = None
@@ -445,7 +446,10 @@ class LLMCall(BaseModel):
     # === EXISTING: A/B Testing (kept for backward compatibility) ===
     prompt_variant_id: Optional[str] = None
     test_dataset_id: Optional[str] = None
-    
+
+    # === Phase Tracking ===
+    phase: Optional[str] = None  # 'baseline' or 'optimized' for A/B comparison
+
     # Optional metadata
     metadata: Dict[str, Any] = Field(default_factory=dict)
     

@@ -158,14 +158,15 @@ ai-agent-observatory/
 ```bash
 git clone https://github.com/bryan-lolordo/ai-agent-observatory.git
 cd ai-agent-observatory
-pip install -e .
+pip install -e .                    # Core SDK
+pip install -e ".[ai]"              # + OpenAI/Anthropic for LLM Judge
+pip install -e ".[full]"            # + Everything including SemanticCache
 ```
 
 ### 2. Run the Dashboard
 
 ```bash
 # Terminal 1: Start API
-pip install -e ".[dashboard]"
 uvicorn api.main:app --port 8000
 
 # Terminal 2: Start Frontend
@@ -210,6 +211,24 @@ cp .env.example .env
 Required for LLM Judge and Semantic Cache features:
 - `OPENAI_API_KEY` - For quality evaluation
 - `AZURE_OPENAI_*` - Alternative to OpenAI
+
+---
+
+## Integration Templates
+
+The [`templates/`](templates/) folder contains ready-to-use configuration files for adding Observatory tracking to your LLM applications:
+
+| Template | Purpose |
+|----------|---------|
+| [`observatory_config_template.py`](templates/observatory_config_template.py) | One-time setup: SDK initialization, routing rules, judge criteria |
+| [`llm_call_template.py`](templates/llm_call_template.py) | Code patterns to copy into files that make LLM calls |
+
+**Quick start:**
+1. Copy `observatory_config_template.py` → your project as `observatory_config.py`
+2. Customize operations, prompts, and routing rules for your app
+3. Use patterns from `llm_call_template.py` in your LLM-calling code
+
+→ [Full integration guide](templates/README.md)
 
 ---
 

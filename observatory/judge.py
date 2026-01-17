@@ -5,6 +5,8 @@ Location: observatory/judge.py
 Configurable LLM-as-a-judge for evaluating response quality.
 Applications configure which operations to judge and domain-specific criteria.
 
+UPDATED: Added phase tracking, confidence filtering, and adaptive sampling.
+
 Supports multiple client types:
   - OpenAI / Azure OpenAI clients
   - Semantic Kernel
@@ -14,6 +16,7 @@ Supports multiple client types:
 import asyncio
 import hashlib
 import json
+import os
 import random
 import time
 from typing import Optional, Dict, Set, Any, Tuple, TYPE_CHECKING
@@ -44,6 +47,12 @@ DEFAULT_CRITERIA = {
 
 DEFAULT_SAMPLE_RATE = 0.5
 
+# Phase descriptions for metadata
+PHASE_DESCRIPTIONS = {
+    "baseline": "Tracking metrics and detecting optimization opportunities (no changes applied)",
+    "optimized": "Applying optimizations (caching, routing, compression, token efficiency)",
+}
+
 
 # =============================================================================
 # LLM JUDGE CLASS
@@ -58,11 +67,19 @@ class LLMJudge:
       - Semantic Kernel: kernel.invoke_prompt()
       - Generic callable: async def my_llm(prompt) -> str
     
+    NEW Features:
+      - Phase tracking for baseline/optimized comparison
+      - Confidence filtering (min_confidence threshold)
+      - Configurable prompt/response truncation
+      - Adaptive sampling by phase
+      - Cost tracking and statistics
+    
     Usage:
         judge = LLMJudge(
             observatory=obs,
             operations={"chat", "analyze", "generate"},
-            sample_rate=0.5,
+            sample_rate=1.0 if CURRENT_PHASE == "baseline" else 0.2,
+            min_confidence=0.7,  # NEW
             domain_context="career advice and resume optimization"
         )
         
@@ -85,7 +102,11 @@ class LLMJudge:
         domain_context: str = "AI assistant responses",
         judge_model: str = "gpt-4o-mini",
         track_judge_calls: bool = True,
-        enabled: bool = True, 
+        enabled: bool = True,
+        # NEW parameters
+        min_confidence: float = 0.0,
+        max_prompt_chars: int = 1000,
+        max_response_chars: int = 1500,
     ):
         """
         Initialize LLM Judge.
@@ -99,6 +120,10 @@ class LLMJudge:
             domain_context: Description of application domain for judge prompt
             judge_model: Model to use for judging
             track_judge_calls: Whether to track judge LLM calls in Observatory
+            enabled: Whether judge is enabled (can disable completely)
+            min_confidence: Minimum confidence score to accept (0.0-1.0, default 0.0 = accept all)
+            max_prompt_chars: Max characters of prompt to send to judge (default 1000)
+            max_response_chars: Max characters of response to send to judge (default 1500)
         """
         self.observatory = observatory
         self.operations = operations or set()
@@ -108,13 +133,22 @@ class LLMJudge:
         self.domain_context = domain_context
         self.judge_model = judge_model
         self.track_judge_calls = track_judge_calls
-        self.enabled = enabled 
+        self.enabled = enabled
+        
+        # NEW: Confidence and truncation settings
+        self.min_confidence = max(0.0, min(1.0, min_confidence))
+        self.max_prompt_chars = max_prompt_chars
+        self.max_response_chars = max_response_chars
+        
+        # Get current phase from environment (most reliable)
+        self.current_phase = os.getenv("OBSERVATORY_PHASE", "baseline")
         
         # Statistics
         self._total_evaluated = 0
         self._total_skipped = 0
         self._total_hallucinations = 0
         self._score_sum = 0.0
+        self._low_confidence_rejected = 0
     
     # =========================================================================
     # CONFIGURATION
@@ -140,6 +174,11 @@ class LLMJudge:
         self.criteria = criteria
         return self
     
+    def set_min_confidence(self, confidence: float) -> 'LLMJudge':
+        """Set minimum confidence threshold (0.0 to 1.0)."""
+        self.min_confidence = max(0.0, min(1.0, confidence))
+        return self
+    
     # =========================================================================
     # EVALUATION DECISION
     # =========================================================================
@@ -156,7 +195,7 @@ class LLMJudge:
             True if should evaluate
         """
         # Check if judge is enabled
-        if not self.enabled:  # ADD THIS CHECK
+        if not self.enabled:
             return False
         
         # Skip if in skip list
@@ -203,9 +242,10 @@ class LLMJudge:
             force: Bypass sampling if True
             conversation_id: Conversation identifier for linking
             turn_number: Turn number in conversation
+            parent_call_id: Parent call ID for linking
         
         Returns:
-            QualityEvaluation or None if skipped
+            QualityEvaluation or None if skipped/rejected
         """
         if not self.should_evaluate(operation, force):
             return None
@@ -241,9 +281,10 @@ class LLMJudge:
             force: Bypass sampling if True
             conversation_id: Conversation identifier for linking
             turn_number: Turn number in conversation
+            parent_call_id: Parent call ID for linking
         
         Returns:
-            QualityEvaluation or None if skipped
+            QualityEvaluation or None if skipped/rejected
         """
         if not self.should_evaluate(operation, force):
             return None
@@ -298,7 +339,18 @@ class LLMJudge:
                     parent_call_id=parent_call_id,
                 )
             
-            return self._parse_and_create_evaluation(result_text, operation)
+            # Parse and validate evaluation
+            evaluation = self._parse_and_create_evaluation(result_text, operation)
+            
+            # NEW: Filter by confidence threshold
+            if evaluation and self.min_confidence > 0:
+                confidence = evaluation.confidence_score or 0
+                if confidence < self.min_confidence:
+                    self._low_confidence_rejected += 1
+                    print(f"⚠️ Rejected low-confidence evaluation: {confidence:.2f} < {self.min_confidence:.2f}")
+                    return None
+            
+            return evaluation
             
         except Exception as e:
             print(f"⚠️ Judge evaluation failed for {operation}: {e}")
@@ -344,14 +396,25 @@ class LLMJudge:
                     parent_call_id=parent_call_id,
                 )
             
-            return self._parse_and_create_evaluation(result_text, operation)
+            # Parse and validate evaluation
+            evaluation = self._parse_and_create_evaluation(result_text, operation)
+            
+            # NEW: Filter by confidence threshold
+            if evaluation and self.min_confidence > 0:
+                confidence = evaluation.confidence_score or 0
+                if confidence < self.min_confidence:
+                    self._low_confidence_rejected += 1
+                    print(f"⚠️ Rejected low-confidence evaluation: {confidence:.2f} < {self.min_confidence:.2f}")
+                    return None
+            
+            return evaluation
             
         except Exception as e:
             print(f"⚠️ Judge evaluation failed for {operation}: {e}")
             return None
     
     # =========================================================================
-    # JUDGE CALL TRACKING (Phase 2 - Complete metrics)
+    # JUDGE CALL TRACKING (WITH PHASE METADATA)
     # =========================================================================
     
     def _track_judge_call(
@@ -370,8 +433,13 @@ class LLMJudge:
         """
         Track judge call with complete Observatory metrics.
         
-        Phase 2 Update: Now includes token breakdown, routing decision, 
-        and cache metadata for full Tier 2/3 coverage.
+        UPDATED: Now includes phase tracking for baseline/optimized comparison.
+        
+        This method tracks the judge's own LLM calls with full Tier 2/3 metrics:
+        - Token breakdown
+        - Routing decision
+        - Cache metadata
+        - Phase information (NEW)
         """
         # Token breakdown - judge prompt has system instructions + user content
         # Split at "ORIGINAL USER REQUEST:" marker
@@ -404,6 +472,15 @@ class LLMJudge:
             cache_cluster_id=f"judge_{operation}",
         )
         
+        # ═════════════════════════════════════════════════════════════════════
+        # BUILD METADATA WITH PHASE INFORMATION (CRITICAL FIX)
+        # ═════════════════════════════════════════════════════════════════════
+        metadata = {
+            "client_type": client_type,
+            "phase": self.current_phase,
+            "phase_description": PHASE_DESCRIPTIONS.get(self.current_phase, "Unknown phase"),
+        }
+        
         # Record the call with complete metrics
         self.observatory.record_call(
             # Core metrics (Tier 1)
@@ -420,7 +497,7 @@ class LLMJudge:
             prompt=judge_prompt[:1000],
             response_text=result_text,
             
-            # Token breakdown (Tier 2) - Phase 2 addition
+            # Token breakdown (Tier 2)
             system_prompt_tokens=system_tokens,
             user_message_tokens=user_tokens,
             
@@ -428,10 +505,10 @@ class LLMJudge:
             temperature=0.3,
             max_tokens=600,
             
-            # Routing decision (Tier 3) - Phase 2 addition
+            # Routing decision (Tier 3)
             routing_decision=routing_decision,
             
-            # Cache metadata (Tier 3) - Phase 2 addition
+            # Cache metadata (Tier 3)
             cache_metadata=cache_metadata,
             
             # Conversation linking
@@ -439,8 +516,8 @@ class LLMJudge:
             turn_number=turn_number,
             parent_call_id=parent_call_id,
             
-            # Metadata
-            metadata={"client_type": client_type},
+            # Metadata with phase (CRITICAL)
+            metadata=metadata,
         )
     
     # =========================================================================
@@ -564,9 +641,9 @@ class LLMJudge:
     ) -> str:
         """Create the evaluation prompt."""
         
-        # Truncate to avoid token limits
-        prompt_preview = prompt[:1000] if len(prompt) > 1000 else prompt
-        response_preview = response[:1500] if len(response) > 1500 else response
+        # Truncate using configurable limits (NEW)
+        prompt_preview = prompt[:self.max_prompt_chars] if len(prompt) > self.max_prompt_chars else prompt
+        response_preview = response[:self.max_response_chars] if len(response) > self.max_response_chars else response
         
         # Build criteria section
         criteria_text = "\n".join([
@@ -636,13 +713,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
         try:
             data = self._parse_json_response(result_text)
 
-            # ADD THIS SAFETY NET - Ensure score is 0-10
+            # Ensure score is 0-10 (safety net)
             score = data.get('score', 0)
             if score > 10:
                 print(f"⚠️ Normalizing judge score: {score} → {score/10.0}")
                 score = round(score / 10.0, 1)
             data['score'] = min(10.0, max(0.0, score))  # Clamp to 0-10
-            # END ADDITION
             
             # Update statistics
             self._total_evaluated += 1
@@ -727,6 +803,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
     def _log_evaluation(self, operation: str, evaluation: QualityEvaluation):
         """Log evaluation result."""
         msg = f"📊 Judged {operation}: Score {evaluation.judge_score}/10"
+        if evaluation.confidence_score:
+            msg += f" (confidence: {evaluation.confidence_score:.2f})"
         if evaluation.hallucination_flag:
             msg += " 🚨 HALLUCINATION"
         if evaluation.factual_error:
@@ -742,14 +820,21 @@ Return ONLY valid JSON (no markdown, no code blocks):
         avg_score = self._score_sum / self._total_evaluated if self._total_evaluated > 0 else 0
         hallucination_rate = self._total_hallucinations / self._total_evaluated if self._total_evaluated > 0 else 0
         
+        # NEW: Estimate costs
+        estimated_cost = self._total_evaluated * 0.002  # ~$0.002 per judge call
+        
         return {
-            "enabled": self.enabled, 
+            "enabled": self.enabled,
+            "current_phase": self.current_phase,  # NEW
             "total_evaluated": self._total_evaluated,
             "total_skipped": self._total_skipped,
+            "low_confidence_rejected": self._low_confidence_rejected,  # NEW
             "total_hallucinations": self._total_hallucinations,
             "average_score": round(avg_score, 2),
             "hallucination_rate": round(hallucination_rate, 3),
             "sample_rate": self.sample_rate,
+            "min_confidence": self.min_confidence,  # NEW
+            "estimated_cost_usd": round(estimated_cost, 4),  # NEW
             "operations": sorted(self.operations) if self.operations else "all",
             "skip_operations": sorted(self.skip_operations),
             "judge_model": self.judge_model,
@@ -762,6 +847,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         self._total_skipped = 0
         self._total_hallucinations = 0
         self._score_sum = 0.0
+        self._low_confidence_rejected = 0
 
 
 # =============================================================================

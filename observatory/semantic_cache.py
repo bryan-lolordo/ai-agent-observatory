@@ -123,6 +123,7 @@ class SemanticCacheResult:
             cache_hit=self.hit,
             cache_key=self.cache_key,
             cache_cluster_id=cluster_id or self.operation,
+            cache_type="semantic",
             similarity_score=self.similarity,
             normalization_strategy="semantic_embedding",
         )
@@ -213,9 +214,11 @@ class SemanticCache:
         project_name = "default"
         if observatory and hasattr(observatory, 'project_name'):
             project_name = observatory.project_name.lower().replace(" ", "_")
-        
+
+        # Default path is in current working directory (application's folder)
+        # Applications should explicitly set db_path for clarity
         self.db_path = db_path or os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "observatory_cache", project_name)
+            os.path.join(os.getcwd(), "data", "semantic_cache", project_name)
         )
         self.collection_name = collection_name or f"semantic_cache_{project_name}"
         
@@ -755,11 +758,11 @@ def create_semantic_cache_metadata(
 ) -> CacheMetadata:
     """
     Create CacheMetadata from a SemanticCacheResult.
-    
+
     Args:
         result: SemanticCacheResult from get() call
         cluster_id: Override cluster ID
-    
+
     Returns:
         CacheMetadata for use with track_llm_call()
     """
@@ -767,6 +770,7 @@ def create_semantic_cache_metadata(
         cache_hit=result.hit,
         cache_key=result.cache_key,
         cache_cluster_id=cluster_id or result.operation,
+        cache_type="semantic",
         similarity_score=result.similarity,
         normalization_strategy="semantic_embedding",
     )

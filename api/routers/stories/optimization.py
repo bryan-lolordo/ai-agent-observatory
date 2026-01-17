@@ -130,3 +130,38 @@ def remove_fix(
     if not success:
         raise HTTPException(status_code=404, detail=f"Fix not found: {fix_id}")
     return {"success": True, "fix_id": fix_id}
+
+
+@router.get("/comparison")
+def get_detailed_comparison(
+    project: Optional[str] = None,
+    baseline_days: int = Query(default=7, ge=1, le=90, description="Days for baseline period"),
+    optimized_days: int = Query(default=7, ge=1, le=90, description="Days for optimized period"),
+    baseline_start: Optional[str] = Query(default=None, description="Baseline start date (YYYY-MM-DD)"),
+    baseline_end: Optional[str] = Query(default=None, description="Baseline end date (YYYY-MM-DD)"),
+    optimized_start: Optional[str] = Query(default=None, description="Optimized start date (YYYY-MM-DD)"),
+    optimized_end: Optional[str] = Query(default=None, description="Optimized end date (YYYY-MM-DD)"),
+    limit: int = Query(default=5000, le=10000),
+):
+    """
+    Get detailed baseline vs optimized comparison with comprehensive metrics.
+
+    Returns a rich comparison table with:
+    - Cost metrics (total, per call, per session, daily avg)
+    - Performance metrics (latency, P95, time to first token)
+    - Quality metrics (avg score, quality per dollar, success rate)
+    - Caching metrics (hit rate, hits, cost savings)
+    - Token metrics (total, avg prompt/completion, ratio)
+    - Routing metrics (decisions, routed to cheaper, savings)
+    - Operation-specific metrics breakdown
+    """
+    from api.services.optimization_service import get_detailed_comparison as get_comparison
+
+    return get_comparison(
+        project=project,
+        baseline_start=baseline_start,
+        baseline_end=baseline_end,
+        optimized_start=optimized_start,
+        optimized_end=optimized_end,
+        limit=limit,
+    )

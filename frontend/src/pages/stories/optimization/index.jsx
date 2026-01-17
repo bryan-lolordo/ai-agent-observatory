@@ -17,7 +17,7 @@ import StoryNavTabs from '../../../components/stories/StoryNavTabs';
 import { BASE_THEME } from '../../../utils/themeUtils';
 import PageContainer from '../../../components/layout/PageContainer';
 import OptimizationHierarchy from '../../../components/stories/OptimizationHierarchy';
-import { Code2, Table } from 'lucide-react';
+import { Code2, Table, BarChart3 } from 'lucide-react';
 
 export default function OptimizationImpact() {
   const navigate = useNavigate();
@@ -105,6 +105,13 @@ export default function OptimizationImpact() {
               >
                 <Code2 className="w-4 h-4" />
                 Code View
+              </button>
+              <button
+                onClick={() => navigate('/stories/optimization/comparison')}
+                className={`px-3 py-1.5 rounded text-sm ${BASE_THEME.text.muted} hover:${BASE_THEME.text.secondary} hover:${BASE_THEME.container.tertiary} transition-colors flex items-center gap-1.5`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                Impact
               </button>
             </div>
             <div className="flex items-center gap-4">
