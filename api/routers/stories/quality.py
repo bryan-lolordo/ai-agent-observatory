@@ -22,17 +22,18 @@ def get_quality_story(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 1: Quality Monitoring Summary
-    
+
     Returns:
     - KPIs: avg quality, low quality ops, error rate, hallucinations
     - Top offender (worst quality operation)
     - Operations table with quality stats
     - Chart data for quality distribution histogram
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     return get_quality_summary(calls, project, days)
 
 
@@ -43,17 +44,18 @@ def get_quality_operation_detail_endpoint(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 2: Operation Detail for Quality Analysis
-    
+
     Returns:
     - Operation summary (avg/min/max score, errors, hallucinations)
     - Quality status badge
     - All calls with quality scores and issues
     - Quality distribution histogram
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     result = get_quality_operation_detail(calls, agent, operation)
     
     if result is None:

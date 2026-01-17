@@ -778,8 +778,9 @@ class Storage:
         user_id: Optional[str] = None,
         experiment_id: Optional[str] = None,
         call_type: Optional[CallType] = None,
-        parent_call_id: Optional[str] = None,  
-        order_by: Optional[str] = None,        
+        parent_call_id: Optional[str] = None,
+        order_by: Optional[str] = None,
+        phase: Optional[str] = None,  # 'baseline' or 'optimized' for A/B comparison
         limit: int = 1000,
     ) -> List[LLMCall]:
         """Get LLM calls with optional filters."""
@@ -819,6 +820,9 @@ class Storage:
                 query = query.filter(LLMCallDB.user_id == user_id)
             if experiment_id:
                 query = query.filter(LLMCallDB.experiment_id == experiment_id)
+
+            if phase:
+                query = query.filter(LLMCallDB.phase == phase)
 
             if call_type:
                 query = query.filter(LLMCallDB.call_type == call_type.value)

@@ -402,10 +402,11 @@ def get_all_stories(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Get all story summaries for dashboard display.
-    
+
     Returns opportunity-focused data for each story:
     - health_score: 0-100
     - hero_metric: Primary metric value (e.g., "2.1s")
@@ -414,7 +415,7 @@ def get_all_stories(
     - issue_label: What the issues are
     - savings: Potential benefit from fixing
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     
     # Get raw results from all services
     raw_stories = {

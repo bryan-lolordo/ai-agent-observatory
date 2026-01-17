@@ -8,6 +8,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTimeRange } from '../context/TimeRangeContext';
+import { usePhase } from '../context/PhaseContext';
 import { BASE_THEME } from '../utils/themeUtils';
 import { STORY_THEMES } from '../config/theme';
 import PageContainer from '../components/layout/PageContainer';
@@ -35,6 +36,7 @@ const QUICK_FILTERS = [
 export default function OptimizationQueue() {
   const navigate = useNavigate();
   const { timeRange } = useTimeRange();
+  const { phase } = usePhase();
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeStoryFilter, setActiveStoryFilter] = useState('all');
@@ -47,6 +49,7 @@ export default function OptimizationQueue() {
       setLoading(true);
       try {
         const params = new URLSearchParams({ days: String(timeRange), limit: '100' });
+        if (phase) params.append('phase', phase);
         const response = await fetch(`/api/optimization/opportunities?${params}`);
         
         if (!response.ok) {
@@ -64,7 +67,7 @@ export default function OptimizationQueue() {
       }
     }
     fetchOpportunities();
-  }, [timeRange]);
+  }, [timeRange, phase]);
 
   // Filter and sort opportunities
   const processedOpportunities = useMemo(() => {

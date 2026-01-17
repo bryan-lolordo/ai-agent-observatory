@@ -44,13 +44,15 @@ async function fetchAPI(endpoint, options = {}) {
  * @param {object} params - Query parameters
  * @param {string} params.project - Filter by project
  * @param {number} params.days - Number of days (default: 7)
+ * @param {string} params.phase - Filter by phase ('baseline' or 'optimized')
  * @returns {Promise<object>} All stories response
  */
-export async function getAllStories({ project = null, days = 7 } = {}) {
+export async function getAllStories({ project = null, days = 7, phase = null } = {}) {
   const params = new URLSearchParams();
   if (project) params.append('project', project);
   params.append('days', days);
-  
+  if (phase) params.append('phase', phase);
+
   return fetchAPI(`/stories?${params}`);
 }
 
@@ -60,11 +62,12 @@ export async function getAllStories({ project = null, days = 7 } = {}) {
  * @param {object} params - Query parameters
  * @returns {Promise<object>} Story response
  */
-export async function getStory(storyId, { project = null, days = 7 } = {}) {
+export async function getStory(storyId, { project = null, days = 7, phase = null } = {}) {
   const params = new URLSearchParams();
   if (project) params.append('project', project);
   params.append('days', days);
-  
+  if (phase) params.append('phase', phase);
+
   return fetchAPI(`/stories/${storyId}?${params}`);
 }
 

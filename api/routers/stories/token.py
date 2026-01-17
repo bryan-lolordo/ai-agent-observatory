@@ -22,17 +22,18 @@ def get_token_story(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 1: Token Efficiency Summary
-    
+
     Returns:
     - KPIs: avg ratio, imbalanced ops, worst ratio, wasted cost
     - Top offender (worst ratio operation)
     - Operations table with token stats
     - Chart data for ratio distribution
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     return get_token_summary(calls, project, days)
 
 
@@ -43,17 +44,18 @@ def get_token_operation_detail_endpoint(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 2: Operation Detail for Token Analysis
-    
+
     Returns:
     - Operation summary (avg prompt, completion, ratio)
     - Token breakdown visualization (system, history, user, etc.)
     - Problem detection
     - All calls with token details
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     result = get_token_operation_detail(calls, agent, operation)
     
     if result is None:

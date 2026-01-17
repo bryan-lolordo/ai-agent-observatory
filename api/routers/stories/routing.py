@@ -22,17 +22,18 @@ def get_routing_story(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 1: Model Routing Opportunities Summary
-    
+
     Returns:
     - KPIs: current model, downgrade/upgrade counts, potential savings
     - Top offender (highest complexity on cheap model)
     - Operations table with complexity, quality, opportunity
     - Chart data for complexity vs quality scatter plot
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     return get_routing_summary(calls, project, days)
 
 
@@ -41,15 +42,16 @@ def get_routing_patterns_endpoint(
     project: Optional[str] = None,
     days: int = Query(default=30, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 2: Routing Patterns (operation + model combinations)
-    
+
     Returns:
     - patterns: List of {agent, operation, model, type, complexity, quality, savable, safe_pct}
     - stats: {total_patterns, total_savable, downgrade_count, upgrade_count, keep_count}
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     return get_routing_patterns(calls, project, days)
 
 
@@ -60,17 +62,18 @@ def get_routing_operation_detail_endpoint(
     project: Optional[str] = None,
     days: int = Query(default=30, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 2 (Legacy): Operation Detail for Routing Analysis
-    
+
     Returns:
     - Operation summary (complexity, quality, cost, model)
     - Routing recommendation badge (upgrade/downgrade/keep)
     - All calls with quality scores
     - Quality distribution histogram
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     result = get_routing_operation_detail(calls, agent, operation)
     
     if result is None:

@@ -22,16 +22,17 @@ def get_prompt_story(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 1: Prompt Composition Summary
-    
+
     Returns:
     - KPIs: avg system/user/history tokens, cache ready count
     - Composition chart (system vs user vs history)
     - Operations table with cache readiness
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     return get_prompt_summary(calls, project, days)
 
 
@@ -42,17 +43,18 @@ def get_prompt_operation_detail_endpoint(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 2: Operation Prompt Structure
-    
+
     Returns:
     - Cache status and reason
     - Token breakdown (system, user, history)
     - Variability analysis
     - Sample calls
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     result = get_prompt_operation_detail(calls, agent, operation)
     
     if result is None:

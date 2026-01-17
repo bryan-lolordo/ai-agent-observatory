@@ -954,6 +954,7 @@ def get_optimization_opportunities(
     project: Optional[str] = None,
     days: int = 7,
     story_filter: Optional[str] = None,
+    phase: Optional[str] = None,
     limit: int = 100,
 ) -> Dict[str, Any]:
     """
@@ -963,6 +964,7 @@ def get_optimization_opportunities(
         project: Optional project filter
         days: Number of days to analyze
         story_filter: Optional story ID to filter by (latency, cache, cost, quality, routing, token, system_prompt)
+        phase: Optional phase filter ('baseline' or 'optimized')
         limit: Max opportunities to return
 
     Returns:
@@ -975,6 +977,7 @@ def get_optimization_opportunities(
         project_name=project,
         start_time=start_time,
         end_time=end_time,
+        phase=phase,
         limit=5000,
     )
 

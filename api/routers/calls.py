@@ -28,6 +28,7 @@ def list_calls(
     operation: Optional[str] = None,
     agent: Optional[str] = None,
     call_type: Optional[str] = Query(default=None, description="Filter by call type: llm, api, database, tool"),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
     limit: int = Query(default=500, ge=1, le=1000)
 ):
     """
@@ -38,6 +39,7 @@ def list_calls(
         operation=operation,
         agent=agent,
         call_type=call_type,
+        phase=phase,
         limit=limit
     )
     return {"calls": calls, "total": len(calls)}

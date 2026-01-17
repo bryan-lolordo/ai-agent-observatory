@@ -29,14 +29,15 @@ def get_latency_story(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Story 1: Latency Analysis (Layer 1)
-    
+
     Returns operations with excessive response times.
     Identifies slow endpoints and provides optimization recommendations.
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     return get_latency_summary(calls, project, days)
 
 
@@ -50,29 +51,31 @@ def get_latency_operation_detail(
     operation_name: str,
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 2: Operation detail with all calls
-    
+
     Returns all LLM calls for a specific agent+operation with latency metrics.
-    
+
     URL Example: /api/stories/latency/operations/ResumeMatching/deep_analyze_job
-    
+
     Args:
         agent_name: Agent name (e.g., "ResumeMatching")
         operation_name: Operation name (e.g., "deep_analyze_job")
         project: Optional project filter
         days: Number of days to look back (default 7)
+        phase: Optional phase filter ('baseline' or 'optimized')
     """
     from observatory.storage import ObservatoryStorage
-    
+
     # Decode URL-encoded parameters
     agent_name = unquote(agent_name)
     operation_name = unquote(operation_name)
-    
+
     end_time = datetime.utcnow()
     start_time = end_time - timedelta(days=days)
-    
+
     # Query with both agent and operation
     calls = ObservatoryStorage.get_llm_calls(
         project_name=project,
@@ -80,6 +83,7 @@ def get_latency_operation_detail(
         operation=operation_name,
         start_time=start_time,
         end_time=end_time,
+        phase=phase,
         limit=2000
     )
     

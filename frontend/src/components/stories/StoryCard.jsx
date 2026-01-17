@@ -93,9 +93,9 @@ function HealthIndicator({ score }) {
   }
   
   return (
-    <div className="flex items-center gap-2" title={`Health: ${score}%`}>
-      <span className="text-sm ${BASE_THEME.text.muted}">{Math.round(score)}%</span>
-      <div className={`w-3.5 h-3.5 rounded-full ${colorClass} shadow-lg`} />
+    <div className="flex items-center gap-1.5" title={`Health: ${score}%`}>
+      <span className="text-xs ${BASE_THEME.text.muted}">{Math.round(score)}%</span>
+      <div className={`w-2.5 h-2.5 rounded-full ${colorClass} shadow-lg`} />
     </div>
   );
 }
@@ -126,57 +126,57 @@ export default function StoryCard({ story, data = {} }) {
   return (
     <div
       className={`
-        ${colors.bg} border ${colors.border} rounded-xl p-6
-        flex flex-col h-full min-h-[320px]
+        ${colors.bg} border ${colors.border} rounded-lg p-4
+        flex flex-col h-full
         hover:shadow-lg ${colors.glow} transition-all duration-200
         cursor-pointer
       `}
       onClick={handleClick}
     >
       {/* Header: Title + Health Indicator */}
-      <div className="flex items-start justify-between mb-3">
+      <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-3xl">{story.emoji}</span>
-          <h3 className="text-lg font-semibold text-white">{story.title}</h3>
+          <span className="text-xl">{story.emoji}</span>
+          <h3 className="text-sm font-semibold text-white">{story.title}</h3>
         </div>
         <HealthIndicator score={healthScore} />
       </div>
 
       {/* Description */}
-      <p className="text-base ${BASE_THEME.text.secondary} mb-4 leading-relaxed">
+      <p className="text-xs ${BASE_THEME.text.secondary} mb-3 leading-relaxed line-clamp-2">
         {story.description}
       </p>
-      
+
       {/* Hero Metric */}
-      <div className="flex-1 flex flex-col justify-center">
-        <div className={`text-4xl font-bold ${colors.text}`}>
+      <div className="flex-1 flex flex-col justify-center py-2">
+        <div className={`text-2xl font-bold ${colors.text}`}>
           {heroMetric}
         </div>
         {heroLabel && (
-          <div className="text-base ${BASE_THEME.text.muted} mt-1">
+          <div className="text-xs ${BASE_THEME.text.muted} mt-0.5">
             {heroLabel}
           </div>
         )}
       </div>
 
       {/* Opportunity Section */}
-      <div className={`border-t ${BASE_THEME.border.default}/50 pt-4 mt-4`}>
+      <div className={`border-t ${BASE_THEME.border.default}/50 pt-3 mt-2`}>
         {issueCount > 0 || savings ? (
           <>
-            <div className="flex items-center gap-2 text-base">
+            <div className="flex items-center gap-1.5 text-xs">
               <span className={BASE_THEME.status.warning.text}>💡</span>
               <span className={BASE_THEME.text.secondary}>
                 {issueCount} {issueLabel}
               </span>
             </div>
             {savings && (
-              <div className={`text-base ${colors.text} mt-1 font-medium`}>
+              <div className={`text-xs ${colors.text} mt-0.5 font-medium`}>
                 → {savings}
               </div>
             )}
           </>
         ) : (
-          <div className="text-base ${BASE_THEME.text.muted} flex items-center gap-2">
+          <div className="text-xs ${BASE_THEME.text.muted} flex items-center gap-1.5">
             <span className="text-green-400">✓</span>
             No issues detected
           </div>
@@ -186,7 +186,7 @@ export default function StoryCard({ story, data = {} }) {
       {/* Action Button */}
       <button
         className={`
-          mt-4 w-full py-3 rounded-lg text-white text-base font-medium
+          mt-3 w-full py-2 rounded-md text-white text-xs font-medium
           ${colors.button} transition-colors
         `}
         onClick={(e) => {

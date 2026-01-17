@@ -1,9 +1,9 @@
 /**
  * App - Main Application Component
- * 
+ *
  * Sets up routing for the Observatory dashboard and all story pages.
  * Includes Header with filters and Footer.
- * Provides TimeRangeContext for global date filtering.
+ * Provides TimeRangeContext and PhaseContext for global filtering.
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -12,6 +12,7 @@ import { BASE_THEME } from './utils/themeUtils';
 
 // Context
 import TimeRangeContext from './context/TimeRangeContext';
+import PhaseContext from './context/PhaseContext';
 
 // Layout
 import Header from './components/layout/Header';
@@ -68,6 +69,7 @@ function App() {
   // Global filter state
   const [selectedProject, setSelectedProject] = useState(null);
   const [timeRange, setTimeRange] = useState(30); // Default: 30 days
+  const [phase, setPhase] = useState(null); // Default: null (All Data)
   const [projects, setProjects] = useState([]);
 
   // Fetch available projects on mount
@@ -89,106 +91,110 @@ function App() {
 
   return (
     <TimeRangeContext.Provider value={{ timeRange, setTimeRange }}>
-      <BrowserRouter>
-        <ScrollToTop />
-        <div className={`min-h-screen ${BASE_THEME.container.primary} flex flex-col`}>
-          
-          {/* Header - Sticky navigation with filters */}
-          <Header 
-            selectedProject={selectedProject}
-            onProjectChange={setSelectedProject}
-            timeRange={timeRange}
-            onTimeRangeChange={setTimeRange}
-            projects={projects}
-          />
+      <PhaseContext.Provider value={{ phase, setPhase }}>
+        <BrowserRouter>
+          <ScrollToTop />
+          <div className={`min-h-screen ${BASE_THEME.container.primary} flex flex-col`}>
 
-          {/* Main Content Area */}
-          <main className="flex-1">
-            <Routes>
-              {/* Dashboard */}
-              <Route path="/" element={<Dashboard />} />
+            {/* Header - Sticky navigation with filters */}
+            <Header
+              selectedProject={selectedProject}
+              onProjectChange={setSelectedProject}
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
+              phase={phase}
+              onPhaseChange={setPhase}
+              projects={projects}
+            />
 
-              {/* Optimization Queue - Cross-story fix dashboard */}
-              <Route path="/optimization" element={<OptimizationQueue />} />
-              
-              {/* ============================================= */}
-              {/* LATENCY STORY - Layers 1, 2, 3                */}
-              {/* ============================================= */}
-              <Route path="/stories/latency" element={<Latency />} />
-              <Route path="/stories/latency/calls" element={<LatencyOperationDetail />} />
-              <Route path="/stories/latency/calls/:callId" element={<LatencyCallDetail />} />
-              <Route path="/stories/latency/operations/:agent/:operation" element={<LatencyOperationDetail />} />
-              
-              {/* ============================================= */}
-              {/* CACHE STORY - Layers 1, 2, 3                  */}
-              {/* Layer 2: All cache patterns with filtering    */}
-              {/* Layer 3: Pattern detail + fix                 */}
-              {/* ============================================= */}
-              <Route path="/stories/cache" element={<Cache />} />
-              <Route path="/stories/cache/calls" element={<CacheOperationDetail />} />
-              <Route path="/stories/cache/operations/:agent/:operation" element={<CacheOperationDetail />} />
-              <Route path="/stories/cache/operations/:agent/:operation/groups/:groupId" element={<CachePatternDetail />} />
-              
-              {/* ============================================= */}
-              {/* ROUTING STORY - Layers 1, 2, 3                */}
-              {/* ============================================= */}
-              <Route path="/stories/routing" element={<Routing />} />
-              <Route path="/stories/routing/calls" element={<RoutingOperationDetail />} />
-              <Route path="/stories/routing/calls/:callId" element={<RoutingCallDetail />} />
-              <Route path="/stories/routing/operations/:agent/:operation" element={<RoutingOperationDetail />} />
-              
-              {/* ============================================= */}
-              {/* QUALITY STORY - Layers 1, 2, 3                */}
-              {/* ============================================= */}
-              <Route path="/stories/quality" element={<Quality />} />
-              <Route path="/stories/quality/calls" element={<QualityOperationDetail />} />
-              <Route path="/stories/quality/calls/:callId" element={<QualityCallDetail />} />
-              <Route path="/stories/quality/operations/:agent/:operation" element={<QualityOperationDetail />} />
-              
-              {/* ============================================= */}
-              {/* TOKEN EFFICIENCY STORY - Layers 1, 2, 3       */}
-              {/* ============================================= */}
-              <Route path="/stories/token_imbalance" element={<Token />} />
-              <Route path="/stories/token_imbalance/calls" element={<TokenOperationDetail />} />
-              <Route path="/stories/token_imbalance/calls/:callId" element={<TokenCallDetail />} />
-              <Route path="/stories/token_imbalance/operations/:agent/:operation" element={<TokenOperationDetail />} />
-              
-              {/* ============================================= */}
-              {/* PROMPT COMPOSITION STORY - Layers 1, 2, 3     */}
-              {/* ============================================= */}
-              <Route path="/stories/system_prompt" element={<Prompt />} />
-              <Route path="/stories/system_prompt/calls" element={<PromptOperationDetail />} />
-              <Route path="/stories/system_prompt/calls/:callId" element={<PromptCallDetail />} />
-              <Route path="/stories/system_prompt/operations/:agent/:operation" element={<PromptOperationDetail />} />
-              
-              {/* ============================================= */}
-              {/* COST ANALYSIS STORY - Layers 1, 2, 3          */}
-              {/* ============================================= */}
-              <Route path="/stories/cost" element={<Cost />} />
-              <Route path="/stories/cost/calls" element={<CostOperationDetail />} />
-              <Route path="/stories/cost/calls/:callId" element={<CostCallDetail />} />
-              <Route path="/stories/cost/operations/:agent/:operation" element={<CostOperationDetail />} />
-              
-              {/* ============================================= */}
-              {/* OPTIMIZATION IMPACT STORY - Layers 1 & 2      */}
-              {/* ============================================= */}
-              <Route path="/stories/optimization" element={<Optimization />} />
-              <Route path="/stories/optimization/code-view" element={<CodeCentricPage />} />
-              <Route path="/stories/optimization/impact-view" element={<Navigate to="/stories/optimization/comparison" replace />} />
-              <Route path="/stories/optimization/comparison" element={<OptimizationComparisonDetail />} />
-              <Route path="/stories/optimization/calls" element={<OptimizationComparisonDetail />} />
-              <Route path="/stories/optimization/comparisons/:comparisonId" element={<OptimizationComparisonDetail />} />
-              
-              {/* Catch-all redirect */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </main>
+            {/* Main Content Area */}
+            <main className="flex-1">
+              <Routes>
+                {/* Dashboard */}
+                <Route path="/" element={<Dashboard />} />
 
-          {/* Footer - Bottom navigation and links */}
-          <Footer />
+                {/* Optimization Queue - Cross-story fix dashboard */}
+                <Route path="/optimization" element={<OptimizationQueue />} />
 
-        </div>
-      </BrowserRouter>
+                {/* ============================================= */}
+                {/* LATENCY STORY - Layers 1, 2, 3                */}
+                {/* ============================================= */}
+                <Route path="/stories/latency" element={<Latency />} />
+                <Route path="/stories/latency/calls" element={<LatencyOperationDetail />} />
+                <Route path="/stories/latency/calls/:callId" element={<LatencyCallDetail />} />
+                <Route path="/stories/latency/operations/:agent/:operation" element={<LatencyOperationDetail />} />
+
+                {/* ============================================= */}
+                {/* CACHE STORY - Layers 1, 2, 3                  */}
+                {/* Layer 2: All cache patterns with filtering    */}
+                {/* Layer 3: Pattern detail + fix                 */}
+                {/* ============================================= */}
+                <Route path="/stories/cache" element={<Cache />} />
+                <Route path="/stories/cache/calls" element={<CacheOperationDetail />} />
+                <Route path="/stories/cache/operations/:agent/:operation" element={<CacheOperationDetail />} />
+                <Route path="/stories/cache/operations/:agent/:operation/groups/:groupId" element={<CachePatternDetail />} />
+
+                {/* ============================================= */}
+                {/* ROUTING STORY - Layers 1, 2, 3                */}
+                {/* ============================================= */}
+                <Route path="/stories/routing" element={<Routing />} />
+                <Route path="/stories/routing/calls" element={<RoutingOperationDetail />} />
+                <Route path="/stories/routing/calls/:callId" element={<RoutingCallDetail />} />
+                <Route path="/stories/routing/operations/:agent/:operation" element={<RoutingOperationDetail />} />
+
+                {/* ============================================= */}
+                {/* QUALITY STORY - Layers 1, 2, 3                */}
+                {/* ============================================= */}
+                <Route path="/stories/quality" element={<Quality />} />
+                <Route path="/stories/quality/calls" element={<QualityOperationDetail />} />
+                <Route path="/stories/quality/calls/:callId" element={<QualityCallDetail />} />
+                <Route path="/stories/quality/operations/:agent/:operation" element={<QualityOperationDetail />} />
+
+                {/* ============================================= */}
+                {/* TOKEN EFFICIENCY STORY - Layers 1, 2, 3       */}
+                {/* ============================================= */}
+                <Route path="/stories/token_imbalance" element={<Token />} />
+                <Route path="/stories/token_imbalance/calls" element={<TokenOperationDetail />} />
+                <Route path="/stories/token_imbalance/calls/:callId" element={<TokenCallDetail />} />
+                <Route path="/stories/token_imbalance/operations/:agent/:operation" element={<TokenOperationDetail />} />
+
+                {/* ============================================= */}
+                {/* PROMPT COMPOSITION STORY - Layers 1, 2, 3     */}
+                {/* ============================================= */}
+                <Route path="/stories/system_prompt" element={<Prompt />} />
+                <Route path="/stories/system_prompt/calls" element={<PromptOperationDetail />} />
+                <Route path="/stories/system_prompt/calls/:callId" element={<PromptCallDetail />} />
+                <Route path="/stories/system_prompt/operations/:agent/:operation" element={<PromptOperationDetail />} />
+
+                {/* ============================================= */}
+                {/* COST ANALYSIS STORY - Layers 1, 2, 3          */}
+                {/* ============================================= */}
+                <Route path="/stories/cost" element={<Cost />} />
+                <Route path="/stories/cost/calls" element={<CostOperationDetail />} />
+                <Route path="/stories/cost/calls/:callId" element={<CostCallDetail />} />
+                <Route path="/stories/cost/operations/:agent/:operation" element={<CostOperationDetail />} />
+
+                {/* ============================================= */}
+                {/* OPTIMIZATION IMPACT STORY - Layers 1 & 2      */}
+                {/* ============================================= */}
+                <Route path="/stories/optimization" element={<Optimization />} />
+                <Route path="/stories/optimization/code-view" element={<CodeCentricPage />} />
+                <Route path="/stories/optimization/impact-view" element={<Navigate to="/stories/optimization/comparison" replace />} />
+                <Route path="/stories/optimization/comparison" element={<OptimizationComparisonDetail />} />
+                <Route path="/stories/optimization/calls" element={<OptimizationComparisonDetail />} />
+                <Route path="/stories/optimization/comparisons/:comparisonId" element={<OptimizationComparisonDetail />} />
+
+                {/* Catch-all redirect */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </main>
+
+            {/* Footer - Bottom navigation and links */}
+            <Footer />
+
+          </div>
+        </BrowserRouter>
+      </PhaseContext.Provider>
     </TimeRangeContext.Provider>
   );
 }

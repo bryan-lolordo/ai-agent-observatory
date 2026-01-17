@@ -35,16 +35,17 @@ def get_cache_story(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 1: Cache opportunities summary.
-    
+
     Returns overview with:
     - KPIs: Potential savings, cacheable calls, hit rate, top offender
     - Table: Operations ranked by cache opportunity with type indicator
     - Chart: Wasted cost by operation
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     return get_summary(calls, project, days)
 
 
@@ -58,20 +59,21 @@ def get_cache_patterns(
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
     cache_type: Optional[str] = Query(default=None, description="Filter by cache type: exact, stable, high_value, semantic"),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 2: All cache patterns/opportunities for Layer2Table.
-    
+
     Returns all patterns across all operations with:
     - Type emoji, agent, operation
     - Prompt preview
     - Repeat count, wasted cost, savable time
     - Effort level
-    
+
     Supports filtering by cache_type query param.
     Used by /stories/cache/calls page.
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     return get_all_opportunities(calls, cache_type_filter=cache_type)
 
 
@@ -86,17 +88,18 @@ def get_cache_operation(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 2: Cache opportunities for a specific operation.
-    
+
     Returns:
     - KPIs: Total calls, unique prompts, cacheable, wasted cost
     - Type counts: How many of each cache type (Exact/Stable/High-Value)
     - Table: Cache opportunities with type, repeats, wasted cost
     - Filters: By cache type
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     result = get_operation_detail(calls, agent, operation)
     
     if result['total_calls'] == 0:
@@ -120,10 +123,11 @@ def get_cache_group(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 3: Detailed view of a single cache opportunity.
-    
+
     Returns:
     - KPIs: Times called, wasted calls, wasted cost, time saved
     - Cache type info: Type, effort level
@@ -133,7 +137,7 @@ def get_cache_group(
     - Prompt/Response: The repeated content
     - Calls table: All calls in this group (click for CallDetail)
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     result = get_opportunity_detail(calls, agent, operation, group_id)
     
     if result is None:

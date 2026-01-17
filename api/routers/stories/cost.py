@@ -22,16 +22,17 @@ def get_cost_story(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 1: Cost Analysis Summary
-    
+
     Returns:
     - KPIs: total cost, avg cost/call, top 3 concentration, potential savings
     - Operations table sorted by cost
     - Pie chart data for cost distribution
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     return get_cost_summary(calls, project, days)
 
 
@@ -42,10 +43,11 @@ def get_cost_operation_detail_endpoint(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Layer 2: Operation Cost Breakdown
-    
+
     Returns:
     - Cost status and totals
     - Prompt vs completion cost breakdown
@@ -53,7 +55,7 @@ def get_cost_operation_detail_endpoint(
     - Savings opportunities
     - Calls sorted by cost
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     result = get_cost_operation_detail(calls, agent, operation)
     
     if result is None:

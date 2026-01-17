@@ -10,6 +10,7 @@
 import { useState, useEffect } from 'react';
 import { useStories } from '../hooks/useStories';
 import { useTimeRange } from '../context/TimeRangeContext';
+import { usePhase } from '../context/PhaseContext';
 import { getAllStories } from '../constants/storyDefinitions';
 import StoryCard from '../components/stories/StoryCard';
 import { DashboardSkeleton } from '../components/common/Loading';
@@ -20,6 +21,7 @@ export default function Dashboard() {
   // Fetch all stories data
   const { data, loading, error } = useStories();
   const { timeRange } = useTimeRange();
+  const { phase } = usePhase();
   const [queueData, setQueueData] = useState(null);
 
   // Fetch optimization queue data separately
@@ -27,6 +29,7 @@ export default function Dashboard() {
     async function fetchQueueData() {
       try {
         const params = new URLSearchParams({ days: String(timeRange), limit: '100' });
+        if (phase) params.append('phase', phase);
         const response = await fetch(`/api/optimization/opportunities?${params}`);
         if (response.ok) {
           const result = await response.json();
@@ -47,7 +50,7 @@ export default function Dashboard() {
       }
     }
     fetchQueueData();
-  }, [timeRange]);
+  }, [timeRange, phase]);
 
   // Get story metadata (has description, emoji, color, route)
   const stories = getAllStories();

@@ -149,9 +149,10 @@ def get_llm_calls(
     has_quality_eval: Optional[bool] = None,
     has_routing: Optional[bool] = None,
     has_cache: Optional[bool] = None,
-    conversation_id: Optional[str] = None,  # NEW
-    user_id: Optional[str] = None,          # NEW
-    experiment_id: Optional[str] = None,    # NEW
+    conversation_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    experiment_id: Optional[str] = None,
+    phase: Optional[str] = None,  # 'baseline' or 'optimized' for A/B comparison
     limit: int = 1000
 ) -> List[Dict[str, Any]]:
     """
@@ -171,9 +172,10 @@ def get_llm_calls(
         has_quality_eval: If True, only return calls with quality evaluation
         has_routing: If True, only return calls with routing decision
         has_cache: If True, only return calls with cache metadata
-        conversation_id: Filter by conversation ID (NEW)
-        user_id: Filter by user ID (NEW)
-        experiment_id: Filter by experiment ID (NEW)
+        conversation_id: Filter by conversation ID
+        user_id: Filter by user ID
+        experiment_id: Filter by experiment ID
+        phase: Filter by phase ('baseline' or 'optimized') for A/B comparison
         limit: Maximum number of calls to return
     
     Returns:
@@ -191,9 +193,10 @@ def get_llm_calls(
         start_time=start_time,
         end_time=end_time,
         success_only=success_only,
-        conversation_id=conversation_id,  # NEW
-        user_id=user_id,                  # NEW
-        experiment_id=experiment_id,      # NEW
+        conversation_id=conversation_id,
+        user_id=user_id,
+        experiment_id=experiment_id,
+        phase=phase,
         limit=limit
     )
     
@@ -336,7 +339,10 @@ def _llm_call_to_dict(call: LLMCall) -> Dict[str, Any]:
         # NEW: Experiment tracking
         'experiment_id': getattr(call, 'experiment_id', None),
         'control_group': getattr(call, 'control_group', None),
-        
+
+        # Phase tracking for A/B comparison
+        'phase': getattr(call, 'phase', None),
+
         # Flexible metadata
         'metadata': call.metadata,
     }

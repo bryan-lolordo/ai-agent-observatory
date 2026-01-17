@@ -39,6 +39,7 @@ def get_optimization_story(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     limit: int = Query(default=2000, le=5000),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
 ):
     """
     Get the hierarchical optimization view.
@@ -48,7 +49,7 @@ def get_optimization_story(
     - kpis: Overall metrics (latency, cost, quality, etc.)
     - status: Overall health status
     """
-    calls = get_filtered_calls(project, days, limit)
+    calls = get_filtered_calls(project, days, limit, phase=phase)
     return get_summary(calls, project, days)
 
 

@@ -1,12 +1,12 @@
 /**
  * useCalls Hook
- * 
+ *
  * Custom React hook for fetching LLM calls from the Observatory API.
- * Automatically uses TimeRangeContext for the days parameter.
+ * Automatically uses TimeRangeContext and PhaseContext for filtering.
  * Used by Layer 2 pages (OperationDetail components).
- * 
+ *
  * Location: src/hooks/useCalls.js
- * 
+ *
  * Usage:
  *   const { data, loading, error, refetch } = useCalls();
  *   const { data, loading, error } = useCalls({ endpoint: '/api/stories/cache/patterns' });
@@ -14,21 +14,23 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTimeRange } from '../context/TimeRangeContext';
+import { usePhase } from '../context/PhaseContext';
 
 /**
- * Hook to fetch calls or patterns with automatic timeRange
- * 
+ * Hook to fetch calls or patterns with automatic timeRange and phase
+ *
  * @param {Object} options
  * @param {string} options.endpoint - API endpoint (default: '/api/calls')
  * @param {boolean} options.autoFetch - Fetch on mount (default: true)
  * @param {string} options.dataKey - Key to extract from response (default: auto-detect)
  */
-export function useCalls({ 
+export function useCalls({
   endpoint = '/api/calls',
   autoFetch = true,
   dataKey = null,
 } = {}) {
   const { timeRange } = useTimeRange();
+  const { phase } = usePhase();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -38,20 +40,23 @@ export function useCalls({
     try {
       setLoading(true);
       setError(null);
-      
-      // Build URL with timeRange
+
+      // Build URL with timeRange and phase
       const separator = endpoint.includes('?') ? '&' : '?';
-      const url = `${endpoint}${separator}days=${timeRange}`;
-      
+      let url = `${endpoint}${separator}days=${timeRange}`;
+      if (phase) {
+        url += `&phase=${phase}`;
+      }
+
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       const result = await response.json();
       setRawResponse(result);
-      
+
       // Auto-detect data key if not provided
       if (dataKey) {
         setData(result[dataKey] || []);
@@ -72,7 +77,7 @@ export function useCalls({
     } finally {
       setLoading(false);
     }
-  }, [endpoint, timeRange, dataKey]);
+  }, [endpoint, timeRange, phase, dataKey]);
 
   useEffect(() => {
     if (autoFetch) {
@@ -87,6 +92,7 @@ export function useCalls({
     refetch: fetchCalls,
     rawResponse,  // Full API response for stats, etc.
     timeRange,    // Expose for components that need it
+    phase,        // Expose for components that need it
   };
 }
 

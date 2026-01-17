@@ -22,9 +22,10 @@ def list_opportunities(
     project: Optional[str] = None,
     days: int = Query(default=7, ge=1, le=90),
     story: Optional[str] = Query(
-        default=None, 
+        default=None,
         description="Filter by story: latency, cache, cost, quality, routing"
     ),
+    phase: Optional[str] = Query(default=None, description="Filter by phase: 'baseline' or 'optimized'"),
     limit: int = Query(default=100, ge=1, le=500),
 ):
     """
@@ -62,7 +63,8 @@ def list_opportunities(
         project=project,
         days=days,
         story_filter=story,
+        phase=phase,
         limit=limit,
     )
-    
+
     return result

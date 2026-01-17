@@ -1,22 +1,24 @@
 /**
  * useStories Hook
- * 
+ *
  * Custom React hook for fetching stories data from the Observatory API.
- * Automatically uses TimeRangeContext for the days parameter.
- * 
+ * Automatically uses TimeRangeContext and PhaseContext for filtering.
+ *
  * Location: src/hooks/useStories.js
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { getAllStories, getStory } from '../services/api';
 import { useTimeRange } from '../context/TimeRangeContext';
+import { usePhase } from '../context/PhaseContext';
 
 /**
  * Hook to fetch all stories
- * Automatically uses timeRange from context
+ * Automatically uses timeRange and phase from context
  */
 export function useStories({ project = null, autoFetch = true } = {}) {
   const { timeRange } = useTimeRange();
+  const { phase } = usePhase();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -25,7 +27,7 @@ export function useStories({ project = null, autoFetch = true } = {}) {
     try {
       setLoading(true);
       setError(null);
-      const result = await getAllStories({ project, days: timeRange });
+      const result = await getAllStories({ project, days: timeRange, phase });
       setData(result);
     } catch (err) {
       setError(err.message || 'Failed to fetch stories');
@@ -33,7 +35,7 @@ export function useStories({ project = null, autoFetch = true } = {}) {
     } finally {
       setLoading(false);
     }
-  }, [project, timeRange]);
+  }, [project, timeRange, phase]);
 
   useEffect(() => {
     if (autoFetch) {
@@ -46,16 +48,18 @@ export function useStories({ project = null, autoFetch = true } = {}) {
     loading,
     error,
     refetch: fetchStories,
-    timeRange, // Expose for components that need it
+    timeRange,
+    phase,
   };
 }
 
 /**
  * Hook to fetch a single story
- * Automatically uses timeRange from context
+ * Automatically uses timeRange and phase from context
  */
 export function useStory(storyId, { project = null, autoFetch = true } = {}) {
   const { timeRange } = useTimeRange();
+  const { phase } = usePhase();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -69,7 +73,7 @@ export function useStory(storyId, { project = null, autoFetch = true } = {}) {
     try {
       setLoading(true);
       setError(null);
-      const result = await getStory(storyId, { project, days: timeRange });
+      const result = await getStory(storyId, { project, days: timeRange, phase });
       setData(result);
     } catch (err) {
       setError(err.message || `Failed to fetch story: ${storyId}`);
@@ -77,7 +81,7 @@ export function useStory(storyId, { project = null, autoFetch = true } = {}) {
     } finally {
       setLoading(false);
     }
-  }, [storyId, project, timeRange]);
+  }, [storyId, project, timeRange, phase]);
 
   useEffect(() => {
     if (autoFetch && storyId) {
@@ -91,18 +95,20 @@ export function useStory(storyId, { project = null, autoFetch = true } = {}) {
     error,
     refetch: fetchStory,
     timeRange,
+    phase,
   };
 }
 
 /**
  * Hook with polling support
- * Automatically uses timeRange from context
+ * Automatically uses timeRange and phase from context
  */
 export function useStoriesWithPolling(
   storyId = null,
   { project = null, interval = 30, enabled = false } = {}
 ) {
   const { timeRange } = useTimeRange();
+  const { phase } = usePhase();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -112,11 +118,11 @@ export function useStoriesWithPolling(
     try {
       setLoading(true);
       setError(null);
-      
+
       const result = storyId
-        ? await getStory(storyId, { project, days: timeRange })
-        : await getAllStories({ project, days: timeRange });
-        
+        ? await getStory(storyId, { project, days: timeRange, phase })
+        : await getAllStories({ project, days: timeRange, phase });
+
       setData(result);
     } catch (err) {
       setError(err.message || 'Failed to fetch data');
@@ -124,7 +130,7 @@ export function useStoriesWithPolling(
     } finally {
       setLoading(false);
     }
-  }, [storyId, project, timeRange]);
+  }, [storyId, project, timeRange, phase]);
 
   useEffect(() => {
     fetchData();
@@ -148,6 +154,7 @@ export function useStoriesWithPolling(
     startPolling,
     stopPolling,
     timeRange,
+    phase,
   };
 }
 

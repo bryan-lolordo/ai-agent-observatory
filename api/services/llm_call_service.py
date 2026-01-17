@@ -297,20 +297,23 @@ def get_calls(
     operation: Optional[str] = None,
     agent: Optional[str] = None,
     call_type: Optional[str] = None,
+    phase: Optional[str] = None,
     limit: int = 500
 ) -> List[Dict[str, Any]]:
     """
     Get list of LLM calls with optional filters.
-    
+
     Used by Layer 2 tables in all stories. Returns comprehensive
     data for filtering, sorting, and display.
-    
+
     Args:
         days: Number of days to look back
         operation: Filter by operation name
-        agent: Filter by agent name  
+        agent: Filter by agent name
+        call_type: Filter by call type (llm, api, database, tool)
+        phase: Filter by phase ('baseline' or 'optimized')
         limit: Maximum number of calls to return
-        
+
     Returns:
         List of call summaries with all fields needed for Layer 2
     """
@@ -319,7 +322,7 @@ def get_calls(
 
     # Convert call_type string to enum if provided
     call_type_enum = CallType(call_type) if call_type else None
-    
+
     try:
         calls = ObservatoryStorage.get_llm_calls(
             agent_name=agent,
@@ -327,6 +330,7 @@ def get_calls(
             start_time=start_time,
             end_time=end_time,
             call_type=call_type_enum,
+            phase=phase,
             limit=limit,
         )
     except Exception as e:
