@@ -40,7 +40,7 @@ Most teams discover their LLM costs are 10x higher than expected, but have no vi
 | **139 Metrics** | Tokens, cost, latency, quality, cache, routing per call |
 | **7 Analytics Stories** | Cost, Latency, Tokens, Quality, Prompts, Cache, Routing |
 | **3-Layer Drill-Down** | KPIs → Operations → Individual Calls |
-| **6 SDK Components** | Observatory, LLMJudge, CacheManager, SemanticCache, ModelRouter, PromptManager |
+| **12 SDK Components** | Observatory, LLMJudge, CacheManager, SemanticCache, ModelRouter, PromptManager, OptimizationTracker, TrackedLLMCall, CircuitBreaker, AsyncWriteQueue, SafeWrapper, HealthChecks |
 | **Framework Agnostic** | LangGraph, AutoGen, Semantic Kernel, or any LLM |
 | **Full Stack** | Python SDK + FastAPI Backend + React Dashboard |
 
@@ -127,26 +127,52 @@ Track before/after metrics to measure the effectiveness of your optimizations.
 
 ---
 
+## Production Features
+
+Observatory v0.4.0 includes production-hardening features for enterprise deployments:
+
+| Feature | Description |
+|---------|-------------|
+| **TrackedLLMCall** | Context manager that handles the full 10-step optimization flow automatically |
+| **OptimizationTracker** | A/B comparison of baseline vs optimized phases with impact metrics |
+| **CircuitBreaker** | Fail-fast protection with configurable thresholds and recovery |
+| **AsyncWriteQueue** | Non-blocking database writes to minimize latency impact |
+| **SafeWrapper** | Graceful degradation - tracking failures never break your app |
+| **HealthChecks** | Comprehensive health monitoring for all SDK components |
+| **Execution Detectors** | Batch, parallel, streaming, and context growth optimization detection |
+
+---
+
 ## Architecture
 
 ```
 ai-agent-observatory/
-├── observatory/          # Python SDK (6 components)
-│   ├── collector.py      # Main Observatory class
-│   ├── cache.py          # CacheManager + PrefixCacheDetector
-│   ├── semantic_cache.py # SemanticCache (vector similarity)
-│   ├── judge.py          # LLMJudge (quality evaluation)
-│   ├── router.py         # ModelRouter (cost/quality routing)
-│   └── prompts.py        # PromptManager (versioning, A/B tests)
+├── observatory/              # Python SDK (12 components)
+│   ├── collector.py          # Main Observatory class
+│   ├── cache.py              # CacheManager + PrefixCacheDetector
+│   ├── semantic_cache.py     # SemanticCache (vector similarity)
+│   ├── judge.py              # LLMJudge (quality evaluation)
+│   ├── router.py             # ModelRouter (cost/quality routing)
+│   ├── prompts.py            # PromptManager (versioning, A/B tests)
+│   ├── tracked_call.py       # TrackedLLMCall context manager
+│   ├── optimization_tracker.py # Baseline vs optimized comparison
+│   ├── execution.py          # Batch/parallel/streaming detectors
+│   ├── resilience.py         # CircuitBreaker for fail-fast
+│   ├── async_writer.py       # Non-blocking database writes
+│   ├── safe_wrapper.py       # Graceful degradation wrapper
+│   └── health.py             # Component health monitoring
 │
-├── api/                  # FastAPI backend
-│   ├── routers/stories/  # 7 analytics story endpoints
-│   └── services/         # Business logic layer
+├── api/                      # FastAPI backend
+│   ├── routers/stories/      # 7 analytics story endpoints
+│   └── services/             # Business logic layer
 │
-├── frontend/             # React + Vite + Tailwind
-│   └── src/pages/        # Dashboard, Stories, Queue
+├── frontend/                 # React + Vite + Tailwind
+│   └── src/pages/            # Dashboard, Stories, Queue
 │
-└── tests/                # Unit + integration tests
+├── templates/                # Integration templates
+│   └── observatory_config_template.py
+│
+└── tests/                    # Unit + integration tests
 ```
 
 ---
@@ -179,10 +205,38 @@ Open `http://localhost:5173` to view the dashboard.
 
 ### 3. Add Tracking to Your Project
 
+**Option A: TrackedLLMCall Context Manager (Recommended)**
+
+```python
+from observatory import Observatory, create_tracked_call
+
+obs = Observatory(
+    project_name="Your Project",
+    db_path="/path/to/ai-agent-observatory/observatory.db"
+)
+
+# Wrap your LLM calls with the context manager
+with create_tracked_call(
+    observatory=obs,
+    operation="chat",
+    model_name="gpt-4o-mini",
+    prompt=user_message,
+) as tracked:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": user_message}]
+    )
+    tracked.set_response(response)
+
+# Access the result
+print(tracked.result.response_text)
+```
+
+**Option B: Manual Tracking**
+
 ```python
 from observatory import Observatory, track_llm_call
 
-# Point to the Observatory database
 obs = Observatory(
     project_name="Your Project",
     db_path="/path/to/ai-agent-observatory/observatory.db"
@@ -220,13 +274,12 @@ The [`templates/`](templates/) folder contains ready-to-use configuration files 
 
 | Template | Purpose |
 |----------|---------|
-| [`observatory_config_template.py`](templates/observatory_config_template.py) | One-time setup: SDK initialization, routing rules, judge criteria |
-| [`llm_call_template.py`](templates/llm_call_template.py) | Code patterns to copy into files that make LLM calls |
+| [`observatory_config_template.py`](templates/observatory_config_template.py) | Complete setup: SDK initialization, routing rules, judge criteria, cache config |
 
 **Quick start:**
 1. Copy `observatory_config_template.py` → your project as `observatory_config.py`
 2. Customize operations, prompts, and routing rules for your app
-3. Use patterns from `llm_call_template.py` in your LLM-calling code
+3. Use the `TrackedLLMCall` context manager in your LLM-calling code
 
 → [Full integration guide](templates/README.md)
 
