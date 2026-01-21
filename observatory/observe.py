@@ -172,38 +172,47 @@ def _extract_semantic_kernel_response(response: Any) -> ExtractedResponse:
         if hasattr(response, 'content'):
             result.response_text = str(response.content) if response.content else ""
 
-        # Extract from metadata
+        # Extract from metadata (SK stores usage as CompletionUsage object)
         if hasattr(response, 'metadata') and response.metadata:
             metadata = response.metadata
 
-            # Usage info
+            # Usage info - SK stores as CompletionUsage object in metadata['usage']
             usage = metadata.get('usage')
             if usage:
+                # CompletionUsage object (OpenAI SDK type)
                 if hasattr(usage, 'prompt_tokens'):
                     result.prompt_tokens = usage.prompt_tokens or 0
                     result.completion_tokens = usage.completion_tokens or 0
+                    result.total_tokens = getattr(usage, 'total_tokens', 0) or (result.prompt_tokens + result.completion_tokens)
                 elif isinstance(usage, dict):
                     result.prompt_tokens = usage.get('prompt_tokens', 0)
                     result.completion_tokens = usage.get('completion_tokens', 0)
-
-                result.total_tokens = result.prompt_tokens + result.completion_tokens
+                    result.total_tokens = usage.get('total_tokens', result.prompt_tokens + result.completion_tokens)
 
                 # Check for cached tokens (Azure via SK)
-                if hasattr(usage, 'prompt_tokens_details'):
+                if hasattr(usage, 'prompt_tokens_details') and usage.prompt_tokens_details:
                     details = usage.prompt_tokens_details
-                    if hasattr(details, 'cached_tokens'):
-                        result.cached_prompt_tokens = details.cached_tokens or 0
-                        result.cached_token_savings = result.cached_prompt_tokens * 0.0000015
+                    cached = getattr(details, 'cached_tokens', 0) or 0
+                    if cached:
+                        result.cached_prompt_tokens = cached
+                        result.cached_token_savings = cached * 0.0000015
 
             # Finish reason
             if 'finish_reason' in metadata:
                 result.finish_reason = metadata['finish_reason'] or ""
 
-        # Extract model from inner_content if available
+        # Extract model and usage from inner_content (OpenAI ChatCompletion object)
         if hasattr(response, 'inner_content') and response.inner_content:
             inner = response.inner_content
             if hasattr(inner, 'model'):
                 result.model_used = inner.model or ""
+
+            # Fallback: get usage from inner_content if not in metadata
+            if result.prompt_tokens == 0 and hasattr(inner, 'usage') and inner.usage:
+                usage = inner.usage
+                result.prompt_tokens = getattr(usage, 'prompt_tokens', 0) or 0
+                result.completion_tokens = getattr(usage, 'completion_tokens', 0) or 0
+                result.total_tokens = getattr(usage, 'total_tokens', 0) or (result.prompt_tokens + result.completion_tokens)
 
     except Exception as e:
         logger.debug(f"Semantic Kernel extraction error: {e}")
@@ -690,17 +699,18 @@ async def _execute_with_tracking(
     # =========================================================================
     # STEP 2: Check semantic cache (if enabled)
     # =========================================================================
-    if not skip_cache and semantic_cache and full_prompt:
-        sem_config = op_optimizations.get('semantic_cache', {})
-        sem_enabled = sem_config.get('enabled', False) if is_optimized_phase else False
+    # Only query semantic cache in optimized mode - embedding queries are too slow for baseline
+    sem_config = op_optimizations.get('semantic_cache', {})
+    sem_enabled = sem_config.get('enabled', False) if is_optimized_phase else False
 
+    if not skip_cache and semantic_cache and full_prompt and is_optimized_phase and sem_enabled:
         try:
             sem_result = await semantic_cache.get(
                 prompt=full_prompt,
                 operation=op_name,
             )
 
-            if sem_enabled and sem_result and sem_result.hit:
+            if sem_result and sem_result.hit:
                 latency_ms = (time.perf_counter() - start_time) * 1000
 
                 # Track semantic cache hit
@@ -868,12 +878,12 @@ async def _execute_with_tracking(
                 except Exception as e:
                     logger.debug(f"Cache storage failed: {e}")
 
-        # Semantic cache
-        if semantic_cache:
+        # Semantic cache - only store in optimized mode (embedding generation is slow)
+        if semantic_cache and is_optimized_phase:
             sem_config = op_optimizations.get('semantic_cache', {})
-            sem_enabled = sem_config.get('enabled', False) if is_optimized_phase else False
+            sem_enabled = sem_config.get('enabled', False)
 
-            if sem_enabled or current_phase == "baseline":
+            if sem_enabled:
                 try:
                     await semantic_cache.set(
                         prompt=full_prompt,

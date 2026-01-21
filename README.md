@@ -10,8 +10,8 @@ Track every LLM call, understand your costs, and optimize performance with actio
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 <p align="center">
-  <a href="docs/media/Observatory.mp4">
-    <img src="docs/images/dashboard.png" alt="Watch Demo" width="700">
+  <a href="https://www.youtube.com/watch?v=IN04Y7UoLGk">
+    <img src="https://img.youtube.com/vi/IN04Y7UoLGk/maxresdefault.jpg" alt="Watch Demo" width="700">
   </a>
   <br>
   <em>Click to watch the demo video</em>
