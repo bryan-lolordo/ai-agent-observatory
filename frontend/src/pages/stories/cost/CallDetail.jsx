@@ -59,15 +59,21 @@ async function fetchCallData(callId) {
     
     // Timing
     latency_ms: data.latency_ms || 0,
-    
+
     // Model config
     temperature: data.temperature,
     max_tokens: data.max_tokens,
-    
+
     // Content
     response_text: data.response_text || data.response || '',
     system_prompt: data.system_prompt || '',
     user_message: data.user_message || '',
+
+    // Conversation context (for Trace tab)
+    conversation_id: data.conversation_id || null,
+    turn_number: data.turn_number || 1,
+    chat_history_count: data.chat_history_count || 0,
+    conversation_breakdown: data.conversation_breakdown,
   };
 }
 
@@ -116,6 +122,24 @@ async function fetchSimilarCalls(call, timeRange) {
   } catch (err) {
     console.error('Failed to fetch similar calls:', err);
     return { items: [], stats: null };
+  }
+}
+
+async function fetchConversationBreakdown(conversationId, turnNumber) {
+  if (!conversationId || !turnNumber) return null;
+
+  try {
+    const response = await fetch(`/api/calls/conversations/${conversationId}/tree`);
+    if (!response.ok) return null;
+
+    const data = await response.json();
+
+    // Find the turn that matches this call's turn number
+    const turn = data.turns?.find(t => t.turn_number === turnNumber);
+    return turn?.chatHistoryBreakdown || null;
+  } catch (err) {
+    console.error('Failed to fetch conversation breakdown:', err);
+    return null;
   }
 }
 
@@ -251,8 +275,20 @@ export default function CostCallDetail() {
       setLoading(true);
       try {
         const callData = await fetchCallData(callId);
+
+        // Fetch conversation breakdown with actual content (for Trace tab)
+        const breakdown = await fetchConversationBreakdown(
+          callData.conversation_id,
+          callData.turn_number
+        );
+
+        // Override the conversation_breakdown with the one that has content
+        if (breakdown) {
+          callData.conversation_breakdown = breakdown;
+        }
+
         setCall(callData);
-        
+
         const similar = await fetchSimilarCalls(callData, timeRange);
         setSimilarData(similar);
       } catch (err) {
@@ -322,24 +358,27 @@ export default function CostCallDetail() {
       storyLabel={COST_STORY.label}
       storyIcon={COST_STORY.icon}
       theme={STORY_THEMES.cost}
-      
+
+      // Full data object (for TracePanel)
+      data={call}
+
       // Entity info
       entityId={call.call_id}
       entityType="call"
       entityLabel={`${call.agent_name}.${call.operation}`}
       entitySubLabel={call.timestamp}
-      entityMeta={`${call.provider} / ${call.model_name}`}
-      
+      entityMeta={`${call.provider} / ${call.model_name}${call.turn_number > 1 ? ` / Turn ${call.turn_number}` : ''}`}
+
       // Navigation
       backPath={`/stories/cost/operations/${call.agent_name}/${call.operation}`}
       backLabel={`Back to ${call.operation}`}
-      
+
       // KPIs
       kpis={getCostKPIs(call, operationStats)}
-      
+
       // Current state for Fix comparison table
       currentState={currentState}
-      
+
       // Response text for OUTPUT CHANGE section
       responseText={call.response_text}
       
@@ -387,7 +426,14 @@ export default function CostCallDetail() {
           pricing: breakdown.pricing,
         },
       }}
-      
+
+      // Trace panel (conversation history)
+      traceProps={{
+        callId: call.call_id,
+        conversationId: call.conversation_id,
+        chatHistoryBreakdown: call.conversation_breakdown,
+      }}
+
       // Similar panel
       similarProps={{
         groupOptions: [

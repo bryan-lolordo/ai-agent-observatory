@@ -2,125 +2,179 @@
 
 **Production-ready observability platform for AI agents and LLM applications**
 
-<!-- TODO: Replace with your video link -->
-<p align="center">
-  <a href="YOUR_VIDEO_LINK_HERE">
-    <img src="https://img.shields.io/badge/Watch%20Demo-Video-red?style=for-the-badge&logo=youtube" alt="Watch Demo Video">
-  </a>
-</p>
-
-<!-- TODO: Add dashboard screenshot
-<p align="center">
-  <img src="docs/images/dashboard-screenshot.png" alt="Observatory Dashboard" width="800">
-</p>
--->
-
----
-
-## Why Observatory?
-
-Building AI agents is easy. **Understanding why they cost so much is hard.**
-
-Most teams discover their LLM costs are 10x higher than expected, but have no visibility into *why*. Which prompts are bloated? Which calls could be cached? Which operations use GPT-4 when GPT-4o-mini would suffice?
-
-**Observatory answers these questions** by passively tracking every LLM call and surfacing actionable insights:
-
-- **"Your system prompts consume 80% of tokens"** → with specific prompts to compress
-- **"38% of calls are exact duplicates"** → with caching recommendations
-- **"Simple operations use expensive models"** → with routing suggestions
-
-> Observatory is a **passive observer** - it tracks and visualizes, but never modifies your LLM calls. You stay in control.
-
----
-
-## Highlights
-
-| | |
-|---|---|
-| **139 Metrics** | Tokens, cost, latency, quality, cache, routing per call |
-| **7 Analytics Stories** | Cost, Latency, Tokens, Quality, Prompts, Cache, Routing |
-| **3-Layer Drill-Down** | KPIs → Operations → Individual Calls |
-| **12 SDK Components** | Observatory, LLMJudge, CacheManager, SemanticCache, ModelRouter, PromptManager, OptimizationTracker, TrackedLLMCall, CircuitBreaker, AsyncWriteQueue, SafeWrapper, HealthChecks |
-| **Framework Agnostic** | LangGraph, AutoGen, Semantic Kernel, or any LLM |
-| **Full Stack** | Python SDK + FastAPI Backend + React Dashboard |
+Track every LLM call, understand your costs, and optimize performance with actionable insights.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
 ![React](https://img.shields.io/badge/React-18+-61DAFB.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
+<p align="center">
+  <a href="docs/media/Observatory.mp4">
+    <img src="docs/images/dashboard.png" alt="Watch Demo" width="700">
+  </a>
+  <br>
+  <em>Click to watch the demo video</em>
+</p>
+
 ---
 
-## Demo Walkthrough
+## The Problem
 
-### Dashboard Overview
+Building AI agents is easy. **Understanding why they cost so much is hard.**
 
-The main dashboard shows KPIs at a glance with quick access to all 7 analytics stories.
+Most teams discover their LLM costs are 10x higher than expected, but have no visibility into *why*:
+- Which prompts are bloated?
+- Which calls could be cached?
+- Which operations use GPT-4 when GPT-4o-mini would suffice?
 
-<!-- TODO: Add screenshot
-<p align="center">
-  <img src="docs/images/01-dashboard.png" alt="Dashboard Overview" width="800">
-</p>
--->
+## The Solution
 
-### 3-Layer Drill-Down
+**Observatory answers these questions** by passively tracking every LLM call and surfacing actionable insights:
 
-Every story follows the same pattern: **KPIs → Operations → Individual Calls**
+| Insight | Example |
+|---------|---------|
+| Token waste | "Your system prompts consume 80% of tokens" |
+| Cache opportunities | "38% of calls are exact duplicates - enable caching to save $2.30/day" |
+| Model routing | "Simple operations use expensive models - route to gpt-4o-mini for 70% savings" |
 
-**Layer 1: Story KPIs** - High-level metrics and the operations table
+> Observatory is a **passive observer** - it tracks and visualizes, but never modifies your LLM calls unless you explicitly enable optimizations.
 
-<!-- TODO: Add screenshot
-<p align="center">
-  <img src="docs/images/02-layer1-kpis.png" alt="Layer 1 - Story KPIs" width="800">
-</p>
--->
+---
 
-**Layer 2: Operation Detail** - Click any operation to see detailed breakdown
+## Key Features
 
-<!-- TODO: Add screenshot
-<p align="center">
-  <img src="docs/images/03-layer2-operation.png" alt="Layer 2 - Operation Detail" width="800">
-</p>
--->
+| Feature | Description |
+|---------|-------------|
+| **139 Metrics per Call** | Tokens, cost, latency, quality, cache, routing - comprehensive tracking |
+| **7 Analytics Stories** | Cost, Latency, Tokens, Quality, Prompts, Cache, Routing |
+| **3-Layer Drill-Down** | KPIs → Operations → Individual Calls |
+| **Simple Integration** | One decorator: `@observe` |
+| **Two-Phase Workflow** | Baseline (detect) → Optimized (apply fixes) |
+| **Framework Agnostic** | Works with LangChain, AutoGen, Semantic Kernel, or raw OpenAI/Anthropic |
+| **Full Stack** | Python SDK + FastAPI Backend + React Dashboard |
 
-**Layer 3: Call Detail** - Click any call to see the full 139-field record
+---
 
-<!-- TODO: Add screenshot
-<p align="center">
-  <img src="docs/images/04-layer3-call.png" alt="Layer 3 - Call Detail" width="800">
-</p>
--->
+## Quick Start
 
-### Optimization Queue
+### 1. Install
 
-Prioritized list of optimization opportunities across all stories, ranked by impact.
+```bash
+git clone https://github.com/bryan-lolordo/ai-agent-observatory.git
+cd ai-agent-observatory
+pip install -e .
+```
 
-<!-- TODO: Add screenshot
-<p align="center">
-  <img src="docs/images/05-optimization-queue.png" alt="Optimization Queue" width="800">
-</p>
--->
+### 2. Add Tracking (One Line)
 
-### Optimization Impact
+```python
+from observatory_config import observe
 
-Track before/after metrics to measure the effectiveness of your optimizations.
+@observe(operation="chat", agent_name="ChatBot")
+async def chat(prompt: str):
+    return await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
 
-<!-- TODO: Add screenshot
-<p align="center">
-  <img src="docs/images/06-optimization-impact.png" alt="Optimization Impact" width="800">
-</p>
--->
+# That's it. All metrics tracked automatically.
+```
+
+### 3. Run the Dashboard
+
+```bash
+# Terminal 1: API
+uvicorn api.main:app --port 8000
+
+# Terminal 2: Frontend
+cd frontend && npm install && npm run dev
+```
+
+Open `http://localhost:5173` to view your metrics.
+
+---
+
+## How It Works
+
+### Phase 1: Baseline (Detect)
+
+Run your application normally. Observatory passively tracks every LLM call and detects optimization opportunities:
+
+```python
+# .env
+OBSERVATORY_PHASE=baseline
+```
+
+The dashboard shows:
+- Cost breakdown by model, agent, operation
+- Cache opportunities (exact matches, semantic similarity)
+- Routing suggestions (model upgrade/downgrade)
+- Token efficiency analysis
+
+### Phase 2: Optimized (Apply)
+
+After reviewing the dashboard, add optimizations to your config:
+
+```python
+# observatory_config.py
+OPTIMIZATIONS = {
+    "chat": {"cache": {"enabled": True, "ttl": 1800}},
+    "score_resume": {"route_to": "gpt-4o-mini"},
+}
+```
+
+Switch to optimized mode:
+
+```python
+# .env
+OBSERVATORY_PHASE=optimized
+```
+
+Compare baseline vs. optimized metrics to measure impact.
+
+---
+
+## Architecture
+
+```
+ai-agent-observatory/
+├── observatory/              # Python SDK
+│   ├── observe.py            # @observe decorator - main interface
+│   ├── collector.py          # Core Observatory class
+│   ├── cache.py              # CacheManager + PrefixCacheDetector
+│   ├── semantic_cache.py     # Vector similarity caching
+│   ├── judge.py              # LLM-as-judge quality evaluation
+│   ├── router.py             # Intelligent model routing
+│   ├── execution.py          # Batch/parallel/streaming detectors
+│   ├── resilience.py         # Circuit breaker for production
+│   ├── async_writer.py       # Non-blocking database writes
+│   └── health.py             # Component health monitoring
+│
+├── api/                      # FastAPI backend
+│   ├── routers/stories/      # 7 analytics story endpoints
+│   └── services/             # Business logic layer
+│
+├── frontend/                 # React + Vite + Tailwind
+│   └── src/pages/            # Dashboard, Stories, Optimization Queue
+│
+└── templates/                # Integration templates
+    ├── observatory_config_template.py
+    └── INTEGRATION_GUIDE.md
+```
 
 ---
 
 ## 7 Analytics Stories
 
+Each story provides KPIs, operation-level breakdown, and individual call inspection:
+
 | Story | What It Shows |
 |-------|---------------|
 | **Cost** | Spending by model, agent, operation with cost breakdowns |
-| **Latency** | Bottlenecks, slow calls, performance patterns |
-| **Tokens** | Usage analysis, ratios, optimization opportunities |
-| **Quality** | Judge scores, hallucination detection, error tracking |
+| **Latency** | Bottlenecks, slow calls, P50/P95/P99 performance |
+| **Tokens** | Usage analysis, input/output ratios, waste detection |
+| **Quality** | LLM-as-judge scores, hallucination detection, error tracking |
 | **Prompts** | System prompt analysis, chat history breakdown, token distribution |
 | **Cache** | Cacheable patterns (exact, prefix, semantic) with ROI estimates |
 | **Routing** | Model upgrade/downgrade recommendations with savings projections |
@@ -129,159 +183,84 @@ Track before/after metrics to measure the effectiveness of your optimizations.
 
 ## Production Features
 
-Observatory v0.4.0 includes production-hardening features for enterprise deployments:
+Observatory v0.4.0 includes enterprise-ready features:
 
 | Feature | Description |
 |---------|-------------|
-| **TrackedLLMCall** | Context manager that handles the full 10-step optimization flow automatically |
-| **OptimizationTracker** | A/B comparison of baseline vs optimized phases with impact metrics |
-| **CircuitBreaker** | Fail-fast protection with configurable thresholds and recovery |
-| **AsyncWriteQueue** | Non-blocking database writes to minimize latency impact |
+| **@observe Decorator** | Single decorator replaces 400+ lines of manual tracking code |
+| **CircuitBreaker** | Fail-fast protection with configurable thresholds |
+| **AsyncWriteQueue** | Non-blocking database writes for minimal latency impact |
 | **SafeWrapper** | Graceful degradation - tracking failures never break your app |
-| **HealthChecks** | Comprehensive health monitoring for all SDK components |
-| **Execution Detectors** | Batch, parallel, streaming, and context growth optimization detection |
+| **HealthChecks** | `/health` endpoint for all SDK components |
+| **Two-Phase Optimization** | Baseline detection → Optimized execution with A/B comparison |
 
 ---
 
-## Architecture
+## Tracked Metrics
 
-```
-ai-agent-observatory/
-├── observatory/              # Python SDK (12 components)
-│   ├── collector.py          # Main Observatory class
-│   ├── cache.py              # CacheManager + PrefixCacheDetector
-│   ├── semantic_cache.py     # SemanticCache (vector similarity)
-│   ├── judge.py              # LLMJudge (quality evaluation)
-│   ├── router.py             # ModelRouter (cost/quality routing)
-│   ├── prompts.py            # PromptManager (versioning, A/B tests)
-│   ├── tracked_call.py       # TrackedLLMCall context manager
-│   ├── optimization_tracker.py # Baseline vs optimized comparison
-│   ├── execution.py          # Batch/parallel/streaming detectors
-│   ├── resilience.py         # CircuitBreaker for fail-fast
-│   ├── async_writer.py       # Non-blocking database writes
-│   ├── safe_wrapper.py       # Graceful degradation wrapper
-│   └── health.py             # Component health monitoring
-│
-├── api/                      # FastAPI backend
-│   ├── routers/stories/      # 7 analytics story endpoints
-│   └── services/             # Business logic layer
-│
-├── frontend/                 # React + Vite + Tailwind
-│   └── src/pages/            # Dashboard, Stories, Queue
-│
-├── templates/                # Integration templates
-│   └── observatory_config_template.py
-│
-└── tests/                    # Unit + integration tests
-```
+139 fields per LLM call across 12 categories:
+
+| Category | Example Fields |
+|----------|----------------|
+| **Core** | timestamp, provider, model, success/error |
+| **Tokens** | prompt, completion, system, history, tools, cached |
+| **Cost** | prompt_cost, completion_cost, total, savings |
+| **Latency** | total_ms, time_to_first_token, tool_execution |
+| **Context** | agent_name, operation, conversation_id, user_id |
+| **Cache** | hit/miss, key, similarity_score, savings |
+| **Routing** | chosen_model, alternatives, complexity_score |
+| **Quality** | judge_score, hallucination_flag, confidence |
+| **Errors** | error_type, error_code, retry_count |
+
+See [docs/METRICS.md](docs/METRICS.md) for the complete reference.
 
 ---
 
-## Getting Started
+## Integration Example
 
-### 1. Clone & Install
-
-```bash
-git clone https://github.com/bryan-lolordo/ai-agent-observatory.git
-cd ai-agent-observatory
-pip install -e .                    # Core SDK
-pip install -e ".[ai]"              # + OpenAI/Anthropic for LLM Judge
-pip install -e ".[full]"            # + Everything including SemanticCache
-```
-
-### 2. Run the Dashboard
-
-```bash
-# Terminal 1: Start API
-uvicorn api.main:app --port 8000
-
-# Terminal 2: Start Frontend
-cd frontend
-npm install
-npm run dev
-```
-
-Open `http://localhost:5173` to view the dashboard.
-
-### 3. Add Tracking to Your Project
-
-**Option A: TrackedLLMCall Context Manager (Recommended)**
+### Before Observatory (Manual Tracking)
 
 ```python
-from observatory import Observatory, create_tracked_call
+async def chat(message: str):
+    start = time.time()
+    try:
+        response = await client.chat.completions.create(...)
+        latency = (time.time() - start) * 1000
 
-obs = Observatory(
-    project_name="Your Project",
-    db_path="/path/to/ai-agent-observatory/observatory.db"
-)
+        # 50+ lines of manual tracking...
+        track_llm_call(
+            model_name="gpt-4o-mini",
+            prompt_tokens=response.usage.prompt_tokens,
+            completion_tokens=response.usage.completion_tokens,
+            latency_ms=latency,
+            # ... 40 more parameters
+        )
+        return response
+    except Exception as e:
+        # Error tracking...
+        raise
+```
 
-# Wrap your LLM calls with the context manager
-with create_tracked_call(
-    observatory=obs,
-    operation="chat",
-    model_name="gpt-4o-mini",
-    prompt=user_message,
-) as tracked:
-    response = client.chat.completions.create(
+### After Observatory
+
+```python
+from observatory_config import observe
+
+@observe(operation="chat", agent_name="ChatBot")
+async def chat(message: str):
+    return await client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": user_message}]
+        messages=[{"role": "user", "content": message}]
     )
-    tracked.set_response(response)
-
-# Access the result
-print(tracked.result.response_text)
 ```
 
-**Option B: Manual Tracking**
-
-```python
-from observatory import Observatory, track_llm_call
-
-obs = Observatory(
-    project_name="Your Project",
-    db_path="/path/to/ai-agent-observatory/observatory.db"
-)
-
-# After each LLM call, track it
-track_llm_call(
-    observatory=obs,
-    model_name="gpt-4",
-    prompt_tokens=100,
-    completion_tokens=50,
-    latency_ms=1200,
-    agent_name="MyAgent",
-    operation="analyze"
-)
-```
-
-### 4. Configure (Optional)
-
-Copy `.env.example` to `.env` and add your keys:
-
-```bash
-cp .env.example .env
-```
-
-Required for LLM Judge and Semantic Cache features:
-- `OPENAI_API_KEY` - For quality evaluation
-- `AZURE_OPENAI_*` - Alternative to OpenAI
-
----
-
-## Integration Templates
-
-The [`templates/`](templates/) folder contains ready-to-use configuration files for adding Observatory tracking to your LLM applications:
-
-| Template | Purpose |
-|----------|---------|
-| [`observatory_config_template.py`](templates/observatory_config_template.py) | Complete setup: SDK initialization, routing rules, judge criteria, cache config |
-
-**Quick start:**
-1. Copy `observatory_config_template.py` → your project as `observatory_config.py`
-2. Customize operations, prompts, and routing rules for your app
-3. Use the `TrackedLLMCall` context manager in your LLM-calling code
-
-→ [Full integration guide](templates/README.md)
+The `@observe` decorator automatically:
+- Times execution
+- Extracts tokens, cost, content from any LLM response format
+- Runs all detectors (cache, routing, streaming, batch, context growth)
+- Tracks conversation context if provided
+- Handles errors with classification
+- Records to database with 139 fields
 
 ---
 
@@ -289,35 +268,30 @@ The [`templates/`](templates/) folder contains ready-to-use configuration files 
 
 | Layer | Technologies |
 |-------|-------------|
-| **SDK** | Python 3.10+, Pydantic v2 |
-| **Backend** | FastAPI, SQLAlchemy (async), SQLite/PostgreSQL |
+| **SDK** | Python 3.10+, Pydantic v2, SQLAlchemy |
+| **Backend** | FastAPI, SQLite (dev) / PostgreSQL (prod) |
 | **Frontend** | React 18, Vite, Tailwind CSS, Recharts |
 
 ---
 
-## Tracked Metrics
+## Documentation
 
-Observatory captures 139 fields per LLM call across 12 categories:
-
-| Category | Fields |
-|----------|--------|
-| **Core** | ID, timestamp, provider, model, success/error |
-| **Tokens** | prompt, completion, system, history, tools, cached |
-| **Cost** | prompt cost, completion cost, total, savings |
-| **Latency** | total, TTFT, tool execution time |
-| **Context** | agent, operation, conversation, user |
-| **Model Config** | temperature, max_tokens, top_p, seed |
-| **Cache** | hit/miss, key, cluster, similarity score |
-| **Routing** | chosen model, alternatives, complexity, savings |
-| **Quality** | judge score, hallucination, confidence |
-| **Errors** | type, code, retry count, strategy |
-| **Streaming** | chunks, interrupted, TTFT |
-| **Experiments** | A/B test ID, variant, control group |
-
-→ [Full metrics reference](docs/METRICS.md)
+| Document | Description |
+|----------|-------------|
+| [Integration Guide](templates/INTEGRATION_GUIDE.md) | Step-by-step setup for your project |
+| [API Reference](docs/API.md) | Backend endpoints |
+| [Metrics Reference](docs/METRICS.md) | All 139 tracked fields |
+| [SDK Design](docs/UNIVERSAL_SDK_PLAN.md) | Architecture and design decisions |
 
 ---
 
 ## License
 
 MIT License - free for personal and commercial use.
+
+---
+
+## Author
+
+**Bryan LoLordo**
+[GitHub](https://github.com/bryan-lolordo) | [LinkedIn](https://linkedin.com/in/bryanlolordo)

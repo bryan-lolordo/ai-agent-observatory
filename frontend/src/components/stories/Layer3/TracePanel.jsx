@@ -110,7 +110,7 @@ export default function TracePanel({
             <h3 className={`text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide mb-4`}>
               🌳 Call Hierarchy
             </h3>
-            <TraceTree callId={callId} conversationId={conversationId} />
+            <TraceTree callId={callId} conversationId={conversationId} storyType={storyType} />
           </div>
         </div>
       </div>
@@ -165,7 +165,7 @@ export default function TracePanel({
         <h3 className={`text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide mb-4`}>
           🌳 Call Hierarchy
         </h3>
-        <TraceTree callId={callId} conversationId={conversationId} />
+        <TraceTree callId={callId} conversationId={conversationId} storyType={storyType} />
       </div>
     );
   }

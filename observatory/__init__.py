@@ -63,6 +63,12 @@ from observatory.utils import (
     # Client detection
     ClientType,
     detect_client_type,
+    # Error classification
+    classify_error,
+    # Token breakdown extraction
+    extract_token_breakdown_from_messages,
+    # Model parameter extraction
+    extract_model_parameters,
 )
 
 # =============================================================================
@@ -180,6 +186,16 @@ from observatory.tracked_call import (
     TrackedLLMCall,
     TrackedLLMCallResult,
     create_tracked_call,
+)
+
+# =============================================================================
+# @observe DECORATOR - THE PRIMARY PUBLIC INTERFACE
+# =============================================================================
+
+from observatory.observe import (
+    observe,
+    extract_response,
+    ExtractedResponse,
 )
 
 # =============================================================================
@@ -501,10 +517,15 @@ __all__ = [
     # Optimization tracking
     "OptimizationTracker",
 
-    # Tracked LLM Call - Context Manager
+    # Tracked LLM Call - Context Manager (legacy)
     "TrackedLLMCall",
     "TrackedLLMCallResult",
     "create_tracked_call",
+
+    # @observe decorator - THE PRIMARY PUBLIC INTERFACE
+    "observe",
+    "extract_response",
+    "ExtractedResponse",
 
     # Models (existing)
     "Session",
@@ -551,6 +572,9 @@ __all__ = [
     "MODEL_PRICING",
     "ClientType",
     "detect_client_type",
+    "classify_error",
+    "extract_token_breakdown_from_messages",
+    "extract_model_parameters",
 
     # Production hardening - Circuit breaker
     "CircuitBreaker",

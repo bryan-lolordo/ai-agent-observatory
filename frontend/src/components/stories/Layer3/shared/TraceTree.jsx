@@ -88,9 +88,10 @@ function groupCallsByFunction(children) {
 // HELPER: Detect patterns and suggest optimizations
 // ===========================================================================
 
-function analyzePattern(group) {
+function analyzePattern(group, storyType = null) {
   const count = group.calls.length;
   const avgLatency = group.total_latency / count;
+  const avgCost = group.total_cost / count;
 
   // Expensive thresholds
   const isExpensive = group.total_cost > 0.05 || group.total_latency > 5000;
@@ -100,7 +101,7 @@ function analyzePattern(group) {
   const suggestions = [];
   let severity = 'info'; // info, warning, critical
 
-  // Pattern detection
+  // Pattern detection (applies to all stories)
   if (count > 1) {
     if (count > 5) {
       suggestions.push(`${count} sequential calls detected - consider batching or parallelizing`);
@@ -112,13 +113,53 @@ function analyzePattern(group) {
   }
 
   if (isExpensive && isHighVolume) {
-    suggestions.push(`High cost from volume (${count} calls × $${(group.total_cost / count).toFixed(4)})`);
+    suggestions.push(`High cost from volume (${count} calls × $${avgCost.toFixed(4)})`);
     severity = 'critical';
   }
 
   if (isSlow && count > 1) {
     suggestions.push(`Slow execution - avg ${(avgLatency / 1000).toFixed(1)}s per call`);
     severity = severity === 'critical' ? 'critical' : 'warning';
+  }
+
+  // ===========================================================================
+  // COST-SPECIFIC INSIGHTS (when viewing from Cost story)
+  // ===========================================================================
+  if (storyType === 'cost') {
+    // Use group-level totals which are available from the API
+    const totalTokens = group.total_tokens || 0;
+
+    // High token usage for this operation group
+    if (totalTokens > 5000) {
+      suggestions.push(
+        `High token usage (${totalTokens.toLocaleString()} tokens) - review prompt size and response length`
+      );
+      if (severity === 'info') severity = 'warning';
+    }
+
+    // Expensive operation (total cost for the group)
+    if (group.total_cost > 0.20) {
+      suggestions.push(
+        `Expensive operation ($${group.total_cost.toFixed(3)} total) - consider caching or prompt optimization`
+      );
+      severity = 'warning';
+    }
+
+    // High per-call cost (even for single calls)
+    if (avgCost > 0.05) {
+      suggestions.push(
+        `High per-call cost ($${avgCost.toFixed(3)}) - check system prompt size and response length`
+      );
+      if (severity === 'info') severity = 'warning';
+    }
+
+    // Very expensive calls
+    if (avgCost > 0.10) {
+      suggestions.push(
+        `Expensive calls ($${avgCost.toFixed(3)} avg) - consider prefix caching for system prompt`
+      );
+      severity = 'critical';
+    }
   }
 
   return { suggestions, severity };
@@ -128,7 +169,7 @@ function analyzePattern(group) {
 // GROUPED CALL NODE (shows multiple calls as one)
 // ===========================================================================
 
-const GroupedCallNode = ({ group, depth = 0 }) => {
+const GroupedCallNode = ({ group, depth = 0, storyType = null }) => {
   const [showAll, setShowAll] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
 
@@ -140,8 +181,8 @@ const GroupedCallNode = ({ group, depth = 0 }) => {
   const cost = group.total_cost.toFixed(4);
   const tokens = group.total_tokens;
 
-  // Analyze pattern
-  const { suggestions, severity } = analyzePattern(group);
+  // Analyze pattern (pass storyType for story-specific insights)
+  const { suggestions, severity } = analyzePattern(group, storyType);
 
   // Get severity colors from theme
   const severityColorsMap = {
@@ -322,7 +363,7 @@ const IndividualCallNode = ({ nodeData, depth = 0, index = null }) => {
 // MAIN TRACE TREE COMPONENT
 // ===========================================================================
 
-export default function TraceTree({ callId, conversationId }) {
+export default function TraceTree({ callId, conversationId, storyType = null }) {
   const [trace, setTrace] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -440,6 +481,19 @@ export default function TraceTree({ callId, conversationId }) {
 
             const hasExpensiveCalls = turn.total_cost > 0.5 || turn.total_latency_ms > 10000;
 
+            // Generate turn-level cost insights for cost story
+            const turnInsights = [];
+            if (storyType === 'cost') {
+              if (turn.total_cost > 0.50) {
+                turnInsights.push(`High turn cost ($${turn.total_cost.toFixed(2)}) - check system prompt size and response length`);
+              } else if (turn.total_cost > 0.10) {
+                turnInsights.push(`Moderate turn cost ($${turn.total_cost.toFixed(3)}) - consider prefix caching for system prompt`);
+              }
+              if (turn.total_tokens > 10000) {
+                turnInsights.push(`High token usage (${turn.total_tokens.toLocaleString()} tokens) - review prompt composition`);
+              }
+            }
+
             return (
               <div key={turn.turn_number} className={`border ${BASE_THEME.border.default} rounded-lg overflow-hidden ${BASE_THEME.container.primary}`}>
                 {/* Turn header */}
@@ -473,10 +527,26 @@ export default function TraceTree({ callId, conversationId }) {
                   </div>
                 </div>
 
+                {/* Turn-level cost insights */}
+                {turnInsights.length > 0 && (
+                  <div className={`mx-3 my-2 p-3 rounded border text-sm ${getSeverityColors('warning').text} ${getSeverityColors('warning').bg} ${getSeverityColors('warning').border}`}>
+                    <div className="flex items-start gap-2">
+                      <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        {turnInsights.map((insight, idx) => (
+                          <div key={idx} className={BASE_THEME.text.secondary}>
+                            {insight}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Grouped calls */}
                 <div>
                   {groups.map((group, idx) => (
-                    <GroupedCallNode key={idx} group={group} depth={0} />
+                    <GroupedCallNode key={idx} group={group} depth={0} storyType={storyType} />
                   ))}
                 </div>
               </div>
@@ -541,7 +611,7 @@ export default function TraceTree({ callId, conversationId }) {
         {/* Grouped calls */}
         <div className={`border ${BASE_THEME.border.default} rounded-lg overflow-hidden ${BASE_THEME.container.primary}`}>
           {groups.map((group, idx) => (
-            <GroupedCallNode key={idx} group={group} depth={0} />
+            <GroupedCallNode key={idx} group={group} depth={0} storyType={storyType} />
           ))}
         </div>
       </div>

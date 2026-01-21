@@ -2,261 +2,307 @@
 
 ## Overview
 
-This guide explains how to integrate Observatory tracking into any AI application. Observatory tracks LLM calls with a 139-field schema, detects optimization opportunities, and applies optimizations in a two-phase system.
+Observatory tracks LLM calls with a 139-field schema, detects optimization opportunities, and applies optimizations in a two-phase system.
+
+**Key Concept**: Use `@observe` decorator for simple tracking, review opportunities in dashboard, add optimizations to your config.
 
 ---
 
-## Step 1: Copy the Config Template
+## Quick Start (5 Minutes)
 
-Copy `observatory_config_template.py` to your project root and rename it:
+### Step 1: Copy the Config Template
 
+```bash
+cp templates/observatory_config_template.py your-project/observatory_config.py
 ```
-your-project/
-├── observatory_config.py   ← Copy template here
-├── your_app.py
-└── ...
-```
 
----
-
-## Step 2: Configure for Your Project
-
-Edit `observatory_config.py` and update the `[PROJECT-SPECIFIC]` sections:
-
-1. **Project name**: Set `PROJECT_NAME` via environment variable or directly
-2. **Model provider**: Set `MODEL_PROVIDER` (azure, openai, anthropic)
-3. **Operations**: Update cache, router, and judge with your operation names
-4. **Quality criteria**: Customize judge criteria for your domain
-
----
-
-## Step 3: Import What You Need
+### Step 2: Add @observe to Your LLM Calls
 
 ```python
-from observatory_config import (
-    # Main tracking
-    track_llm_call,
+from observatory_config import observe
 
-    # Optimization components (use what you need)
-    cache,
-    semantic_cache,
-    router,
-    prefix_cache,
-    prompt_optimizer,
-    judge,
+@observe(operation="chat", agent_name="ChatBot")
+async def chat(prompt: str, conversation_id: str = None, turn_number: int = None):
+    return await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+```
 
-    # Detectors
-    batch_detector,
-    streaming_detector,
-    context_growth_detector,
+**That's it.** All metrics tracked, all opportunities detected.
 
-    # Helpers
-    estimate_tokens,
-    classify_error,
-    fire_and_forget_judge,
+---
 
-    # Session management
-    start_session,
-    end_session,
+## How It Works
 
-    # Config constants
-    CURRENT_PHASE,
-    DEFAULT_MODEL,
+### Phase 1: Baseline (Detection)
+
+```bash
+export OBSERVATORY_PHASE=baseline  # This is the default
+```
+
+In baseline mode, `@observe`:
+- Tracks all metrics (tokens, latency, cost, content)
+- Runs all detectors passively
+- Identifies optimization opportunities
+- **Does NOT change your app's behavior**
+
+### Phase 2: Optimized (Apply Fixes)
+
+After reviewing opportunities in the dashboard:
+
+1. Add optimizations to your `observatory_config.py`:
+
+```python
+OPTIMIZATIONS = {
+    "chat": {
+        "cache": {"enabled": True, "ttl": 1800},
+    },
+    "score_resume": {
+        "cache": {"enabled": True, "ttl": 3600},
+        "route_to": "gpt-4o-mini",
+    },
+}
+```
+
+2. Switch to optimized mode:
+
+```bash
+export OBSERVATORY_PHASE=optimized
+```
+
+Now `@observe` will:
+- Check cache before calling LLM
+- Route to specified models
+- Apply all enabled optimizations
+- Track baseline vs optimized comparisons
+
+---
+
+## @observe Decorator Reference
+
+```python
+@observe(
+    # Required
+    operation="your_operation",     # Name for tracking/grouping
+
+    # Optional - recommended
+    agent_name="YourAgent",         # Component/plugin name
+    agent_role="analyst",           # Role: analyst, coordinator, writer, etc.
+
+    # Optional - conversation tracking
+    # These can be passed as function params instead
+    conversation_id=None,           # Links related calls
+    turn_number=None,               # Which turn in conversation
+    user_id=None,                   # User identifier
+
+    # Optional - control
+    cache_key=None,                 # Dict for cache key generation
+    skip_cache=False,               # Skip cache check
+    skip_quality_eval=False,        # Skip LLM-as-judge
+    complexity=0.5,                 # For model routing (0.0-1.0)
+    metadata=None,                  # Additional tracking data
+)
+async def your_function(...):
+    ...
+```
+
+---
+
+## Conversation Tracking
+
+For multi-turn conversations, pass `conversation_id` and `turn_number`:
+
+```python
+@observe(operation="chat", agent_name="ChatBot")
+async def chat(
+    prompt: str,
+    conversation_id: str = None,  # @observe extracts this automatically
+    turn_number: int = None,      # @observe extracts this automatically
+):
+    return await client.chat.completions.create(...)
+
+# Usage
+response = await chat(
+    prompt="Hello",
+    conversation_id=session_id,
+    turn_number=1,
 )
 ```
 
 ---
 
-## Step 4: Wrap Your LLM Calls
+## Supported Response Formats
 
-### Option A: Full 10-Step Pattern (Recommended)
+`@observe` auto-detects and extracts from:
 
-For maximum optimization detection and tracking:
+| Format | Example |
+|--------|---------|
+| OpenAI/Azure | `response.choices[0].message.content` |
+| Anthropic | `response.content[0].text` |
+| Semantic Kernel | `response.content` with `response.metadata['usage']` |
+| Dictionary | `{"content": "...", "usage": {...}}` |
+| Tuple | `(response_text, {"prompt_tokens": 100, ...})` |
+| String | Plain text response |
+
+---
+
+## Available Optimizations
+
+Add these to your `OPTIMIZATIONS` dict:
+
+| Optimization | Config | Description |
+|--------------|--------|-------------|
+| Exact cache | `"cache": {"enabled": True, "ttl": 3600}` | Hash-based caching |
+| Semantic cache | `"semantic_cache": {"enabled": True, "threshold": 0.92}` | Similarity-based caching |
+| Model routing | `"route_to": "gpt-4o-mini"` | Use specific model |
+| Streaming | `"streaming": {"enabled": True}` | Enable streaming |
+| Prefix cache | `"prefix_cache": {"enabled": True}` | Azure/Anthropic prefix caching |
+
+### Example Configuration
 
 ```python
-import time
+OPTIMIZATIONS = {
+    # Simple operation - just cache it
+    "get_job_details": {
+        "cache": {"enabled": True, "ttl": 3600},
+    },
 
-async def your_chat_function(user_input: str):
-    operation = "chat_response"
+    # Chat - cache + cheaper model
+    "chat_response": {
+        "cache": {"enabled": True, "ttl": 1800},
+        "route_to": "gpt-4o-mini",
+    },
 
-    # Step 1: Check exact cache
-    cached_response, cache_meta = cache.get(
-        operation=operation,
-        key_data={"user_message": user_input}
-    )
-    if cached_response:
-        return cached_response
-
-    # Step 2: Check semantic cache (if available)
-    if semantic_cache:
-        result = await semantic_cache.get(operation=operation, prompt=user_input)
-        if result.hit:
-            return result.response
-
-    # Step 3: Get optimized prompt
-    optimized_prompt, max_tokens, prompt_meta = prompt_optimizer.get_optimized_prompt(
-        operation=operation,
-        default_prompt=YOUR_SYSTEM_PROMPT
-    )
-
-    # Step 4: Get routed model
-    routed_model, routing_meta = router.select(
-        operation=operation,
-        prompt=optimized_prompt,
-        estimated_tokens=estimate_tokens(optimized_prompt),
-        complexity=0.5
-    )
-
-    # Step 5: Track prefix for caching detection
-    prefix_cache.track_call(
-        operation=operation,
-        system_prompt=optimized_prompt,
-        system_prompt_tokens=estimate_tokens(optimized_prompt),
-    )
-
-    # Step 6: Make LLM call
-    start_time = time.time()
-    try:
-        response = await your_llm_client.chat(
-            model=routed_model,
-            messages=[
-                {"role": "system", "content": optimized_prompt},
-                {"role": "user", "content": user_input}
-            ],
-            max_tokens=max_tokens
-        )
-        latency_ms = (time.time() - start_time) * 1000
-        success = True
-        error = None
-    except Exception as e:
-        latency_ms = (time.time() - start_time) * 1000
-        success = False
-        error = str(e)
-
-    # Step 7: Extract token usage
-    prompt_tokens = response.usage.prompt_tokens
-    completion_tokens = response.usage.completion_tokens
-    response_text = response.content
-
-    # Step 8: Detect streaming candidates
-    streaming_detector.check_call(
-        operation=operation,
-        latency_ms=latency_ms,
-        completion_tokens=completion_tokens,
-    )
-
-    # Step 9: Cache the response
-    if success:
-        cache.set(
-            operation=operation,
-            key_data={"user_message": user_input},
-            value=response_text
-        )
-
-    # Step 10: Track with Observatory
-    track_llm_call(
-        model_name=routed_model,
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-        latency_ms=latency_ms,
-        operation=operation,
-        success=success,
-        error=error,
-        user_message=user_input,
-        system_prompt=optimized_prompt,
-        response_text=response_text,
-        routing_decision=routing_meta,
-        cache_metadata=cache_meta,
-    )
-
-    return response_text
+    # Analysis - semantic cache + streaming
+    "deep_analyze": {
+        "semantic_cache": {"enabled": True, "threshold": 0.90},
+        "streaming": {"enabled": True},
+    },
+}
 ```
 
-### Option B: Simple Direct Tracking
+---
 
-For quick integration without full optimization:
+## Before/After Comparison
+
+### Before: Manual 450-Line Pattern
 
 ```python
-import time
+async def chat_with_kernel(message: str) -> tuple[str, str]:
+    memory.turn_number += 1
+    memory.conversation_id = obs_session.id
+    start_time = time.time()
 
-def your_llm_call(prompt: str):
-    start = time.time()
+    try:
+        # STEP 1: Check exact cache (~30 lines)
+        cached_response, cache_meta = cache.get(...)
+        if cached_response:
+            track_llm_call(...)  # 20+ parameters
+            return cached_response, None
 
-    response = your_client.chat.completions.create(
+        # STEP 2: Check semantic cache (~30 lines)
+        if semantic_cache:
+            result = await semantic_cache.get(...)
+            if result.hit:
+                track_llm_call(...)
+                return result.response, None
+
+        # STEP 3: Get optimized prompt (~10 lines)
+        _, max_tokens_limit, prompt_meta = prompt_optimizer.get_optimized_prompt(...)
+
+        # STEP 4: Get routed model (~10 lines)
+        routed_model, routing_meta = router.select(...)
+
+        # STEP 5: Track prefix (~5 lines)
+        prefix_cache.track_call(...)
+
+        # STEP 6: Make LLM call (~40 lines with error handling)
+        response = await chat_completion.get_chat_message_content(...)
+
+        # STEP 7: Extract tokens (~30 lines)
+        prompt_tokens = response.metadata.get('usage').prompt_tokens
+        ...
+
+        # STEP 8: Detect streaming candidates (~10 lines)
+        streaming_detector.check_call(...)
+
+        # STEP 9: Cache response (~10 lines)
+        cache.set(...)
+
+        # STEP 10: Track with Observatory (~90 lines!)
+        track_llm_call(
+            model_name=routed_model,
+            prompt_tokens=prompt_tokens,
+            # ... 40+ more parameters
+        )
+
+        return response_text, plugin_used
+
+    except Exception as e:
+        track_llm_call(success=False, error=str(e), ...)
+        raise
+```
+
+### After: With @observe (~25 Lines)
+
+```python
+from observatory_config import observe
+
+@observe(
+    operation="streamlit_chat",
+    agent_name="ChatAgent",
+    agent_role="orchestrator",
+)
+async def chat_with_kernel(
+    message: str,
+    conversation_id: str = None,
+    turn_number: int = None,
+) -> tuple[str, str]:
+    """Send a message to the chatbot and get a reply."""
+
+    history.add_user_message(message)
+
+    response = await chat_completion.get_chat_message_content(
+        chat_history=history,
+        settings=execution_settings,
+        kernel=kernel,
+    )
+
+    response_text = str(response)
+    history.add_message(response)
+    plugin_used = detect_plugin_used(response)
+
+    return response_text, plugin_used
+```
+
+---
+
+## Minimum Viable Integration
+
+If you just want basic tracking with no optimizations:
+
+```python
+from observatory_config import observe
+
+@observe(operation="my_operation")
+async def my_llm_call(prompt: str):
+    return await client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}]
     )
-
-    latency = (time.time() - start) * 1000
-
-    track_llm_call(
-        model_name="gpt-4o-mini",
-        prompt_tokens=response.usage.prompt_tokens,
-        completion_tokens=response.usage.completion_tokens,
-        latency_ms=latency,
-        operation="your_operation",
-        user_message=prompt,
-        response_text=response.choices[0].message.content,
-    )
-
-    return response.choices[0].message.content
 ```
 
-### Option C: Using `tracked_call()` Context Manager
-
-For a cleaner abstraction that handles the 10-step pattern:
-
-```python
-from observatory_config import tracked_call
-
-async def your_analysis_function(data: dict):
-    async with tracked_call(
-        operation="analyze_data",
-        agent_name="DataAnalyzer",
-        complexity=0.6,
-        cache_key={"data_id": data["id"]},
-    ) as ctx:
-        result = await ctx.call(
-            llm_func=your_llm_callable,
-            prompt=f"Analyze this: {data}",
-            system_prompt="You are a data analyst.",
-        )
-    return result
-```
+All features are optional and can be added incrementally.
 
 ---
 
-## Step 5: Set Your Phase
+## Session Management (Optional)
 
-Observatory operates in two phases:
-
-| Phase | Behavior |
-|-------|----------|
-| `baseline` | Track metrics, detect opportunities, **no changes** to app behavior |
-| `optimized` | Apply optimizations (caching, routing, compression) |
-
-Set via environment variable:
-
-```bash
-# Start with baseline to collect data
-export OBSERVATORY_PHASE=baseline
-
-# Switch to optimized after reviewing opportunities
-export OBSERVATORY_PHASE=optimized
-```
-
-Or in `.env`:
-
-```
-OBSERVATORY_PHASE=baseline
-```
-
----
-
-## Step 6: Use Sessions for Multi-Turn Conversations
+For grouping multiple calls together:
 
 ```python
-from observatory_config import start_session, end_session
+from observatory_config import observe, start_session, end_session
 
 async def chat_session(user_id: str):
     session = start_session("chat", user_id=user_id)
@@ -267,8 +313,13 @@ async def chat_session(user_id: str):
             if user_input == "exit":
                 break
 
-            response = await your_chat_function(user_input)
+            response = await chat(
+                prompt=user_input,
+                conversation_id=session.id,
+                turn_number=turn,
+            )
             display(response)
+            turn += 1
 
         end_session(session, success=True)
     except Exception as e:
@@ -278,39 +329,62 @@ async def chat_session(user_id: str):
 
 ---
 
-## Quick Reference: What Each Component Does
+## Workflow Summary
 
-| Component | Purpose | Baseline Mode | Optimized Mode |
-|-----------|---------|---------------|----------------|
-| `cache` | Exact hash caching | Detect hits | Return cached |
-| `semantic_cache` | Similarity-based caching | Detect similar | Return similar |
-| `router` | Model selection | Log opportunities | Route to model |
-| `prompt_optimizer` | Prompt compression | Calculate savings | Apply compression |
-| `prefix_cache` | Azure/Anthropic prefix caching | Track prefix reuse | Ready for API |
-| `judge` | Quality evaluation | Evaluate all | Evaluate all |
-| `batch_detector` | Batch opportunities | Detect patterns | Ready to batch |
-| `streaming_detector` | Streaming candidates | Flag candidates | Ready to stream |
-
----
-
-## Minimum Viable Integration
-
-If you just want basic tracking:
-
-```python
-from observatory_config import track_llm_call
-import time
-
-start = time.time()
-response = your_llm_call(prompt)
-latency = (time.time() - start) * 1000
-
-track_llm_call(
-    operation="my_operation",
-    prompt_tokens=response.usage.prompt_tokens,
-    completion_tokens=response.usage.completion_tokens,
-    latency_ms=latency,
-)
 ```
-
-That's it. All other features are optional and can be added incrementally.
+┌─────────────────────────────────────────────────────────────┐
+│  1. ADD @observe TO YOUR LLM CALLS                          │
+│                                                             │
+│     @observe(operation="chat")                              │
+│     async def chat(prompt):                                 │
+│         return await client.chat.completions.create(...)    │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  2. RUN IN BASELINE MODE (default)                          │
+│                                                             │
+│     export OBSERVATORY_PHASE=baseline                       │
+│     python your_app.py                                      │
+│                                                             │
+│     → All metrics tracked                                   │
+│     → Opportunities detected                                │
+│     → No behavior changes                                   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  3. REVIEW OPPORTUNITIES IN DASHBOARD                       │
+│                                                             │
+│     Dashboard shows:                                        │
+│     - Cache opportunities: "47 duplicate calls detected"    │
+│     - Routing opportunities: "Use gpt-4o-mini for simple"   │
+│     - Code to copy/paste into your config                   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  4. ADD OPTIMIZATIONS TO CONFIG                             │
+│                                                             │
+│     # In observatory_config.py                              │
+│     OPTIMIZATIONS = {                                       │
+│         "chat": {"cache": {"enabled": True, "ttl": 1800}},  │
+│     }                                                       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  5. SWITCH TO OPTIMIZED MODE                                │
+│                                                             │
+│     export OBSERVATORY_PHASE=optimized                      │
+│     python your_app.py                                      │
+│                                                             │
+│     → Optimizations applied                                 │
+│     → Compare baseline vs optimized in dashboard            │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
