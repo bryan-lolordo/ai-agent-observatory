@@ -7,11 +7,13 @@ Tools:
 """
 
 from typing import Any
-from datetime import datetime, timedelta
 
 from observatory.mcp.types import ToolDefinition
+from observatory.mcp.config import get_config
+from observatory.mcp.utils import parse_time_range, tool_handler
 
 
+@tool_handler
 async def analyze_routing_savings(
     operation: str | None = None,
     time_range: str = "7d",
@@ -31,22 +33,9 @@ async def analyze_routing_savings(
     Returns:
         Routing analysis with savings breakdown and recommendations
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    # Parse time range
-    now = datetime.utcnow()
-    match time_range:
-        case "24h":
-            cutoff = now - timedelta(hours=24)
-        case "7d":
-            cutoff = now - timedelta(days=7)
-        case "30d":
-            cutoff = now - timedelta(days=30)
-        case _:
-            cutoff = None
-
-    calls = storage.get_calls(since=cutoff)
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.default_limit)
 
     if operation:
         calls = [c for c in calls if c.operation == operation]
@@ -134,7 +123,9 @@ async def analyze_routing_savings(
     }
 
 
+@tool_handler
 async def get_routing_decisions(
+    time_range: str = "7d",
     limit: int = 20,
     operation: str | None = None,
     storage=None,
@@ -143,6 +134,7 @@ async def get_routing_decisions(
     List recent routing decisions with details.
 
     Args:
+        time_range: Time period to search ("24h", "7d", "30d", "all")
         limit: Maximum number of decisions to return
         operation: Filter by specific operation
         storage: Storage instance (injected by server)
@@ -150,10 +142,9 @@ async def get_routing_decisions(
     Returns:
         List of routing decisions with full details
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    calls = storage.get_calls()
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.list_limit)
 
     if operation:
         calls = [c for c in calls if c.operation == operation]
@@ -185,20 +176,23 @@ async def get_routing_decisions(
     }
 
 
+@tool_handler
 async def get_routing_rules(
+    time_range: str = "30d",
     storage=None,
 ) -> dict[str, Any]:
     """
     Get configured routing rules and their effectiveness.
 
+    Args:
+        time_range: Time period to analyze ("7d", "30d", "all")
+
     Returns:
         List of routing rules with usage statistics
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    # Get calls with routing data
-    calls = storage.get_calls()
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.default_limit)
 
     # Aggregate by rule
     rule_stats: dict[str, dict] = {}
@@ -266,6 +260,12 @@ ROUTING_TOOLS = [
         parameters={
             "type": "object",
             "properties": {
+                "time_range": {
+                    "type": "string",
+                    "description": "Time period to search",
+                    "enum": ["24h", "7d", "30d", "all"],
+                    "default": "7d"
+                },
                 "limit": {
                     "type": "integer",
                     "description": "Maximum number of decisions to return",
@@ -285,7 +285,14 @@ ROUTING_TOOLS = [
         description="Get configured routing rules and their effectiveness statistics.",
         parameters={
             "type": "object",
-            "properties": {}
+            "properties": {
+                "time_range": {
+                    "type": "string",
+                    "description": "Time period to analyze",
+                    "enum": ["7d", "30d", "all"],
+                    "default": "30d"
+                }
+            }
         },
         handler=get_routing_rules,
         category="routing"

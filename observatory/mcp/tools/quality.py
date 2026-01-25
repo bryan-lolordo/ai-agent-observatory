@@ -8,11 +8,18 @@ Tools:
 """
 
 from typing import Any
-from datetime import datetime, timedelta
 
 from observatory.mcp.types import ToolDefinition
+from observatory.mcp.config import get_config
+from observatory.mcp.utils import (
+    parse_time_range,
+    tool_handler,
+    calculate_hit_rate,
+    bucket_values,
+)
 
 
+@tool_handler
 async def get_quality_scores(
     agent: str | None = None,
     operation: str | None = None,
@@ -35,22 +42,9 @@ async def get_quality_scores(
     Returns:
         Quality scores with evaluation details
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    # Parse time range
-    now = datetime.utcnow()
-    match time_range:
-        case "24h":
-            cutoff = now - timedelta(hours=24)
-        case "7d":
-            cutoff = now - timedelta(days=7)
-        case "30d":
-            cutoff = now - timedelta(days=30)
-        case _:
-            cutoff = None
-
-    calls = storage.get_calls(since=cutoff)
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.default_limit)
 
     # Filter calls with quality evaluations
     evaluated_calls = []
@@ -97,7 +91,7 @@ async def get_quality_scores(
         "total_returned": len(evaluated_calls),
         "summary": {
             "avg_quality_score": round(avg_score, 2),
-            "hallucination_rate": round(hallucination_count / len(evaluated_calls) * 100, 2) if evaluated_calls else 0,
+            "hallucination_rate": calculate_hit_rate(hallucination_count, len(evaluated_calls)) if evaluated_calls else 0,
             "evaluations_count": len(evaluated_calls),
         },
         "filters_applied": {
@@ -109,6 +103,7 @@ async def get_quality_scores(
     }
 
 
+@tool_handler
 async def get_quality_analysis(
     time_range: str = "7d",
     storage=None,
@@ -123,22 +118,9 @@ async def get_quality_analysis(
     Returns:
         Quality analysis with breakdowns and recommendations
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    # Parse time range
-    now = datetime.utcnow()
-    match time_range:
-        case "24h":
-            cutoff = now - timedelta(hours=24)
-        case "7d":
-            cutoff = now - timedelta(days=7)
-        case "30d":
-            cutoff = now - timedelta(days=30)
-        case _:
-            cutoff = None
-
-    calls = storage.get_calls(since=cutoff)
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.aggregation_limit)
 
     # Filter to evaluated calls
     evaluated = [c for c in calls if getattr(c, 'quality_score', None) is not None]
@@ -155,19 +137,17 @@ async def get_quality_analysis(
     avg_score = sum(scores) / len(scores)
     hallucinations = sum(1 for c in evaluated if getattr(c, 'hallucination_flag', False))
 
-    # Score distribution
-    score_buckets = {"excellent (4.5-5.0)": 0, "good (3.5-4.5)": 0, "fair (2.5-3.5)": 0, "poor (1.5-2.5)": 0, "bad (0-1.5)": 0}
-    for score in scores:
-        if score >= 4.5:
-            score_buckets["excellent (4.5-5.0)"] += 1
-        elif score >= 3.5:
-            score_buckets["good (3.5-4.5)"] += 1
-        elif score >= 2.5:
-            score_buckets["fair (2.5-3.5)"] += 1
-        elif score >= 1.5:
-            score_buckets["poor (1.5-2.5)"] += 1
-        else:
-            score_buckets["bad (0-1.5)"] += 1
+    # Score distribution using bucket_values utility
+    score_buckets = bucket_values(
+        scores,
+        [
+            ("bad (0-1.5)", 0, 1.5),
+            ("poor (1.5-2.5)", 1.5, 2.5),
+            ("fair (2.5-3.5)", 2.5, 3.5),
+            ("good (3.5-4.5)", 3.5, 4.5),
+            ("excellent (4.5-5.0)", 4.5, 5.1),  # 5.1 to include 5.0
+        ]
+    )
 
     # Quality by agent
     agent_scores: dict[str, list] = {}
@@ -208,11 +188,12 @@ async def get_quality_analysis(
         for c in evaluated if c.quality_score < 3.0
     ][:10]
 
-    # Generate recommendations
+    # Generate recommendations using config thresholds
     recommendations = []
+    hallucination_rate = hallucinations / len(evaluated)
 
-    if hallucinations / len(evaluated) > 0.1:
-        recommendations.append(f"High hallucination rate ({hallucinations / len(evaluated) * 100:.1f}%). Review prompts for clarity and add grounding context.")
+    if hallucination_rate > 0.1:
+        recommendations.append(f"High hallucination rate ({hallucination_rate * 100:.1f}%). Review prompts for clarity and add grounding context.")
 
     low_scoring_agents = [a for a, s in quality_by_agent.items() if s < 3.5]
     if low_scoring_agents:
@@ -229,7 +210,7 @@ async def get_quality_analysis(
     return {
         "avg_quality_score": round(avg_score, 2),
         "total_evaluations": len(evaluated),
-        "hallucination_rate": round(hallucinations / len(evaluated) * 100, 2),
+        "hallucination_rate": round(hallucination_rate * 100, 2),
         "score_distribution": score_buckets,
         "quality_by_agent": dict(sorted(quality_by_agent.items(), key=lambda x: x[1])),
         "quality_by_operation": dict(sorted(quality_by_operation.items(), key=lambda x: x[1])),
@@ -238,6 +219,7 @@ async def get_quality_analysis(
     }
 
 
+@tool_handler
 async def get_hallucinations(
     time_range: str = "7d",
     limit: int = 20,
@@ -254,22 +236,9 @@ async def get_hallucinations(
     Returns:
         List of calls with detected hallucinations
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    # Parse time range
-    now = datetime.utcnow()
-    match time_range:
-        case "24h":
-            cutoff = now - timedelta(hours=24)
-        case "7d":
-            cutoff = now - timedelta(days=7)
-        case "30d":
-            cutoff = now - timedelta(days=30)
-        case _:
-            cutoff = None
-
-    calls = storage.get_calls(since=cutoff)
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.default_limit)
 
     # Filter to hallucinations
     hallucinations = []

@@ -7,35 +7,19 @@ Tools:
 - get_expensive_calls: Find the most expensive LLM calls
 """
 
-import json
-from datetime import datetime, timedelta
 from typing import Any
 
-from observatory.mcp.types import (
-    ToolDefinition,
-    TimeRange,
-    GroupBy,
-    CostSummary,
-    CostBreakdown,
+from observatory.mcp.types import ToolDefinition
+from observatory.mcp.config import get_config
+from observatory.mcp.utils import (
+    parse_time_range,
+    tool_handler,
+    calculate_change_percent,
+    aggregate_by_key,
 )
 
 
-def _parse_time_range(time_range: str) -> datetime | None:
-    """Convert time range string to datetime cutoff."""
-    now = datetime.utcnow()
-    match time_range:
-        case "24h":
-            return now - timedelta(hours=24)
-        case "7d":
-            return now - timedelta(days=7)
-        case "30d":
-            return now - timedelta(days=30)
-        case "all":
-            return None
-        case _:
-            return now - timedelta(days=7)  # Default to 7 days
-
-
+@tool_handler
 async def get_cost_summary(
     time_range: str = "7d",
     group_by: str = "model",
@@ -52,13 +36,9 @@ async def get_cost_summary(
     Returns:
         Cost summary with breakdown and trends
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    cutoff = _parse_time_range(time_range)
-
-    # Query calls from storage
-    calls = storage.get_calls(since=cutoff)
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.default_limit)
 
     if not calls:
         return {
@@ -118,15 +98,17 @@ async def get_cost_summary(
         for op, cost in sorted(operation_costs.items(), key=lambda x: x[1], reverse=True)[:5]
     ]
 
-    # Simple trend detection (compare first half vs second half)
+    # Trend detection using config thresholds
     cost_trend = "stable"
     if len(calls) >= 10:
         mid = len(calls) // 2
         first_half_cost = sum(c.total_cost or 0 for c in calls[:mid])
         second_half_cost = sum(c.total_cost or 0 for c in calls[mid:])
-        if second_half_cost > first_half_cost * 1.2:
+        change_percent = calculate_change_percent(first_half_cost, second_half_cost)
+
+        if change_percent > cfg.thresholds.significant_cost_reduction:
             cost_trend = "increasing"
-        elif second_half_cost < first_half_cost * 0.8:
+        elif change_percent < -cfg.thresholds.significant_cost_reduction:
             cost_trend = "decreasing"
 
     return {
@@ -140,6 +122,7 @@ async def get_cost_summary(
     }
 
 
+@tool_handler
 async def get_cost_trend(
     time_range: str = "30d",
     granularity: str = "day",
@@ -156,11 +139,9 @@ async def get_cost_trend(
     Returns:
         Cost trend data with daily/weekly breakdowns
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    cutoff = _parse_time_range(time_range)
-    calls = storage.get_calls(since=cutoff)
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.default_limit)
 
     if not calls:
         return {
@@ -192,7 +173,9 @@ async def get_cost_trend(
     }
 
 
+@tool_handler
 async def get_expensive_calls(
+    time_range: str = "30d",
     limit: int = 10,
     min_cost: float = 0.0,
     storage=None,
@@ -201,6 +184,7 @@ async def get_expensive_calls(
     Find the most expensive LLM calls.
 
     Args:
+        time_range: Time period to search ("24h", "7d", "30d", "all")
         limit: Maximum number of calls to return
         min_cost: Minimum cost threshold
         storage: Storage instance (injected by server)
@@ -208,10 +192,9 @@ async def get_expensive_calls(
     Returns:
         List of expensive calls with details
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    calls = storage.get_calls()
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.list_limit)
 
     # Filter and sort by cost
     expensive = [c for c in calls if (c.total_cost or 0) >= min_cost]
@@ -219,6 +202,7 @@ async def get_expensive_calls(
     expensive = expensive[:limit]
 
     return {
+        "time_range": time_range,
         "calls": [
             {
                 "call_id": str(c.id) if hasattr(c, 'id') else None,
@@ -294,6 +278,12 @@ COST_TOOLS = [
         parameters={
             "type": "object",
             "properties": {
+                "time_range": {
+                    "type": "string",
+                    "description": "Time period to search",
+                    "enum": ["24h", "7d", "30d", "all"],
+                    "default": "30d"
+                },
                 "limit": {
                     "type": "integer",
                     "description": "Maximum number of calls to return",

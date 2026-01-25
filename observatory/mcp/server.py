@@ -31,6 +31,9 @@ try:
         TextContent,
         Resource,
         ResourceContents,
+        Prompt,
+        PromptMessage,
+        PromptArgument,
     )
     MCP_AVAILABLE = True
 except ImportError:
@@ -40,6 +43,7 @@ except ImportError:
 # Observatory imports
 from observatory.mcp.tools import ALL_TOOLS, TOOL_CATEGORIES
 from observatory.mcp.resources import ALL_RESOURCES, RESOURCE_CATEGORIES
+from observatory.mcp.prompts import ALL_PROMPTS, PROMPT_CATEGORIES
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -76,30 +80,25 @@ class StorageAdapter:
             limit=limit,
         )
 
-    def get_sessions(self, since: datetime | None = None):
+    def get_sessions(
+        self,
+        since: datetime | None = None,
+        active_only: bool = False,
+        limit: int = 100,
+    ):
         """
-        Get all sessions, optionally filtered by time.
+        Get sessions with optional filters.
 
-        Note: The underlying Storage doesn't have this method,
-        so we query unique session IDs from calls and fetch each.
+        Args:
+            since: Only sessions started after this time
+            active_only: Only return active (not ended) sessions
+            limit: Maximum sessions to return
         """
-        # Get calls to find unique session IDs
-        calls = self._storage.get_llm_calls(start_time=since, limit=10000)
-
-        # Extract unique session IDs
-        session_ids = set()
-        for call in calls:
-            if call.session_id:
-                session_ids.add(call.session_id)
-
-        # Fetch each session
-        sessions = []
-        for sid in session_ids:
-            session = self._storage.get_session(sid)
-            if session:
-                sessions.append(session)
-
-        return sessions
+        return self._storage.get_sessions(
+            start_time=since,
+            active_only=active_only,
+            limit=limit,
+        )
 
     def get_session(self, session_id: str):
         """Get a single session by ID."""
@@ -253,6 +252,57 @@ class ObservatoryMCPServer:
                     text=json.dumps({"error": str(e)})
                 )
 
+        # Register prompt list handler
+        @server.list_prompts()
+        async def list_prompts():
+            """Return list of available prompts."""
+            prompts = []
+            for prompt_def in ALL_PROMPTS:
+                arguments = []
+                if prompt_def.arguments:
+                    for arg in prompt_def.arguments:
+                        arguments.append(PromptArgument(
+                            name=arg["name"],
+                            description=arg.get("description", ""),
+                            required=arg.get("required", False),
+                        ))
+
+                prompts.append(Prompt(
+                    name=prompt_def.name,
+                    description=prompt_def.description,
+                    arguments=arguments if arguments else None,
+                ))
+            return prompts
+
+        # Register prompt get handler
+        @server.get_prompt()
+        async def get_prompt(name: str, arguments: dict[str, str] | None = None):
+            """Get a prompt template with arguments filled in."""
+            # Find the prompt
+            prompt_def = None
+            for p in ALL_PROMPTS:
+                if p.name == name:
+                    prompt_def = p
+                    break
+
+            if prompt_def is None:
+                return {"error": f"Unknown prompt: {name}"}
+
+            # Fill in template with arguments
+            template = prompt_def.template
+            if arguments:
+                for key, value in arguments.items():
+                    template = template.replace(f"{{{key}}}", value)
+
+            return {
+                "messages": [
+                    PromptMessage(
+                        role="user",
+                        content=TextContent(type="text", text=template),
+                    )
+                ]
+            }
+
         self._server = server
         return server
 
@@ -264,6 +314,7 @@ class ObservatoryMCPServer:
         logger.info(f"Database: {self.db_url}")
         logger.info(f"Tools registered: {len(ALL_TOOLS)}")
         logger.info(f"Resources registered: {len(ALL_RESOURCES)}")
+        logger.info(f"Prompts registered: {len(ALL_PROMPTS)}")
 
         # Run with stdio transport
         async with stdio_server() as (read_stream, write_stream):

@@ -7,15 +7,21 @@ Tools:
 """
 
 from typing import Any
-from datetime import datetime, timedelta
 
-from observatory.mcp.types import (
-    ToolDefinition,
-    OptimizationCategory,
+from observatory.mcp.types import ToolDefinition
+from observatory.mcp.config import get_config
+from observatory.mcp.utils import (
+    parse_time_range,
+    estimate_routing_savings,
+    estimate_cache_savings,
+    estimate_token_savings,
+    tool_handler,
 )
 
 
+@tool_handler
 async def get_optimization_opportunities(
+    time_range: str = "30d",
     min_savings: float = 0.0,
     category: str = "all",
     limit: int = 20,
@@ -31,6 +37,7 @@ async def get_optimization_opportunities(
     - Batching opportunities (parallelizable calls)
 
     Args:
+        time_range: Time period to analyze ("7d", "30d", "all")
         min_savings: Minimum monthly savings to include (dollars)
         category: Filter by category ("routing", "caching", "tokens", "batching", "all")
         limit: Maximum opportunities per category
@@ -39,12 +46,9 @@ async def get_optimization_opportunities(
     Returns:
         Categorized optimization opportunities with savings estimates
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    # Get recent calls for analysis
-    cutoff = datetime.utcnow() - timedelta(days=30)
-    calls = storage.get_calls(since=cutoff)
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.aggregation_limit)
 
     if not calls:
         return {
@@ -80,20 +84,14 @@ async def get_optimization_opportunities(
             operation_models[op][model]["avg_tokens"] += (call.prompt_tokens or 0) + (call.completion_tokens or 0)
 
         # Find operations using expensive models that could use cheaper ones
-        expensive_models = {"gpt-4o", "gpt-4", "claude-opus-4", "claude-sonnet-4"}
-        cheaper_alternatives = {
-            "gpt-4o": "gpt-4o-mini",
-            "gpt-4": "gpt-4o-mini",
-            "claude-opus-4": "claude-haiku",
-            "claude-sonnet-4": "claude-haiku",
-        }
-
         for op, models in operation_models.items():
             for model, stats in models.items():
-                if model in expensive_models and stats["count"] >= 5:
-                    cheaper = cheaper_alternatives.get(model, "gpt-4o-mini")
-                    # Estimate 60-80% cost reduction with cheaper model
-                    estimated_savings = stats["total_cost"] * 0.7
+                if cfg.models.is_expensive(model) and stats["count"] >= cfg.thresholds.min_calls_for_routing:
+                    cheaper = cfg.models.get_cheaper_alternative(model) or "gpt-4o-mini"
+                    estimated_savings = estimate_routing_savings(
+                        stats["total_cost"],
+                        cfg.savings.routing_savings_factor
+                    )
 
                     if estimated_savings >= min_savings:
                         routing_opts.append({
@@ -104,7 +102,7 @@ async def get_optimization_opportunities(
                             "current_monthly_cost": round(stats["total_cost"], 4),
                             "estimated_monthly_savings": round(estimated_savings, 4),
                             "reasoning": f"Operation '{op}' uses {model} for {stats['count']} calls. Consider {cheaper} for simpler tasks.",
-                            "confidence": 0.7,
+                            "confidence": cfg.savings.routing_savings_factor,
                         })
 
         routing_opts.sort(key=lambda x: x["estimated_monthly_savings"], reverse=True)
@@ -125,10 +123,9 @@ async def get_optimization_opportunities(
 
         # Find groups with duplicates
         for key, group in prompt_groups.items():
-            if len(group) >= 3:  # At least 3 similar calls
+            if len(group) >= cfg.thresholds.min_duplicates_for_cache:
                 total_cost = sum(c.total_cost or 0 for c in group)
-                # First call would be cached, rest would be free
-                potential_savings = total_cost * ((len(group) - 1) / len(group))
+                potential_savings = estimate_cache_savings(total_cost, len(group))
 
                 if potential_savings >= min_savings:
                     caching_opts.append({
@@ -162,14 +159,17 @@ async def get_optimization_opportunities(
             })
 
         for op, tokens in operation_tokens.items():
-            if len(tokens) >= 5:
+            if len(tokens) >= cfg.thresholds.min_calls_for_token_analysis:
                 avg_prompt = sum(t["prompt_tokens"] for t in tokens) / len(tokens)
                 avg_system = sum(t["system_tokens"] for t in tokens) / len(tokens)
                 total_cost = sum(t["cost"] for t in tokens)
 
-                # Detect system prompt bloat (>500 tokens average)
-                if avg_system > 500:
-                    potential_savings = total_cost * 0.2  # Estimate 20% savings
+                # Detect system prompt bloat
+                if avg_system > cfg.thresholds.system_prompt_bloat_tokens:
+                    potential_savings = estimate_token_savings(
+                        total_cost,
+                        cfg.savings.token_reduction_factor
+                    )
                     if potential_savings >= min_savings:
                         token_opts.append({
                             "operation": op,
@@ -182,8 +182,11 @@ async def get_optimization_opportunities(
                         })
 
                 # Detect large prompts that could be summarized
-                if avg_prompt > 2000:
-                    potential_savings = total_cost * 0.3
+                if avg_prompt > cfg.thresholds.context_growth_tokens:
+                    potential_savings = estimate_token_savings(
+                        total_cost,
+                        cfg.savings.context_compression_factor
+                    )
                     if potential_savings >= min_savings:
                         token_opts.append({
                             "operation": op,
@@ -232,14 +235,18 @@ async def get_optimization_opportunities(
 
 
 async def get_optimization_summary(
+    time_range: str = "30d",
     storage=None,
 ) -> dict[str, Any]:
     """
     Get a quick summary of optimization status.
 
+    Args:
+        time_range: Time period to analyze ("7d", "30d", "all")
+
     Returns high-level metrics without detailed breakdowns.
     """
-    result = await get_optimization_opportunities(storage=storage)
+    result = await get_optimization_opportunities(time_range=time_range, storage=storage)
 
     return {
         "total_opportunities": result["total_opportunities"],
@@ -264,6 +271,12 @@ OPTIMIZATION_TOOLS = [
         parameters={
             "type": "object",
             "properties": {
+                "time_range": {
+                    "type": "string",
+                    "description": "Time period to analyze",
+                    "enum": ["7d", "30d", "all"],
+                    "default": "30d"
+                },
                 "min_savings": {
                     "type": "number",
                     "description": "Minimum monthly savings threshold in dollars",
@@ -290,7 +303,14 @@ OPTIMIZATION_TOOLS = [
         description="Get a quick summary of optimization opportunities without detailed breakdowns. Good for a high-level overview.",
         parameters={
             "type": "object",
-            "properties": {}
+            "properties": {
+                "time_range": {
+                    "type": "string",
+                    "description": "Time period to analyze",
+                    "enum": ["7d", "30d", "all"],
+                    "default": "30d"
+                }
+            }
         },
         handler=get_optimization_summary,
         category="optimization"

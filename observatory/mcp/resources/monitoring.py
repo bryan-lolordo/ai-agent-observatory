@@ -8,10 +8,11 @@ Resources:
 """
 
 import json
-from typing import Any
 from datetime import datetime, timedelta
 
 from observatory.mcp.types import ResourceDefinition
+from observatory.mcp.config import get_config
+from observatory.mcp.utils import format_duration, get_today_start
 
 
 async def get_active_sessions(storage=None) -> str:
@@ -23,8 +24,10 @@ async def get_active_sessions(storage=None) -> str:
     if storage is None:
         return json.dumps({"error": "Storage not configured"})
 
+    cfg = get_config()
+
     # Get all sessions and filter to active
-    all_sessions = storage.get_sessions() if hasattr(storage, 'get_sessions') else []
+    all_sessions = storage.get_sessions(limit=cfg.query.list_limit) if hasattr(storage, 'get_sessions') else []
     active = [s for s in all_sessions if not getattr(s, 'ended_at', None)]
 
     sessions_data = []
@@ -41,7 +44,7 @@ async def get_active_sessions(storage=None) -> str:
             "session_id": session_id,
             "started_at": started_at.isoformat() if started_at else None,
             "running_for_seconds": round(running_seconds, 0) if running_seconds else None,
-            "running_for_human": _format_duration(running_seconds) if running_seconds else None,
+            "running_for_human": format_duration(running_seconds) if running_seconds else None,
             "operation_type": getattr(session, 'operation_type', None),
             "calls_count": len(calls),
             "cost_so_far": round(sum(c.total_cost or 0 for c in calls), 4),
@@ -125,9 +128,11 @@ async def get_daily_summary(storage=None) -> str:
     if storage is None:
         return json.dumps({"error": "Storage not configured"})
 
+    cfg = get_config()
+
     # Get today's calls
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    calls = storage.get_calls(since=today_start)
+    today_start = get_today_start()
+    calls = storage.get_calls(since=today_start, limit=cfg.query.default_limit)
 
     if not calls:
         return json.dumps({
@@ -171,18 +176,6 @@ async def get_daily_summary(storage=None) -> str:
         "by_operation": dict(sorted(by_operation.items(), key=lambda x: x[1], reverse=True)[:5]),
         "last_updated": datetime.utcnow().isoformat(),
     }, indent=2)
-
-
-def _format_duration(seconds: float) -> str:
-    """Format seconds as human-readable duration."""
-    if seconds < 60:
-        return f"{int(seconds)}s"
-    elif seconds < 3600:
-        return f"{int(seconds // 60)}m {int(seconds % 60)}s"
-    else:
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        return f"{hours}h {minutes}m"
 
 
 # ============================================================================

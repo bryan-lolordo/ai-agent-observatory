@@ -7,12 +7,19 @@ Tools:
 """
 
 from typing import Any
-from datetime import datetime, timedelta
 from collections import defaultdict
 
-from observatory.mcp.types import ToolDefinition, CacheType
+from observatory.mcp.types import ToolDefinition
+from observatory.mcp.config import get_config
+from observatory.mcp.utils import (
+    parse_time_range,
+    tool_handler,
+    calculate_hit_rate,
+    estimate_cache_savings,
+)
 
 
+@tool_handler
 async def get_cache_effectiveness(
     cache_type: str = "all",
     time_range: str = "7d",
@@ -34,22 +41,9 @@ async def get_cache_effectiveness(
     Returns:
         Cache analysis with hit rates, savings, and recommendations
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    # Parse time range
-    now = datetime.utcnow()
-    match time_range:
-        case "24h":
-            cutoff = now - timedelta(hours=24)
-        case "7d":
-            cutoff = now - timedelta(days=7)
-        case "30d":
-            cutoff = now - timedelta(days=30)
-        case _:
-            cutoff = None
-
-    calls = storage.get_calls(since=cutoff)
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.default_limit)
 
     if not calls:
         return {
@@ -95,12 +89,12 @@ async def get_cache_effectiveness(
             semantic_stats["misses"] += 1
             prefix_stats["misses"] += 1
 
-    # Calculate hit rates
-    overall_hit_rate = (cache_hits / total_calls * 100) if total_calls > 0 else 0
+    # Calculate hit rates using utility
+    overall_hit_rate = calculate_hit_rate(cache_hits, total_calls)
 
     def calc_hit_rate(stats):
         total = stats["hits"] + stats["misses"]
-        return (stats["hits"] / total * 100) if total > 0 else 0
+        return calculate_hit_rate(stats["hits"], total)
 
     stats_by_type = []
 
@@ -110,7 +104,7 @@ async def get_cache_effectiveness(
             "total_lookups": exact_stats["hits"] + exact_stats["misses"],
             "hits": exact_stats["hits"],
             "misses": exact_stats["misses"],
-            "hit_rate": round(calc_hit_rate(exact_stats), 2),
+            "hit_rate": calc_hit_rate(exact_stats),
             "savings": round(exact_stats["savings"], 4),
         })
 
@@ -120,7 +114,7 @@ async def get_cache_effectiveness(
             "total_lookups": semantic_stats["hits"] + semantic_stats["misses"],
             "hits": semantic_stats["hits"],
             "misses": semantic_stats["misses"],
-            "hit_rate": round(calc_hit_rate(semantic_stats), 2),
+            "hit_rate": calc_hit_rate(semantic_stats),
             "savings": round(semantic_stats["savings"], 4),
         })
 
@@ -130,14 +124,14 @@ async def get_cache_effectiveness(
             "total_lookups": prefix_stats["hits"] + prefix_stats["misses"],
             "hits": prefix_stats["hits"],
             "misses": prefix_stats["misses"],
-            "hit_rate": round(calc_hit_rate(prefix_stats), 2),
+            "hit_rate": calc_hit_rate(prefix_stats),
             "savings": round(prefix_stats["savings"], 4),
         })
 
-    # Generate recommendations
+    # Generate recommendations using config thresholds
     recommendations = []
 
-    if overall_hit_rate < 10:
+    if overall_hit_rate < cfg.thresholds.low_cache_hit_rate:
         recommendations.append("Cache hit rate is low. Consider enabling semantic caching for similar prompts.")
 
     if exact_stats["hits"] == 0 and exact_stats["misses"] > 10:
@@ -150,7 +144,7 @@ async def get_cache_effectiveness(
         recommendations.append(f"Caching is working well with {overall_hit_rate:.1f}% hit rate.")
 
     return {
-        "overall_hit_rate": round(overall_hit_rate, 2),
+        "overall_hit_rate": overall_hit_rate,
         "total_cache_savings": round(total_savings, 4),
         "total_calls": total_calls,
         "cache_hits": cache_hits,
@@ -161,7 +155,9 @@ async def get_cache_effectiveness(
     }
 
 
+@tool_handler
 async def get_cacheable_patterns(
+    time_range: str = "30d",
     min_occurrences: int = 3,
     limit: int = 20,
     storage=None,
@@ -175,6 +171,7 @@ async def get_cacheable_patterns(
     - Common prefixes
 
     Args:
+        time_range: Time period to analyze ("7d", "30d", "all")
         min_occurrences: Minimum times a pattern must occur
         limit: Maximum patterns to return
         storage: Storage instance (injected by server)
@@ -182,10 +179,9 @@ async def get_cacheable_patterns(
     Returns:
         Cacheable patterns with potential savings
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    calls = storage.get_calls()
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.default_limit)
 
     if not calls:
         return {
@@ -208,15 +204,15 @@ async def get_cacheable_patterns(
 
         prompt_groups[key].append(call)
 
-    # Find patterns with enough occurrences
+    # Find patterns with enough occurrences (use config or param)
+    min_occ = min_occurrences or cfg.thresholds.min_duplicates_for_cache
     patterns = []
     total_potential_savings = 0.0
 
     for key, group in prompt_groups.items():
-        if len(group) >= min_occurrences:
+        if len(group) >= min_occ:
             total_cost = sum(c.total_cost or 0 for c in group)
-            # Savings = cost of all but first call (which would populate cache)
-            potential_savings = total_cost * ((len(group) - 1) / len(group))
+            potential_savings = estimate_cache_savings(total_cost, len(group))
             total_potential_savings += potential_savings
 
             # Get sample operations
@@ -244,19 +240,23 @@ async def get_cacheable_patterns(
     }
 
 
+@tool_handler
 async def get_cache_clusters(
+    time_range: str = "30d",
     storage=None,
 ) -> dict[str, Any]:
     """
     Get semantic cache clusters (groups of similar prompts).
 
+    Args:
+        time_range: Time period to analyze ("7d", "30d", "all")
+
     Returns:
         Cache clusters with similarity metrics
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    calls = storage.get_calls()
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.default_limit)
 
     # Group by cache_cluster_id if available
     clusters: dict[str, list] = defaultdict(list)
@@ -320,6 +320,12 @@ CACHE_TOOLS = [
         parameters={
             "type": "object",
             "properties": {
+                "time_range": {
+                    "type": "string",
+                    "description": "Time period to analyze",
+                    "enum": ["7d", "30d", "all"],
+                    "default": "30d"
+                },
                 "min_occurrences": {
                     "type": "integer",
                     "description": "Minimum times a pattern must occur",
@@ -340,7 +346,14 @@ CACHE_TOOLS = [
         description="Get semantic cache clusters - groups of similar prompts that share cache behavior.",
         parameters={
             "type": "object",
-            "properties": {}
+            "properties": {
+                "time_range": {
+                    "type": "string",
+                    "description": "Time period to analyze",
+                    "enum": ["7d", "30d", "all"],
+                    "default": "30d"
+                }
+            }
         },
         handler=get_cache_clusters,
         category="cache"

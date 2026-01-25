@@ -744,6 +744,55 @@ class Storage:
         finally:
             db.close()
 
+    def get_sessions(
+        self,
+        project_name: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        operation_type: Optional[str] = None,
+        active_only: bool = False,
+        limit: int = 100,
+    ) -> List[Session]:
+        """
+        Get sessions with optional filters.
+
+        Args:
+            project_name: Filter by project
+            start_time: Sessions started after this time
+            end_time: Sessions started before this time
+            operation_type: Filter by operation type
+            active_only: Only return sessions without end_time (still running)
+            limit: Maximum sessions to return
+
+        Returns:
+            List of Session objects, ordered by start_time descending
+        """
+        db: DBSession = self.SessionLocal()
+        try:
+            query = db.query(SessionDB)
+
+            if project_name:
+                query = query.filter(SessionDB.project_name == project_name)
+
+            if start_time:
+                query = query.filter(SessionDB.start_time >= start_time)
+
+            if end_time:
+                query = query.filter(SessionDB.start_time <= end_time)
+
+            if operation_type:
+                query = query.filter(SessionDB.operation_type == operation_type)
+
+            if active_only:
+                query = query.filter(SessionDB.end_time.is_(None))
+
+            query = query.order_by(SessionDB.start_time.desc())
+            query = query.limit(limit)
+
+            return [self._from_session_db(s) for s in query.all()]
+        finally:
+            db.close()
+
     # =========================================================================
     # LLM CALL METHODS (UNCHANGED)
     # =========================================================================

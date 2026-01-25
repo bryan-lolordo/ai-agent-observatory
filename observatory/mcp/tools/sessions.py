@@ -7,12 +7,20 @@ Tools:
 - get_active_sessions: List currently active (ongoing) sessions
 """
 
+from datetime import datetime
 from typing import Any
-from datetime import datetime, timedelta
 
 from observatory.mcp.types import ToolDefinition
+from observatory.mcp.config import get_config
+from observatory.mcp.utils import (
+    parse_time_range,
+    tool_handler,
+    error_response,
+    DataNotFoundError,
+)
 
 
+@tool_handler
 async def query_sessions(
     time_range: str = "7d",
     status: str = "all",
@@ -31,20 +39,8 @@ async def query_sessions(
     Returns:
         List of sessions with summary metrics
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    # Parse time range
-    now = datetime.utcnow()
-    match time_range:
-        case "24h":
-            cutoff = now - timedelta(hours=24)
-        case "7d":
-            cutoff = now - timedelta(days=7)
-        case "30d":
-            cutoff = now - timedelta(days=30)
-        case _:
-            cutoff = None
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
 
     # Get sessions from storage
     sessions = storage.get_sessions(since=cutoff) if hasattr(storage, 'get_sessions') else []
@@ -52,6 +48,9 @@ async def query_sessions(
     # Filter by status if specified
     if status != "all":
         sessions = [s for s in sessions if getattr(s, 'status', 'unknown') == status]
+
+    # Clamp limit
+    limit = min(limit, cfg.query.max_limit)
 
     # Build response
     session_list = []
@@ -89,6 +88,7 @@ async def query_sessions(
     }
 
 
+@tool_handler
 async def get_session_details(
     session_id: str,
     storage=None,
@@ -103,14 +103,11 @@ async def get_session_details(
     Returns:
         Comprehensive session details including all calls
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
     # Get session
     session = storage.get_session(session_id) if hasattr(storage, 'get_session') else None
 
     if not session:
-        return {"error": f"Session '{session_id}' not found"}
+        raise DataNotFoundError("Session", session_id)
 
     # Get calls for this session
     calls = storage.get_calls(session_id=session_id) if hasattr(storage, 'get_calls') else []
@@ -167,6 +164,7 @@ async def get_session_details(
     }
 
 
+@tool_handler
 async def get_active_sessions(
     storage=None,
 ) -> dict[str, Any]:
@@ -176,9 +174,6 @@ async def get_active_sessions(
     Returns:
         List of active sessions with live metrics
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
     # Get sessions that haven't ended
     all_sessions = storage.get_sessions() if hasattr(storage, 'get_sessions') else []
     active = [s for s in all_sessions if not getattr(s, 'ended_at', None)]
@@ -205,6 +200,7 @@ async def get_active_sessions(
     }
 
 
+@tool_handler
 async def get_session_comparison(
     session_ids: list[str],
     storage=None,
@@ -219,14 +215,14 @@ async def get_session_comparison(
     Returns:
         Side-by-side comparison of session metrics
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
+    cfg = get_config()
 
     if not session_ids or len(session_ids) < 2:
-        return {"error": "At least 2 session IDs required for comparison"}
+        return error_response("At least 2 session IDs required for comparison", "VALIDATION_ERROR")
 
     comparisons = []
-    for session_id in session_ids[:5]:  # Limit to 5 sessions
+    # Limit to configured max
+    for session_id in session_ids[:5]:
         details = await get_session_details(session_id, storage=storage)
         if "error" not in details:
             comparisons.append({
@@ -240,7 +236,7 @@ async def get_session_comparison(
             })
 
     if len(comparisons) < 2:
-        return {"error": "Could not find enough valid sessions for comparison"}
+        return error_response("Could not find enough valid sessions for comparison", "NOT_FOUND")
 
     # Calculate averages for reference
     avg_cost = sum(c["total_cost"] for c in comparisons) / len(comparisons)

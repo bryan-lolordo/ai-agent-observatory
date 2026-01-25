@@ -248,3 +248,13 @@ class ResourceDefinition:
     description: str
     mime_type: str = "application/json"
     handler: callable = None
+
+
+@dataclass
+class PromptDefinition:
+    """Definition of an MCP prompt template for registration."""
+    name: str
+    description: str
+    template: str
+    arguments: list[dict[str, Any]] | None = None  # Optional arguments the prompt accepts
+    category: str = "general"

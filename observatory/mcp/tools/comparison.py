@@ -8,11 +8,18 @@ Tools:
 """
 
 from typing import Any
-from datetime import datetime, timedelta
 
 from observatory.mcp.types import ToolDefinition
+from observatory.mcp.config import get_config
+from observatory.mcp.utils import (
+    parse_time_range,
+    tool_handler,
+    calculate_change_percent,
+    calculate_percentile,
+)
 
 
+@tool_handler
 async def compare_phases(
     baseline_session: str | None = None,
     optimized_session: str | None = None,
@@ -34,23 +41,9 @@ async def compare_phases(
     Returns:
         Comparison metrics showing optimization impact
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    # Parse time range
-    now = datetime.utcnow()
-    match time_range:
-        case "24h":
-            cutoff = now - timedelta(hours=24)
-        case "7d":
-            cutoff = now - timedelta(days=7)
-        case "30d":
-            cutoff = now - timedelta(days=30)
-        case _:
-            cutoff = None
-
-    # Get calls
-    all_calls = storage.get_calls(since=cutoff)
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    all_calls = storage.get_calls(since=cutoff, limit=cfg.query.aggregation_limit)
 
     if not all_calls:
         return {
@@ -100,7 +93,7 @@ async def compare_phases(
             "avg_cost_per_call": round(total_cost / len(calls), 6) if calls else 0,
             "total_tokens": total_tokens,
             "avg_latency_ms": round(sum(latencies) / len(latencies), 2) if latencies else 0,
-            "p95_latency_ms": round(sorted(latencies)[int(len(latencies) * 0.95)] if latencies else 0, 2),
+            "p95_latency_ms": round(calculate_percentile(latencies, 95), 2) if latencies else 0,
             "avg_quality_score": round(sum(quality_scores) / len(quality_scores), 2) if quality_scores else None,
             "cache_hit_rate": round(cache_hits / len(calls) * 100, 2) if calls else 0,
             "routing_savings": round(routing_savings, 4),
@@ -110,9 +103,9 @@ async def compare_phases(
     baseline = calc_phase_metrics(baseline_calls, "baseline")
     optimized = calc_phase_metrics(optimized_calls, "optimized")
 
-    # Calculate improvements
-    cost_reduction = ((baseline["total_cost"] - optimized["total_cost"]) / baseline["total_cost"] * 100) if baseline["total_cost"] > 0 else 0
-    latency_change = ((optimized["avg_latency_ms"] - baseline["avg_latency_ms"]) / baseline["avg_latency_ms"] * 100) if baseline["avg_latency_ms"] > 0 else 0
+    # Calculate improvements using utility
+    cost_reduction = calculate_change_percent(baseline["total_cost"], optimized["total_cost"]) * -1  # Invert for "reduction"
+    latency_change = calculate_change_percent(baseline["avg_latency_ms"], optimized["avg_latency_ms"])
 
     quality_change = None
     if baseline["avg_quality_score"] and optimized["avg_quality_score"]:
@@ -120,27 +113,27 @@ async def compare_phases(
 
     cache_improvement = optimized["cache_hit_rate"] - baseline["cache_hit_rate"]
 
-    # Generate summary
+    # Generate summary using config thresholds
     improvements = []
     concerns = []
 
-    if cost_reduction > 5:
+    if cost_reduction > cfg.thresholds.significant_cost_reduction:
         improvements.append(f"Cost reduced by {cost_reduction:.1f}%")
-    elif cost_reduction < -5:
+    elif cost_reduction < -cfg.thresholds.significant_cost_reduction:
         concerns.append(f"Cost increased by {abs(cost_reduction):.1f}%")
 
-    if latency_change < -10:
+    if latency_change < -cfg.thresholds.concerning_latency_increase:
         improvements.append(f"Latency improved by {abs(latency_change):.1f}%")
-    elif latency_change > 10:
+    elif latency_change > cfg.thresholds.concerning_latency_increase:
         concerns.append(f"Latency degraded by {latency_change:.1f}%")
 
     if cache_improvement > 5:
         improvements.append(f"Cache hit rate improved by {cache_improvement:.1f}%")
 
     if quality_change is not None:
-        if quality_change > 0.2:
+        if quality_change > cfg.thresholds.significant_quality_change:
             improvements.append(f"Quality improved by {quality_change:.2f} points")
-        elif quality_change < -0.2:
+        elif quality_change < -cfg.thresholds.significant_quality_change:
             concerns.append(f"Quality decreased by {abs(quality_change):.2f} points")
 
     if improvements and not concerns:
@@ -171,6 +164,7 @@ async def compare_phases(
     }
 
 
+@tool_handler
 async def compare_models(
     models: list[str] | None = None,
     operation: str | None = None,
@@ -189,22 +183,9 @@ async def compare_models(
     Returns:
         Model comparison with cost, latency, and quality metrics
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    # Parse time range
-    now = datetime.utcnow()
-    match time_range:
-        case "24h":
-            cutoff = now - timedelta(hours=24)
-        case "7d":
-            cutoff = now - timedelta(days=7)
-        case "30d":
-            cutoff = now - timedelta(days=30)
-        case _:
-            cutoff = None
-
-    calls = storage.get_calls(since=cutoff)
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.default_limit)
 
     if operation:
         calls = [c for c in calls if c.operation == operation]
@@ -259,6 +240,7 @@ async def compare_models(
     }
 
 
+@tool_handler
 async def compare_agents(
     agents: list[str] | None = None,
     time_range: str = "7d",
@@ -275,22 +257,9 @@ async def compare_agents(
     Returns:
         Agent comparison with efficiency metrics
     """
-    if storage is None:
-        return {"error": "Storage not configured"}
-
-    # Parse time range
-    now = datetime.utcnow()
-    match time_range:
-        case "24h":
-            cutoff = now - timedelta(hours=24)
-        case "7d":
-            cutoff = now - timedelta(days=7)
-        case "30d":
-            cutoff = now - timedelta(days=30)
-        case _:
-            cutoff = None
-
-    calls = storage.get_calls(since=cutoff)
+    cfg = get_config()
+    cutoff = parse_time_range(time_range)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.default_limit)
 
     if not calls:
         return {"error": "No calls found for comparison"}
@@ -333,7 +302,8 @@ async def compare_agents(
     agent_metrics.sort(key=lambda x: x["total_cost"], reverse=True)
 
     # Identify optimization targets
-    high_cost_agents = [a for a in agent_metrics if a["total_cost"] > sum(m["total_cost"] for m in agent_metrics) / len(agent_metrics)]
+    avg_cost = sum(m["total_cost"] for m in agent_metrics) / len(agent_metrics) if agent_metrics else 0
+    high_cost_agents = [a for a in agent_metrics if a["total_cost"] > avg_cost]
 
     return {
         "agents": agent_metrics,

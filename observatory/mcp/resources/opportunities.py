@@ -7,10 +7,15 @@ Resources:
 """
 
 import json
-from typing import Any
 from datetime import datetime, timedelta
 
 from observatory.mcp.types import ResourceDefinition
+from observatory.mcp.config import get_config
+from observatory.mcp.utils import (
+    estimate_routing_savings,
+    estimate_cache_savings,
+    estimate_token_savings,
+)
 
 
 async def get_optimization_stories(storage=None) -> str:
@@ -23,9 +28,11 @@ async def get_optimization_stories(storage=None) -> str:
     if storage is None:
         return json.dumps({"error": "Storage not configured"})
 
+    cfg = get_config()
+
     # Get recent calls for analysis
     cutoff = datetime.utcnow() - timedelta(days=30)
-    calls = storage.get_calls(since=cutoff)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.aggregation_limit)
 
     if not calls:
         return json.dumps({
@@ -40,12 +47,11 @@ async def get_optimization_stories(storage=None) -> str:
     # ========================================================================
     # Story 1: Model Routing Opportunities
     # ========================================================================
-    expensive_models = {"gpt-4o", "gpt-4", "claude-opus-4", "claude-sonnet-4"}
     routing_candidates = {}
 
     for call in calls:
         model = call.model_name or "unknown"
-        if model in expensive_models:
+        if cfg.models.is_expensive(model):
             op = call.operation or "unknown"
             if op not in routing_candidates:
                 routing_candidates[op] = {"count": 0, "cost": 0.0}
@@ -53,13 +59,13 @@ async def get_optimization_stories(storage=None) -> str:
             routing_candidates[op]["cost"] += call.total_cost or 0
 
     for op, data in routing_candidates.items():
-        if data["count"] >= 5:
-            savings = data["cost"] * 0.7  # Estimate 70% savings with routing
+        if data["count"] >= cfg.thresholds.min_calls_for_routing:
+            savings = estimate_routing_savings(data["cost"], cfg.savings.routing_savings_factor)
             stories.append({
                 "id": f"routing-{op}",
                 "type": "routing",
                 "title": f"Route '{op}' to cheaper model",
-                "description": f"{data['count']} calls using expensive models. Consider routing to gpt-4o-mini or claude-haiku.",
+                "description": f"{data['count']} calls using expensive models. Consider routing to a cheaper alternative.",
                 "potential_monthly_savings": round(savings, 2),
                 "call_count": data["count"],
                 "status": "pending",
@@ -78,10 +84,10 @@ async def get_optimization_stories(storage=None) -> str:
             prompt_hashes[key].append(call)
 
     for key, group in prompt_hashes.items():
-        if len(group) >= 3:
+        if len(group) >= cfg.thresholds.min_duplicates_for_cache:
             total_cost = sum(c.total_cost or 0 for c in group)
-            savings = total_cost * ((len(group) - 1) / len(group))
-            if savings > 0.01:  # At least 1 cent savings
+            savings = estimate_cache_savings(total_cost, len(group))
+            if savings >= cfg.thresholds.min_savings_to_report:
                 stories.append({
                     "id": f"cache-{hash(key) % 10000}",
                     "type": "caching",
@@ -108,13 +114,13 @@ async def get_optimization_stories(storage=None) -> str:
         })
 
     for op, tokens in op_tokens.items():
-        if len(tokens) >= 5:
+        if len(tokens) >= cfg.thresholds.min_calls_for_token_analysis:
             avg_system = sum(t["system"] for t in tokens) / len(tokens)
             total_cost = sum(t["cost"] for t in tokens)
 
-            if avg_system > 500:
-                savings = total_cost * 0.2
-                if savings > 0.01:
+            if avg_system > cfg.thresholds.system_prompt_bloat_tokens:
+                savings = estimate_token_savings(total_cost, cfg.savings.token_reduction_factor)
+                if savings >= cfg.thresholds.min_savings_to_report:
                     stories.append({
                         "id": f"tokens-system-{op}",
                         "type": "token_efficiency",
@@ -156,8 +162,10 @@ async def get_cost_alerts(
     if storage is None:
         return json.dumps({"error": "Storage not configured"})
 
+    cfg = get_config()
+
     cutoff = datetime.utcnow() - timedelta(days=7)
-    calls = storage.get_calls(since=cutoff)
+    calls = storage.get_calls(since=cutoff, limit=cfg.query.default_limit)
 
     alerts = []
 
