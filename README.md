@@ -51,6 +51,8 @@ Most teams discover their LLM costs are 10x higher than expected, but have no vi
 | **3-Layer Drill-Down** | KPIs → Operations → Individual Calls |
 | **Simple Integration** | One decorator: `@observe` |
 | **Two-Phase Workflow** | Baseline (detect) → Optimized (apply fixes) |
+| **V2 Evaluation System** | YAML test suites, pluggable evaluators, version comparison |
+| **MCP Server** | Query metrics from AI assistants (Claude, GPT) via Model Context Protocol |
 | **Framework Agnostic** | Works with LangChain, AutoGen, Semantic Kernel, or raw OpenAI/Anthropic |
 | **Full Stack** | Python SDK + FastAPI Backend + React Dashboard |
 
@@ -149,7 +151,24 @@ ai-agent-observatory/
 │   ├── execution.py          # Batch/parallel/streaming detectors
 │   ├── resilience.py         # Circuit breaker for production
 │   ├── async_writer.py       # Non-blocking database writes
-│   └── health.py             # Component health monitoring
+│   ├── health.py             # Component health monitoring
+│   │
+│   ├── evaluation/           # V2 Evaluation System (NEW)
+│   │   ├── pipeline.py       # EvaluationPipeline orchestrator
+│   │   ├── runner.py         # TestRunner for executing test suites
+│   │   ├── test_suite.py     # YAML/JSON test suite loader
+│   │   ├── reporter.py       # Console/Markdown/JSON reporters
+│   │   └── eval_storage.py   # Evaluation results persistence
+│   │
+│   ├── evaluators/           # Pluggable evaluators
+│   │   ├── tool_use.py       # FREE: AST-based tool call validation
+│   │   └── model_judge.py    # Haiku-based semantic evaluation
+│   │
+│   └── mcp/                  # MCP Server (NEW)
+│       ├── server.py         # Model Context Protocol server
+│       ├── tools/            # 7 tool categories
+│       ├── resources/        # Live metrics resources
+│       └── prompts/          # Analysis prompt templates
 │
 ├── api/                      # FastAPI backend
 │   ├── routers/stories/      # 7 analytics story endpoints
@@ -160,6 +179,8 @@ ai-agent-observatory/
 │
 └── templates/                # Integration templates
     ├── observatory_config_template.py
+    ├── eval_suite_template.yaml      # Test suite template
+    ├── run_evals_template.py         # Evaluation runner template
     └── INTEGRATION_GUIDE.md
 ```
 
@@ -183,7 +204,7 @@ Each story provides KPIs, operation-level breakdown, and individual call inspect
 
 ## Production Features
 
-Observatory v0.4.0 includes enterprise-ready features:
+Observatory v0.5.0 includes enterprise-ready features:
 
 | Feature | Description |
 |---------|-------------|
@@ -193,6 +214,176 @@ Observatory v0.4.0 includes enterprise-ready features:
 | **SafeWrapper** | Graceful degradation - tracking failures never break your app |
 | **HealthChecks** | `/health` endpoint for all SDK components |
 | **Two-Phase Optimization** | Baseline detection → Optimized execution with A/B comparison |
+| **MCP Server** | Model Context Protocol server for AI assistant integration |
+| **V2 Evaluation System** | Test suites, evaluators, and comparison workflows |
+
+---
+
+## MCP Server (Model Context Protocol)
+
+Observatory includes an MCP server that allows AI assistants (Claude, GPT, etc.) to query your LLM metrics and provide optimization insights directly in your IDE or chat interface.
+
+### Available Tools
+
+| Category | Tools |
+|----------|-------|
+| **Cost** | `get_cost_summary`, `get_cost_breakdown`, `get_expensive_calls` |
+| **Optimization** | `detect_opportunities`, `get_optimization_queue` |
+| **Routing** | `analyze_routing`, `get_routing_suggestions` |
+| **Cache** | `analyze_cache_effectiveness`, `find_cacheable_calls` |
+| **Sessions** | `list_sessions`, `get_session_details` |
+| **Quality** | `get_quality_scores`, `find_low_quality_calls` |
+| **Comparison** | `compare_phases`, `get_ab_test_results` |
+
+### Setup
+
+```bash
+# Install MCP SDK
+pip install mcp
+
+# Run the MCP server
+python -m observatory.mcp.server
+```
+
+### Configuration
+
+```bash
+# Environment variables
+export OBSERVATORY_DB_URL="sqlite:///observatory.db"
+export OBSERVATORY_PROJECT="my-project"  # Optional: filter by project
+```
+
+### Claude Desktop Integration
+
+Add to your Claude Desktop config (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "observatory": {
+      "command": "python",
+      "args": ["-m", "observatory.mcp.server"],
+      "env": {
+        "OBSERVATORY_DB_URL": "sqlite:///path/to/observatory.db"
+      }
+    }
+  }
+}
+```
+
+Now you can ask Claude: *"What are my most expensive LLM operations?"* or *"Show me cache opportunities"*
+
+---
+
+## V2 Evaluation System
+
+Test your AI agents systematically with YAML-based test suites and pluggable evaluators.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **YAML Test Suites** | Define test cases with inputs, expected behaviors, and ground truth |
+| **ToolUseEvaluator** | FREE: AST-based validation of correct tool/function calls |
+| **ModelJudgeEvaluator** | Cheap Haiku-based semantic quality evaluation |
+| **EvaluationPipeline** | Orchestrate multiple evaluators with weighted scoring |
+| **Version Comparison** | Compare baseline vs optimized with DEPLOY/INVESTIGATE/REJECT recommendations |
+| **Rich Reporting** | Console, Markdown, and JSON report formats |
+| **Persistence** | Store evaluation history for trend analysis |
+
+### Quick Start
+
+```python
+from observatory import (
+    TestSuiteLoader,
+    EvaluationPipeline,
+    TestRunner,
+    ConsoleReporter,
+)
+
+# Load test suite
+loader = TestSuiteLoader()
+suite = loader.load("evals/test_suites/my_agent_tests.yaml")
+
+# Create pipeline and runner
+pipeline = EvaluationPipeline.create_default()
+runner = TestRunner(pipeline=pipeline)
+
+# Run evaluation
+run = await runner.run_suite(
+    suite=suite,
+    agent_func=my_agent_function,
+    experiment_version="v1",
+)
+
+# Print results
+reporter = ConsoleReporter(use_colors=True)
+reporter.print_run(run)
+```
+
+### Test Suite Format
+
+```yaml
+id: my_agent_v1
+name: My Agent Tests
+agent_name: my_agent
+
+config:
+  pass_threshold: 75.0
+  evaluators: [tool_use, model_judge]
+  evaluator_weights:
+    tool_use: 0.4
+    model_judge: 0.6
+
+test_cases:
+  - id: happy_path_basic
+    category: happy_path
+    input:
+      query: "Example user query"
+    expected:
+      tool_called: my_tool
+      required_args: [query]
+      evaluation_criteria: |
+        Should return a relevant response.
+    ground_truth:
+      ideal_score_range: [80, 100]
+```
+
+### CLI Usage
+
+```bash
+# Run all test suites
+python evals/run_evals.py
+
+# Run specific suite
+python evals/run_evals.py --suite my_agent
+
+# Compare baseline vs optimized
+python evals/run_evals.py --compare --baseline v1 --optimized v2
+
+# Free evaluator only (no LLM cost)
+python evals/run_evals.py --free-only
+
+# Generate markdown report
+python evals/run_evals.py --suite my_agent --report
+```
+
+### Version Comparison
+
+```python
+comparison = await runner.compare_versions(
+    suite=suite,
+    baseline_func=baseline_agent,
+    optimized_func=optimized_agent,
+    baseline_version="v1_baseline",
+    optimized_version="v2_optimized",
+)
+
+# Recommendations: DEPLOY, INVESTIGATE, or REJECT
+print(f"Recommendation: {comparison.recommendation}")
+print(f"Pass rate delta: {comparison.deltas.pass_rate_delta:+.1%}")
+print(f"Cost delta: ${comparison.deltas.cost_delta:+.4f}")
+```
 
 ---
 
@@ -279,6 +470,9 @@ The `@observe` decorator automatically:
 | Document | Description |
 |----------|-------------|
 | [Integration Guide](templates/INTEGRATION_GUIDE.md) | Step-by-step setup for your project |
+| [Config Template](templates/observatory_config_template.py) | Universal config template with all features |
+| [Eval Suite Template](templates/eval_suite_template.yaml) | Test suite YAML template |
+| [Eval Runner Template](templates/run_evals_template.py) | Evaluation runner script template |
 | [API Reference](docs/API.md) | Backend endpoints |
 | [Metrics Reference](docs/METRICS.md) | All 139 tracked fields |
 | [SDK Design](docs/UNIVERSAL_SDK_PLAN.md) | Architecture and design decisions |

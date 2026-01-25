@@ -1,0 +1,386 @@
+# Job Matcher Agent Test Suite
+# ============================
+# This test suite validates the job matching agent's ability to
+# correctly score resume-to-job matches across various scenarios.
+
+id: job_matcher_v1
+name: Job Matcher Agent Tests
+version: "1.0"
+description: |
+  Comprehensive test suite for the job matching agent.
+  Tests strong matches, weak matches, edge cases, and error handling.
+agent_name: job_matcher
+author: Observatory Team
+tags:
+  - job_matching
+  - scoring
+  - production
+
+# Configuration for this test suite
+config:
+  pass_threshold: 75.0          # Overall pass rate required
+  evaluators:
+    - tool_use                  # FREE: Validates correct tool/function calls
+    - model_judge               # Haiku: Semantic quality evaluation
+  timeout_seconds: 30           # Per-test timeout
+  parallel: true                # Run tests in parallel
+  max_concurrent: 5             # Max parallel tests
+  retry_failed: false           # Don't retry on failure
+  evaluator_weights:
+    tool_use: 0.4               # 40% weight on correct tool usage
+    model_judge: 0.6            # 60% weight on quality of reasoning
+
+# Test Cases
+test_cases:
+  # ==========================================================================
+  # STRONG MATCH TESTS - High compatibility scenarios (expected score: 80-95)
+  # ==========================================================================
+
+  - id: strong_match_senior_python
+    category: strong_match
+    description: Senior Python developer with exact skill match
+    difficulty: easy
+    tags: [python, senior, exact_match]
+
+    input:
+      resume: |
+        SENIOR SOFTWARE ENGINEER
+        8 years of Python development experience
+        Expert in Django, FastAPI, and Flask frameworks
+        Strong background in PostgreSQL and Redis
+        AWS certified, experienced with EC2, S3, Lambda
+        Led team of 5 developers, agile methodology
+        BS in Computer Science from MIT
+      job_description: |
+        Senior Python Developer
+        Requirements:
+        - 5+ years Python experience
+        - Django or FastAPI expertise
+        - PostgreSQL knowledge
+        - AWS experience preferred
+        - Team leadership experience
+
+    expected:
+      tool_called: score_job_match
+      required_args:
+        - resume
+        - job_description
+      evaluation_criteria: |
+        The agent should recognize this as a strong match because:
+        1. Experience exceeds requirements (8 years vs 5+ required)
+        2. Exact framework match (Django, FastAPI)
+        3. Database skills match (PostgreSQL)
+        4. AWS experience matches preference
+        5. Leadership experience matches requirement
+        Score should be 85-95.
+
+    ground_truth:
+      ideal_score_range: [85, 95]
+      key_matches:
+        - python experience exceeds requirement
+        - framework expertise matches
+        - database skills align
+        - cloud experience matches
+        - leadership experience present
+
+  - id: strong_match_data_scientist
+    category: strong_match
+    description: Data scientist with ML expertise matching role
+    difficulty: easy
+    tags: [data_science, ml, exact_match]
+
+    input:
+      resume: |
+        DATA SCIENTIST
+        6 years experience in machine learning and analytics
+        Expert in Python, TensorFlow, PyTorch, scikit-learn
+        Strong SQL and data pipeline experience
+        Published 3 papers on NLP techniques
+        PhD in Statistics from Stanford
+      job_description: |
+        Senior Data Scientist
+        Requirements:
+        - 5+ years ML experience
+        - Python and deep learning frameworks
+        - NLP experience preferred
+        - Advanced degree in quantitative field
+
+    expected:
+      tool_called: score_job_match
+      required_args: [resume, job_description]
+      evaluation_criteria: |
+        Strong match due to exceeding all requirements.
+        PhD exceeds "advanced degree" requirement.
+        NLP publications directly match preference.
+
+    ground_truth:
+      ideal_score_range: [88, 95]
+      key_matches:
+        - ML experience exceeds requirement
+        - framework expertise matches
+        - NLP experience matches preference
+        - PhD exceeds education requirement
+
+  # ==========================================================================
+  # WEAK MATCH TESTS - Low compatibility scenarios (expected score: 20-45)
+  # ==========================================================================
+
+  - id: weak_match_junior_to_senior
+    category: weak_match
+    description: Junior developer applying for senior role
+    difficulty: normal
+    tags: [experience_gap, junior, underqualified]
+
+    input:
+      resume: |
+        JUNIOR SOFTWARE DEVELOPER
+        1.5 years of JavaScript development
+        Familiar with React basics
+        Learning Node.js
+        Completed coding bootcamp 2022
+        Eager to learn and grow
+      job_description: |
+        Senior Full Stack Engineer
+        Requirements:
+        - 7+ years software development
+        - Expert in React and Node.js
+        - System design experience
+        - Mentoring junior developers
+        - CS degree preferred
+
+    expected:
+      tool_called: score_job_match
+      required_args: [resume, job_description]
+      evaluation_criteria: |
+        Weak match because:
+        1. Significant experience gap (1.5 years vs 7+ required)
+        2. Skill level mismatch ("Familiar" vs "Expert")
+        3. No system design experience
+        4. Cannot mentor as a junior
+        Score should be 20-35.
+
+    ground_truth:
+      ideal_score_range: [20, 35]
+      key_mismatches:
+        - experience significantly below requirement
+        - skill level insufficient
+        - no system design experience
+        - cannot fulfill mentoring requirement
+
+  - id: weak_match_different_domain
+    category: weak_match
+    description: Backend developer applying for frontend role
+    difficulty: normal
+    tags: [domain_mismatch, backend, frontend]
+
+    input:
+      resume: |
+        BACKEND ENGINEER
+        5 years Java and Spring Boot development
+        Expert in microservices architecture
+        PostgreSQL, MongoDB, Redis
+        No frontend experience
+        REST API design specialist
+      job_description: |
+        Senior Frontend Engineer
+        Requirements:
+        - 5+ years frontend development
+        - Expert in React, TypeScript
+        - CSS/SASS expertise
+        - UI/UX sensibility
+        - Experience with design systems
+
+    expected:
+      tool_called: score_job_match
+      required_args: [resume, job_description]
+      evaluation_criteria: |
+        Weak match due to complete domain mismatch.
+        Backend skills don't transfer to frontend requirements.
+
+    ground_truth:
+      ideal_score_range: [15, 30]
+      key_mismatches:
+        - no frontend experience
+        - no React/TypeScript skills
+        - no CSS expertise
+        - different technical domain
+
+  # ==========================================================================
+  # EDGE CASE TESTS - Unusual or boundary scenarios
+  # ==========================================================================
+
+  - id: edge_case_career_change
+    category: edge_case
+    description: Career changer with transferable skills
+    difficulty: hard
+    tags: [career_change, transferable_skills]
+
+    input:
+      resume: |
+        MECHANICAL ENGINEER transitioning to SOFTWARE
+        10 years mechanical engineering experience
+        Self-taught Python programmer (2 years)
+        Completed CS50 and multiple online courses
+        Built automation tools for engineering workflows
+        Strong problem-solving and analytical skills
+        MS in Mechanical Engineering
+      job_description: |
+        Junior Software Developer
+        Requirements:
+        - 1+ year programming experience
+        - Python or JavaScript knowledge
+        - Problem-solving skills
+        - Willingness to learn
+        - Degree in technical field
+
+    expected:
+      tool_called: score_job_match
+      required_args: [resume, job_description]
+      evaluation_criteria: |
+        Moderate to good match despite career change:
+        1. 2 years Python meets "1+ year" requirement
+        2. Technical degree satisfies education
+        3. Engineering background shows problem-solving
+        4. Self-learning demonstrates willingness to learn
+        Score should reflect potential despite non-traditional path.
+
+    ground_truth:
+      ideal_score_range: [55, 75]
+      key_matches:
+        - programming experience meets minimum
+        - technical degree qualifies
+        - problem-solving skills evident
+      key_mismatches:
+        - no formal CS education
+        - limited software industry experience
+
+  - id: edge_case_overqualified
+    category: edge_case
+    description: Senior architect applying for mid-level role
+    difficulty: hard
+    tags: [overqualified, seniority_mismatch]
+
+    input:
+      resume: |
+        CHIEF TECHNOLOGY OFFICER
+        20 years software development
+        Former VP Engineering at Fortune 500
+        Architected systems serving 100M users
+        PhD in Computer Science
+        10 patents in distributed systems
+      job_description: |
+        Mid-Level Software Developer
+        Requirements:
+        - 3-5 years experience
+        - Java or Python proficiency
+        - Team collaboration
+        - Agile experience
+
+    expected:
+      tool_called: score_job_match
+      required_args: [resume, job_description]
+      evaluation_criteria: |
+        Complex case - technically qualifies but overqualified.
+        Agent should note the mismatch in seniority levels.
+        May score high on skills but should flag overqualification.
+
+    ground_truth:
+      ideal_score_range: [50, 70]
+      key_matches:
+        - exceeds all technical requirements
+      key_mismatches:
+        - significant overqualification
+        - seniority level mismatch
+        - likely retention risk
+
+  - id: edge_case_empty_resume
+    category: edge_case
+    description: Nearly empty resume
+    difficulty: normal
+    tags: [incomplete_data, minimal_info]
+
+    input:
+      resume: |
+        John Smith
+        Email: john@email.com
+      job_description: |
+        Software Developer
+        Requirements:
+        - 2+ years experience
+        - Programming skills
+        - Team player
+
+    expected:
+      tool_called: score_job_match
+      required_args: [resume, job_description]
+      evaluation_criteria: |
+        Should handle gracefully with very low score.
+        No information to evaluate against requirements.
+
+    ground_truth:
+      ideal_score_range: [0, 15]
+      key_mismatches:
+        - no experience information
+        - no skills listed
+        - insufficient data for evaluation
+
+  # ==========================================================================
+  # ERROR HANDLING TESTS - Invalid inputs and edge cases
+  # ==========================================================================
+
+  - id: error_handling_missing_job
+    category: error_handling
+    description: Missing job description
+    difficulty: normal
+    tags: [error_handling, validation]
+
+    input:
+      resume: |
+        SOFTWARE ENGINEER
+        5 years experience in Python
+      job_description: ""
+
+    expected:
+      tool_called: score_job_match
+      required_args: [resume, job_description]
+      evaluation_criteria: |
+        Agent should handle empty job description gracefully.
+        Should either return error or very low confidence score.
+
+    ground_truth:
+      ideal_score_range: [0, 10]
+      forbidden_content:
+        - hallucinated job requirements
+
+  - id: error_handling_non_english
+    category: error_handling
+    description: Non-English resume content
+    difficulty: hard
+    tags: [internationalization, language]
+
+    input:
+      resume: |
+        INGENIERO DE SOFTWARE
+        5 anos de experiencia en Python
+        Experto en Django y Flask
+        Experiencia con AWS y Docker
+      job_description: |
+        Software Engineer
+        Requirements:
+        - 3+ years Python experience
+        - Web framework expertise
+        - Cloud experience
+
+    expected:
+      tool_called: score_job_match
+      required_args: [resume, job_description]
+      evaluation_criteria: |
+        Should attempt to evaluate despite language difference.
+        Technical terms are recognizable across languages.
+
+    ground_truth:
+      ideal_score_range: [60, 85]
+      key_matches:
+        - Python experience visible
+        - Framework expertise (Django, Flask)
+        - Cloud experience (AWS)

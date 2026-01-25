@@ -91,6 +91,7 @@ from observatory import (
     __version__ as OBSERVATORY_VERSION,
     Observatory,
     ModelProvider,
+    Storage,
     track_llm_call as _sdk_track_llm_call,
     observe as _sdk_observe,
     estimate_tokens,
@@ -117,6 +118,16 @@ from observatory import (
     create_circuit_breaker,
     AsyncWriteQueue,
     observatory_health_check,
+    # Evaluation System
+    TestSuiteLoader,
+    TestSuiteBuilder,
+    EvaluationPipeline,
+    TestRunner,
+    RunnerConfig,
+    EvaluationStore,
+    ConsoleReporter,
+    MarkdownReporter,
+    ReportBuilder,
 )
 
 # Optional: SemanticCache (requires chromadb)
@@ -490,6 +501,103 @@ OPTIMIZATIONS = {
     # ↓↓↓ ADD YOUR OPTIMIZATIONS HERE AFTER REVIEWING DASHBOARD ↓↓↓
 }
 
+
+# ╔═════════════════════════════════════════════════════════════════════════════╗
+# ║                                                                             ║
+# ║   CUSTOMIZE: EVALUATION CONFIG                                              ║
+# ║   Configure test suites and evaluation settings for your agents             ║
+# ║                                                                             ║
+# ╚═════════════════════════════════════════════════════════════════════════════╝
+#
+# Evaluation Workflow:
+#   1. Create test suite YAML files in evals/test_suites/
+#   2. Configure EVALUATION_CONFIG below
+#   3. Run: python evals/run_evals.py
+#   4. Compare baseline vs optimized versions
+#
+# Test Suite Location: evals/test_suites/*.yaml
+# See: observatory SDK templates/eval_suite_template.yaml
+
+EVALUATION_CONFIG = {
+    # ↓↓↓ UPDATE THESE: Your evaluation settings ↓↓↓
+
+    # Test suite files (relative to project root)
+    "test_suites_dir": "evals/test_suites",
+
+    # Default evaluators to use
+    # - "tool_use": FREE, validates correct tool/function calls
+    # - "model_judge": Uses Haiku for semantic quality evaluation
+    "default_evaluators": ["tool_use", "model_judge"],
+
+    # Evaluator weights (must sum to 1.0)
+    "evaluator_weights": {
+        "tool_use": 0.4,       # 40% weight on correct tool usage
+        "model_judge": 0.6,    # 60% weight on quality of reasoning
+    },
+
+    # Pass threshold (0-100)
+    "pass_threshold": 75.0,
+
+    # Runner settings
+    "parallel": True,
+    "max_concurrent": 5,
+    "timeout_seconds": 30,
+
+    # Storage for evaluation results
+    "results_db": "evals/eval_results.db",
+
+    # Reports output directory
+    "reports_dir": "evals/reports",
+}
+
+
+# =============================================================================
+# EVALUATION HELPERS
+# =============================================================================
+
+def create_eval_pipeline():
+    """Create evaluation pipeline from config."""
+    evaluators = EVALUATION_CONFIG.get("default_evaluators", ["tool_use", "model_judge"])
+    weights = EVALUATION_CONFIG.get("evaluator_weights", {"tool_use": 0.4, "model_judge": 0.6})
+
+    if evaluators == ["tool_use"]:
+        return EvaluationPipeline.create_free_only()
+    else:
+        return EvaluationPipeline.create_default(weights=weights)
+
+
+def create_eval_runner(pipeline=None, storage=None):
+    """Create test runner from config."""
+    if pipeline is None:
+        pipeline = create_eval_pipeline()
+
+    if storage is None:
+        db_path = EVALUATION_CONFIG.get("results_db", "evals/eval_results.db")
+        storage = EvaluationStore(Storage(f"sqlite:///{db_path}"))
+
+    return TestRunner(
+        pipeline=pipeline,
+        storage=storage,
+        config=RunnerConfig(
+            parallel=EVALUATION_CONFIG.get("parallel", True),
+            max_concurrent=EVALUATION_CONFIG.get("max_concurrent", 5),
+            timeout_seconds=EVALUATION_CONFIG.get("timeout_seconds", 30),
+        )
+    )
+
+
+def load_test_suite(suite_name: str):
+    """Load a test suite by name from the configured directory."""
+    suites_dir = Path(EVALUATION_CONFIG.get("test_suites_dir", "evals/test_suites"))
+    suite_path = suites_dir / f"{suite_name}.yaml"
+
+    if not suite_path.exists():
+        raise FileNotFoundError(f"Test suite not found: {suite_path}")
+
+    loader = TestSuiteLoader()
+    return loader.load(suite_path)
+
+
 # =============================================================================
 # @observe DECORATOR - THE PRIMARY PUBLIC INTERFACE
 # =============================================================================
@@ -557,12 +665,29 @@ __all__ = [
 
     # Configuration
     'OPTIMIZATIONS',
+    'EVALUATION_CONFIG',
     'CURRENT_PHASE',
     'PROJECT_NAME',
     'DEFAULT_MODEL',
 
     # Health check
     'get_health',
+
+    # Evaluation helpers
+    'create_eval_pipeline',
+    'create_eval_runner',
+    'load_test_suite',
+
+    # Evaluation classes (for advanced use)
+    'TestSuiteLoader',
+    'TestSuiteBuilder',
+    'EvaluationPipeline',
+    'TestRunner',
+    'RunnerConfig',
+    'EvaluationStore',
+    'ConsoleReporter',
+    'MarkdownReporter',
+    'ReportBuilder',
 
     # Advanced use only
     'obs',
