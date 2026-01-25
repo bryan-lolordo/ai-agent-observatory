@@ -114,6 +114,10 @@ scores = await parallel_execute(quick_score_job, jobs, max_concurrent=5)
 1. **Router tuple unpacking** - `observe.py:745` was storing tuple instead of unpacking `(model, decision)`
 2. **Token extraction for Semantic Kernel** - `observe.py:166-220` now correctly extracts from `CompletionUsage` object in metadata
 3. **Semantic cache causing hangs in baseline** - `observe.py:702-710, 881-894` was calling ChromaDB embedding queries even in baseline mode, which is slow. Fixed to only query/store in optimized mode when explicitly enabled.
+4. **system_prompt/user_message not saved** - `storage.py:403-404` was only checking `prompt_breakdown` dict, not direct `llm_call` fields. Fixed to check `llm_call.system_prompt` first.
+5. **phase not tracked** - `observe.py:964` wasn't including `current_phase` in metadata. Added `"phase": current_phase` to the metadata dict.
+6. **conversation_id/turn_number low population** - Plugin LLM calls didn't receive these from parent calls. Implemented ContextVar propagation so nested @observe calls automatically inherit conversation context.
+7. **judge_score not populated** - `judge.py` required `llm_client` parameter but `observe.py` didn't pass one. Fixed by making LLMJudge self-contained with its own OpenAI client (uses `OPENAI_API_KEY` env var). Renamed `maybe_evaluate()` → `evaluate_async()` for clarity.
 
 ---
 
@@ -121,7 +125,10 @@ scores = await parallel_execute(quick_score_job, jobs, max_concurrent=5)
 
 | File | Changes |
 |------|---------|
-| `observatory/observe.py` | Fixed router tuple bug, SK token extraction, semantic cache baseline hang |
+| `observatory/observe.py` | Fixed router tuple bug, SK token extraction, semantic cache baseline hang, added ContextVar for conversation propagation, updated judge call to use `evaluate_async()` |
+| `observatory/judge.py` | Added self-contained OpenAI client, renamed `maybe_evaluate()` → `evaluate_async()`, added `api_key`/`api_base` init params |
+| `observatory/storage.py` | Fixed system_prompt/user_message extraction |
+| `observatory/__init__.py` | Exported set_conversation_context, get_conversation_context |
 | `README.md` | Polished for job interviews, added video/screenshot |
 | `docs/media/` | Created folder for demo assets |
 | `UNIVERSAL_SDK_PLAN.md` | Moved to `docs/` |

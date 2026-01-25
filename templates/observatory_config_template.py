@@ -35,8 +35,14 @@ TWO-PHASE OPTIMIZATION
         # Phase 2 - Optimized (after adding OPTIMIZATIONS)
         # OBSERVATORY_PHASE=optimized
 
+        # LLM Judge model (recommended: use different model than your app)
+        JUDGE_MODEL=gpt-4o
+
     BASELINE: Tracks metrics, detects opportunities, NO behavior changes
     OPTIMIZED: Applies your OPTIMIZATIONS, compares to baseline
+
+    NOTE: Set JUDGE_MODEL to a different model than your app uses (e.g., gpt-4o)
+    so that a separate model evaluates your app's responses for quality.
 
 ================================================================================
 WORKFLOW

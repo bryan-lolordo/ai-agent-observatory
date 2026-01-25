@@ -398,10 +398,15 @@ class Storage:
         # =====================================================================
         # EXTRACT VALUES FROM JSON FOR NEW COLUMNS
         # =====================================================================
-        
-        # Extract from prompt_breakdown
-        system_prompt = breakdown_data.get('system_prompt') if breakdown_data else None
-        user_message = breakdown_data.get('user_message') if breakdown_data else None
+
+        # Extract system_prompt and user_message - check direct fields first, then prompt_breakdown
+        system_prompt = llm_call.system_prompt
+        if not system_prompt and breakdown_data:
+            system_prompt = breakdown_data.get('system_prompt')
+
+        user_message = llm_call.user_message
+        if not user_message and breakdown_data:
+            user_message = breakdown_data.get('user_message')
         
         # Extract from cache_metadata
         cache_hit = cache_data.get('cache_hit') if cache_data else None
@@ -1000,6 +1005,54 @@ class Storage:
         finally:
             db.close()
 
+    def update_call_quality_evaluation(
+        self,
+        call_id: str,
+        quality_evaluation: QualityEvaluation,
+    ) -> bool:
+        """
+        Update the quality evaluation for an existing LLM call.
+
+        Used by LLMJudge to attach evaluation results after async evaluation completes.
+
+        Args:
+            call_id: ID of the LLM call to update
+            quality_evaluation: QualityEvaluation with judge results
+
+        Returns:
+            True if call was found and updated, False otherwise
+        """
+        db: DBSession = self.SessionLocal()
+        try:
+            llm_call_db = db.query(LLMCallDB).filter(LLMCallDB.id == call_id).first()
+            if not llm_call_db:
+                logger.warning(f"Cannot update quality_evaluation: call {call_id} not found")
+                return False
+
+            # Update JSON field
+            llm_call_db.quality_evaluation = quality_evaluation.model_dump()
+
+            # Update extracted columns for fast queries
+            llm_call_db.judge_score = quality_evaluation.judge_score
+            llm_call_db.hallucination_flag = quality_evaluation.hallucination_flag
+            llm_call_db.confidence_score = quality_evaluation.confidence_score
+            llm_call_db.evidence_cited = quality_evaluation.evidence_cited
+            llm_call_db.factual_error = quality_evaluation.factual_error
+
+            # Calculate cost per quality point if we have both values
+            if quality_evaluation.judge_score and quality_evaluation.judge_score > 0 and llm_call_db.total_cost:
+                llm_call_db.cost_per_quality_point = llm_call_db.total_cost / quality_evaluation.judge_score
+
+            db.commit()
+            logger.debug(f"Updated quality_evaluation for call {call_id}: score={quality_evaluation.judge_score}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update quality_evaluation for call {call_id}: {e}")
+            db.rollback()
+            return False
+        finally:
+            db.close()
+
     # =========================================================================
     # OPTIMIZATION STORY METHODS (Story 8)
     # =========================================================================
@@ -1302,6 +1355,594 @@ class Storage:
         finally:
             db.close()
 
+    # =========================================================================
+    # V2 EVALUATION SYSTEM - EVALUATION RUN METHODS
+    # =========================================================================
+
+    def save_evaluation_run(self, run_data: Dict[str, Any]) -> None:
+        """
+        Save or update an evaluation run.
+
+        Args:
+            run_data: Dictionary with evaluation run fields
+        """
+        db: DBSession = self.SessionLocal()
+        try:
+            # Handle metrics if present
+            metrics = run_data.pop('metrics', None)
+            results = run_data.pop('results', None)  # Don't store inline results
+
+            # Flatten metrics into run_data
+            if metrics:
+                if isinstance(metrics, dict):
+                    run_data.update({
+                        'total_tests': metrics.get('total_tests', 0),
+                        'passed_tests': metrics.get('passed_tests', 0),
+                        'failed_tests': metrics.get('failed_tests', 0),
+                        'skipped_tests': metrics.get('skipped_tests', 0),
+                        'avg_quality_score': metrics.get('avg_quality_score'),
+                        'min_quality_score': metrics.get('min_quality_score'),
+                        'max_quality_score': metrics.get('max_quality_score'),
+                        'avg_tool_use_score': metrics.get('avg_tool_use_score'),
+                        'avg_model_judge_score': metrics.get('avg_model_judge_score'),
+                        'pass_rate': metrics.get('pass_rate'),
+                        'total_agent_cost': metrics.get('total_agent_cost', 0.0),
+                        'total_agent_latency_ms': metrics.get('total_agent_latency_ms', 0.0),
+                        'avg_agent_cost': metrics.get('avg_agent_cost'),
+                        'avg_agent_latency_ms': metrics.get('avg_agent_latency_ms'),
+                        'total_eval_cost': metrics.get('total_eval_cost', 0.0),
+                        'total_eval_latency_ms': metrics.get('total_eval_latency_ms', 0.0),
+                    })
+                else:
+                    # Pydantic model
+                    run_data.update({
+                        'total_tests': metrics.total_tests,
+                        'passed_tests': metrics.passed_tests,
+                        'failed_tests': metrics.failed_tests,
+                        'skipped_tests': metrics.skipped_tests,
+                        'avg_quality_score': metrics.avg_quality_score,
+                        'min_quality_score': metrics.min_quality_score,
+                        'max_quality_score': metrics.max_quality_score,
+                        'avg_tool_use_score': metrics.avg_tool_use_score,
+                        'avg_model_judge_score': metrics.avg_model_judge_score,
+                        'pass_rate': metrics.pass_rate,
+                        'total_agent_cost': metrics.total_agent_cost,
+                        'total_agent_latency_ms': metrics.total_agent_latency_ms,
+                        'avg_agent_cost': metrics.avg_agent_cost,
+                        'avg_agent_latency_ms': metrics.avg_agent_latency_ms,
+                        'total_eval_cost': metrics.total_eval_cost,
+                        'total_eval_latency_ms': metrics.total_eval_latency_ms,
+                    })
+
+            # Handle metadata
+            metadata = run_data.pop('metadata', None)
+            if metadata:
+                run_data['metadata_json'] = json.dumps(metadata)
+
+            # Remove id if present (auto-increment)
+            run_data.pop('id', None)
+
+            # Check if exists
+            existing = db.query(EvaluationRunDB).filter(
+                EvaluationRunDB.run_id == run_data['run_id']
+            ).first()
+
+            if existing:
+                # Update
+                for key, value in run_data.items():
+                    if hasattr(existing, key):
+                        setattr(existing, key, value)
+            else:
+                # Insert
+                run_db = EvaluationRunDB(**run_data)
+                db.add(run_db)
+
+            db.commit()
+        finally:
+            db.close()
+
+    def get_evaluation_run(self, run_id: str) -> Optional[Dict[str, Any]]:
+        """Get an evaluation run by run_id."""
+        db: DBSession = self.SessionLocal()
+        try:
+            run_db = db.query(EvaluationRunDB).filter(
+                EvaluationRunDB.run_id == run_id
+            ).first()
+
+            if run_db:
+                return self._evaluation_run_to_dict(run_db)
+            return None
+        finally:
+            db.close()
+
+    def get_evaluation_runs(
+        self,
+        test_suite_id: Optional[str] = None,
+        experiment_name: Optional[str] = None,
+        experiment_version: Optional[str] = None,
+        phase: Optional[str] = None,
+        status: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get evaluation runs with optional filters."""
+        db: DBSession = self.SessionLocal()
+        try:
+            query = db.query(EvaluationRunDB)
+
+            if test_suite_id:
+                query = query.filter(EvaluationRunDB.test_suite_id == test_suite_id)
+            if experiment_name:
+                query = query.filter(EvaluationRunDB.experiment_name == experiment_name)
+            if experiment_version:
+                query = query.filter(EvaluationRunDB.experiment_version == experiment_version)
+            if phase:
+                query = query.filter(EvaluationRunDB.phase == phase)
+            if status:
+                query = query.filter(EvaluationRunDB.status == status)
+            if start_time:
+                query = query.filter(EvaluationRunDB.started_at >= start_time)
+            if end_time:
+                query = query.filter(EvaluationRunDB.started_at <= end_time)
+
+            query = query.order_by(EvaluationRunDB.created_at.desc())
+            query = query.limit(limit)
+
+            return [self._evaluation_run_to_dict(r) for r in query.all()]
+        finally:
+            db.close()
+
+    def _evaluation_run_to_dict(self, run_db: 'EvaluationRunDB') -> Dict[str, Any]:
+        """Convert EvaluationRunDB to dictionary."""
+        return {
+            'id': run_db.id,
+            'run_id': run_db.run_id,
+            'test_suite_id': run_db.test_suite_id,
+            'test_suite_name': run_db.test_suite_name,
+            'experiment_name': run_db.experiment_name,
+            'experiment_version': run_db.experiment_version,
+            'phase': run_db.phase,
+            'status': run_db.status,
+            'error_message': run_db.error_message,
+            'started_at': run_db.started_at,
+            'completed_at': run_db.completed_at,
+            'duration_seconds': run_db.duration_seconds,
+            'metrics': {
+                'total_tests': run_db.total_tests,
+                'passed_tests': run_db.passed_tests,
+                'failed_tests': run_db.failed_tests,
+                'skipped_tests': run_db.skipped_tests,
+                'avg_quality_score': run_db.avg_quality_score,
+                'min_quality_score': run_db.min_quality_score,
+                'max_quality_score': run_db.max_quality_score,
+                'avg_tool_use_score': run_db.avg_tool_use_score,
+                'avg_model_judge_score': run_db.avg_model_judge_score,
+                'pass_rate': run_db.pass_rate,
+                'total_agent_cost': run_db.total_agent_cost,
+                'total_agent_latency_ms': run_db.total_agent_latency_ms,
+                'avg_agent_cost': run_db.avg_agent_cost,
+                'avg_agent_latency_ms': run_db.avg_agent_latency_ms,
+                'total_eval_cost': run_db.total_eval_cost,
+                'total_eval_latency_ms': run_db.total_eval_latency_ms,
+            },
+            'metadata': json.loads(run_db.metadata_json) if run_db.metadata_json else {},
+            'created_at': run_db.created_at,
+        }
+
+    def delete_evaluation_run(self, run_id: str) -> bool:
+        """Delete an evaluation run and its results."""
+        db: DBSession = self.SessionLocal()
+        try:
+            # Delete results first
+            db.query(EvaluationResultDB).filter(
+                EvaluationResultDB.run_id == run_id
+            ).delete()
+            # Delete run
+            result = db.query(EvaluationRunDB).filter(
+                EvaluationRunDB.run_id == run_id
+            ).delete()
+            db.commit()
+            return result > 0
+        finally:
+            db.close()
+
+    # =========================================================================
+    # V2 EVALUATION SYSTEM - EVALUATION RESULT METHODS
+    # =========================================================================
+
+    def save_evaluation_result(self, result_data: Dict[str, Any]) -> None:
+        """Save an individual evaluation result."""
+        db: DBSession = self.SessionLocal()
+        try:
+            # Handle JSON fields
+            details = result_data.pop('details', None)
+            issues = result_data.pop('issues', None)
+
+            if details:
+                result_data['details_json'] = json.dumps(details)
+            if issues:
+                result_data['issues_json'] = json.dumps(issues)
+
+            # Remove id if present (auto-increment)
+            result_data.pop('id', None)
+
+            result_db = EvaluationResultDB(**result_data)
+            db.merge(result_db)
+            db.commit()
+        finally:
+            db.close()
+
+    def save_evaluation_results_batch(self, results: List[Dict[str, Any]]) -> None:
+        """Save multiple evaluation results efficiently."""
+        db: DBSession = self.SessionLocal()
+        try:
+            for result_data in results:
+                # Handle JSON fields
+                details = result_data.pop('details', None)
+                issues = result_data.pop('issues', None)
+
+                if details:
+                    result_data['details_json'] = json.dumps(details)
+                if issues:
+                    result_data['issues_json'] = json.dumps(issues)
+
+                # Remove id if present
+                result_data.pop('id', None)
+
+                result_db = EvaluationResultDB(**result_data)
+                db.add(result_db)
+
+            db.commit()
+        finally:
+            db.close()
+
+    def get_evaluation_results(
+        self,
+        run_id: Optional[str] = None,
+        test_case_id: Optional[str] = None,
+        evaluator: Optional[str] = None,
+        passed: Optional[bool] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]:
+        """Get evaluation results with optional filters."""
+        db: DBSession = self.SessionLocal()
+        try:
+            query = db.query(EvaluationResultDB)
+
+            if run_id:
+                query = query.filter(EvaluationResultDB.run_id == run_id)
+            if test_case_id:
+                query = query.filter(EvaluationResultDB.test_case_id == test_case_id)
+            if evaluator:
+                query = query.filter(EvaluationResultDB.evaluator == evaluator)
+            if passed is not None:
+                query = query.filter(EvaluationResultDB.passed == passed)
+
+            query = query.order_by(EvaluationResultDB.timestamp.desc())
+            query = query.limit(limit)
+
+            results = []
+            for r in query.all():
+                results.append({
+                    'id': r.id,
+                    'result_id': r.result_id,
+                    'run_id': r.run_id,
+                    'test_case_id': r.test_case_id,
+                    'trace_id': r.trace_id,
+                    'evaluator': r.evaluator,
+                    'evaluator_version': r.evaluator_version,
+                    'score': r.score,
+                    'passed': r.passed,
+                    'reasoning': r.reasoning,
+                    'details': json.loads(r.details_json) if r.details_json else {},
+                    'issues': json.loads(r.issues_json) if r.issues_json else [],
+                    'cost': r.cost,
+                    'latency_ms': r.latency_ms,
+                    'confidence': r.confidence,
+                    'timestamp': r.timestamp,
+                })
+            return results
+        finally:
+            db.close()
+
+    # =========================================================================
+    # V2 EVALUATION SYSTEM - COMPARISON RESULT METHODS
+    # =========================================================================
+
+    def save_comparison_result(self, comparison_data: Dict[str, Any]) -> None:
+        """Save a comparison result."""
+        db: DBSession = self.SessionLocal()
+        try:
+            # Handle nested objects
+            baseline = comparison_data.pop('baseline', None)
+            optimized = comparison_data.pop('optimized', None)
+            deltas = comparison_data.pop('deltas', None)
+            metadata = comparison_data.pop('metadata', None)
+
+            # Flatten baseline metrics
+            if baseline:
+                if isinstance(baseline, dict):
+                    comparison_data.update({
+                        'baseline_version': baseline.get('version'),
+                        'baseline_sample_size': baseline.get('sample_size', 0),
+                        'baseline_avg_quality': baseline.get('avg_quality_score'),
+                        'baseline_avg_tool_use': baseline.get('avg_tool_use_score'),
+                        'baseline_avg_model_judge': baseline.get('avg_model_judge_score'),
+                        'baseline_pass_rate': baseline.get('pass_rate'),
+                        'baseline_avg_cost': baseline.get('avg_cost'),
+                        'baseline_avg_latency': baseline.get('avg_latency_ms'),
+                    })
+                else:
+                    comparison_data.update({
+                        'baseline_version': baseline.version,
+                        'baseline_sample_size': baseline.sample_size,
+                        'baseline_avg_quality': baseline.avg_quality_score,
+                        'baseline_avg_tool_use': baseline.avg_tool_use_score,
+                        'baseline_avg_model_judge': baseline.avg_model_judge_score,
+                        'baseline_pass_rate': baseline.pass_rate,
+                        'baseline_avg_cost': baseline.avg_cost,
+                        'baseline_avg_latency': baseline.avg_latency_ms,
+                    })
+
+            # Flatten optimized metrics
+            if optimized:
+                if isinstance(optimized, dict):
+                    comparison_data.update({
+                        'optimized_version': optimized.get('version'),
+                        'optimized_sample_size': optimized.get('sample_size', 0),
+                        'optimized_avg_quality': optimized.get('avg_quality_score'),
+                        'optimized_avg_tool_use': optimized.get('avg_tool_use_score'),
+                        'optimized_avg_model_judge': optimized.get('avg_model_judge_score'),
+                        'optimized_pass_rate': optimized.get('pass_rate'),
+                        'optimized_avg_cost': optimized.get('avg_cost'),
+                        'optimized_avg_latency': optimized.get('avg_latency_ms'),
+                    })
+                else:
+                    comparison_data.update({
+                        'optimized_version': optimized.version,
+                        'optimized_sample_size': optimized.sample_size,
+                        'optimized_avg_quality': optimized.avg_quality_score,
+                        'optimized_avg_tool_use': optimized.avg_tool_use_score,
+                        'optimized_avg_model_judge': optimized.avg_model_judge_score,
+                        'optimized_pass_rate': optimized.pass_rate,
+                        'optimized_avg_cost': optimized.avg_cost,
+                        'optimized_avg_latency': optimized.avg_latency_ms,
+                    })
+
+            # Flatten deltas
+            if deltas:
+                if isinstance(deltas, dict):
+                    comparison_data.update({
+                        'quality_change_abs': deltas.get('quality_change_abs'),
+                        'quality_change_pct': deltas.get('quality_change_pct'),
+                        'cost_change_pct': deltas.get('cost_change_pct'),
+                        'latency_change_pct': deltas.get('latency_change_pct'),
+                        'pass_rate_change_abs': deltas.get('pass_rate_change_abs'),
+                    })
+                else:
+                    comparison_data.update({
+                        'quality_change_abs': deltas.quality_change_abs,
+                        'quality_change_pct': deltas.quality_change_pct,
+                        'cost_change_pct': deltas.cost_change_pct,
+                        'latency_change_pct': deltas.latency_change_pct,
+                        'pass_rate_change_abs': deltas.pass_rate_change_abs,
+                    })
+
+            if metadata:
+                comparison_data['metadata_json'] = json.dumps(metadata)
+
+            # Remove id if present
+            comparison_data.pop('id', None)
+
+            comparison_db = ComparisonResultDB(**comparison_data)
+            db.merge(comparison_db)
+            db.commit()
+        finally:
+            db.close()
+
+    def get_comparison_result(self, comparison_id: str) -> Optional[Dict[str, Any]]:
+        """Get a comparison result by ID."""
+        db: DBSession = self.SessionLocal()
+        try:
+            comp_db = db.query(ComparisonResultDB).filter(
+                ComparisonResultDB.comparison_id == comparison_id
+            ).first()
+
+            if comp_db:
+                return self._comparison_to_dict(comp_db)
+            return None
+        finally:
+            db.close()
+
+    def get_comparison_results(
+        self,
+        experiment_name: Optional[str] = None,
+        recommendation: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get comparison results with optional filters."""
+        db: DBSession = self.SessionLocal()
+        try:
+            query = db.query(ComparisonResultDB)
+
+            if experiment_name:
+                query = query.filter(ComparisonResultDB.experiment_name == experiment_name)
+            if recommendation:
+                query = query.filter(ComparisonResultDB.recommendation == recommendation)
+            if start_time:
+                query = query.filter(ComparisonResultDB.timestamp >= start_time)
+            if end_time:
+                query = query.filter(ComparisonResultDB.timestamp <= end_time)
+
+            query = query.order_by(ComparisonResultDB.timestamp.desc())
+            query = query.limit(limit)
+
+            return [self._comparison_to_dict(c) for c in query.all()]
+        finally:
+            db.close()
+
+    def _comparison_to_dict(self, comp_db: 'ComparisonResultDB') -> Dict[str, Any]:
+        """Convert ComparisonResultDB to dictionary."""
+        return {
+            'id': comp_db.id,
+            'comparison_id': comp_db.comparison_id,
+            'experiment_name': comp_db.experiment_name,
+            'baseline_run_id': comp_db.baseline_run_id,
+            'optimized_run_id': comp_db.optimized_run_id,
+            'baseline': {
+                'version': comp_db.baseline_version,
+                'sample_size': comp_db.baseline_sample_size,
+                'avg_quality_score': comp_db.baseline_avg_quality,
+                'avg_tool_use_score': comp_db.baseline_avg_tool_use,
+                'avg_model_judge_score': comp_db.baseline_avg_model_judge,
+                'pass_rate': comp_db.baseline_pass_rate,
+                'avg_cost': comp_db.baseline_avg_cost,
+                'avg_latency_ms': comp_db.baseline_avg_latency,
+            },
+            'optimized': {
+                'version': comp_db.optimized_version,
+                'sample_size': comp_db.optimized_sample_size,
+                'avg_quality_score': comp_db.optimized_avg_quality,
+                'avg_tool_use_score': comp_db.optimized_avg_tool_use,
+                'avg_model_judge_score': comp_db.optimized_avg_model_judge,
+                'pass_rate': comp_db.optimized_pass_rate,
+                'avg_cost': comp_db.optimized_avg_cost,
+                'avg_latency_ms': comp_db.optimized_avg_latency,
+            },
+            'deltas': {
+                'quality_change_abs': comp_db.quality_change_abs,
+                'quality_change_pct': comp_db.quality_change_pct,
+                'cost_change_pct': comp_db.cost_change_pct,
+                'latency_change_pct': comp_db.latency_change_pct,
+                'pass_rate_change_abs': comp_db.pass_rate_change_abs,
+            },
+            'recommendation': comp_db.recommendation,
+            'confidence': comp_db.confidence,
+            'reason': comp_db.reason,
+            'summary': comp_db.summary,
+            'total_eval_cost': comp_db.total_eval_cost,
+            'eval_overhead_pct': comp_db.eval_overhead_pct,
+            'metadata': json.loads(comp_db.metadata_json) if comp_db.metadata_json else {},
+            'timestamp': comp_db.timestamp,
+        }
+
+    def get_latest_comparison(self, experiment_name: str) -> Optional[Dict[str, Any]]:
+        """Get the most recent comparison for an experiment."""
+        db: DBSession = self.SessionLocal()
+        try:
+            comp_db = db.query(ComparisonResultDB).filter(
+                ComparisonResultDB.experiment_name == experiment_name
+            ).order_by(
+                ComparisonResultDB.timestamp.desc()
+            ).first()
+
+            if comp_db:
+                return self._comparison_to_dict(comp_db)
+            return None
+        finally:
+            db.close()
+
+    # =========================================================================
+    # V2 EVALUATION SYSTEM - ANALYTICS METHODS
+    # =========================================================================
+
+    def get_evaluation_history(
+        self,
+        test_suite_id: str,
+        days: int = 30,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get evaluation history for a test suite over time.
+
+        Returns aggregated metrics per day for trend analysis.
+        """
+        db: DBSession = self.SessionLocal()
+        try:
+            from sqlalchemy import func
+            from datetime import timedelta
+
+            cutoff = datetime.utcnow() - timedelta(days=days)
+
+            results = db.query(
+                func.date(EvaluationRunDB.started_at).label('date'),
+                func.avg(EvaluationRunDB.avg_quality_score).label('avg_quality'),
+                func.avg(EvaluationRunDB.pass_rate).label('avg_pass_rate'),
+                func.sum(EvaluationRunDB.total_tests).label('total_tests'),
+                func.count(EvaluationRunDB.run_id).label('run_count'),
+            ).filter(
+                EvaluationRunDB.test_suite_id == test_suite_id,
+                EvaluationRunDB.started_at >= cutoff,
+                EvaluationRunDB.status == 'completed',
+            ).group_by(
+                func.date(EvaluationRunDB.started_at)
+            ).order_by(
+                func.date(EvaluationRunDB.started_at)
+            ).all()
+
+            return [
+                {
+                    'date': str(r.date),
+                    'avg_quality': r.avg_quality,
+                    'avg_pass_rate': r.avg_pass_rate,
+                    'total_tests': r.total_tests,
+                    'run_count': r.run_count,
+                }
+                for r in results
+            ]
+        finally:
+            db.close()
+
+    def get_test_case_stats(
+        self,
+        test_suite_id: str,
+        run_ids: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get per-test-case statistics across runs.
+
+        Useful for identifying flaky or consistently failing tests.
+        """
+        db: DBSession = self.SessionLocal()
+        try:
+            from sqlalchemy import func
+
+            query = db.query(
+                EvaluationResultDB.test_case_id,
+                func.count(EvaluationResultDB.result_id).label('eval_count'),
+                func.avg(EvaluationResultDB.score).label('avg_score'),
+                func.sum(EvaluationResultDB.passed.cast(Integer)).label('pass_count'),
+            ).join(
+                EvaluationRunDB,
+                EvaluationResultDB.run_id == EvaluationRunDB.run_id,
+            ).filter(
+                EvaluationRunDB.test_suite_id == test_suite_id,
+            )
+
+            if run_ids:
+                query = query.filter(EvaluationResultDB.run_id.in_(run_ids))
+
+            query = query.group_by(
+                EvaluationResultDB.test_case_id
+            ).order_by(
+                func.avg(EvaluationResultDB.score)
+            )
+
+            return [
+                {
+                    'test_case_id': r.test_case_id,
+                    'eval_count': r.eval_count,
+                    'avg_score': r.avg_score,
+                    'pass_count': r.pass_count,
+                    'pass_rate': r.pass_count / r.eval_count if r.eval_count > 0 else 0,
+                }
+                for r in query.all()
+            ]
+        finally:
+            db.close()
+
 
 # =============================================================================
 # OPTIMIZATION TRACKING TABLES (Story 8)
@@ -1376,6 +2017,180 @@ class AppliedFixDB(Base):
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# =============================================================================
+# V2 EVALUATION SYSTEM - DATABASE TABLES
+# =============================================================================
+
+class EvaluationRunDB(Base):
+    """
+    Stores evaluation run records.
+
+    An evaluation run represents a complete test suite execution
+    against a specific version/phase of an agent.
+    """
+    __tablename__ = "evaluation_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    run_id = Column(String(64), unique=True, index=True, nullable=False)
+    test_suite_id = Column(String(64), index=True, nullable=False)
+    test_suite_name = Column(String(256), nullable=True)
+
+    # Experiment tracking
+    experiment_name = Column(String(128), nullable=True, index=True)
+    experiment_version = Column(String(64), index=True, nullable=False)
+    phase = Column(String(16), index=True, nullable=False)  # "baseline" or "optimized"
+
+    # Status
+    status = Column(String(16), index=True, default="pending")  # pending, running, completed, failed
+    error_message = Column(Text, nullable=True)
+
+    # Timing
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    duration_seconds = Column(Float, nullable=True)
+
+    # Aggregated metrics
+    total_tests = Column(Integer, default=0)
+    passed_tests = Column(Integer, default=0)
+    failed_tests = Column(Integer, default=0)
+    skipped_tests = Column(Integer, default=0)
+
+    # Quality scores
+    avg_quality_score = Column(Float, nullable=True)
+    min_quality_score = Column(Float, nullable=True)
+    max_quality_score = Column(Float, nullable=True)
+    avg_tool_use_score = Column(Float, nullable=True)
+    avg_model_judge_score = Column(Float, nullable=True)
+    pass_rate = Column(Float, nullable=True)
+
+    # Performance (of the agent being tested)
+    total_agent_cost = Column(Float, default=0.0)
+    total_agent_latency_ms = Column(Float, default=0.0)
+    avg_agent_cost = Column(Float, nullable=True)
+    avg_agent_latency_ms = Column(Float, nullable=True)
+
+    # Evaluation overhead
+    total_eval_cost = Column(Float, default=0.0)
+    total_eval_latency_ms = Column(Float, default=0.0)
+
+    # Metadata (JSON)
+    metadata_json = Column(Text, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Indexes for common queries
+    __table_args__ = (
+        Index('idx_eval_run_experiment', 'experiment_name', 'experiment_version'),
+        Index('idx_eval_run_suite_phase', 'test_suite_id', 'phase'),
+    )
+
+
+class EvaluationResultDB(Base):
+    """
+    Stores individual evaluation results.
+
+    Each row represents one evaluator's result for one test case.
+    """
+    __tablename__ = "evaluation_results"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    result_id = Column(String(64), unique=True, index=True, nullable=False)
+    run_id = Column(String(64), index=True, nullable=False)  # FK to evaluation_runs
+    test_case_id = Column(String(64), index=True, nullable=False)
+    trace_id = Column(String(64), index=True, nullable=True)  # Links to llm_calls if captured
+
+    # Evaluator info
+    evaluator = Column(String(32), index=True, nullable=False)  # "tool_use", "model_judge", etc.
+    evaluator_version = Column(String(32), nullable=True)
+
+    # Results
+    score = Column(Float, nullable=False)
+    passed = Column(Boolean, index=True, nullable=False)
+    reasoning = Column(Text, nullable=True)
+    details_json = Column(Text, nullable=True)  # JSON string
+    issues_json = Column(Text, nullable=True)   # JSON string (list)
+
+    # Costs
+    cost = Column(Float, default=0.0)
+    latency_ms = Column(Float, default=0.0)
+    confidence = Column(Float, nullable=True)
+
+    # Timestamp
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+    # Indexes for common queries
+    __table_args__ = (
+        Index('idx_eval_result_run_test', 'run_id', 'test_case_id'),
+        Index('idx_eval_result_evaluator', 'evaluator', 'passed'),
+    )
+
+
+class ComparisonResultDB(Base):
+    """
+    Stores baseline vs optimized comparison results.
+
+    Each row represents a comparison between two evaluation runs.
+    """
+    __tablename__ = "comparison_results"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    comparison_id = Column(String(64), unique=True, index=True, nullable=False)
+    experiment_name = Column(String(128), index=True, nullable=False)
+
+    # Linked runs
+    baseline_run_id = Column(String(64), index=True, nullable=False)  # FK to evaluation_runs
+    optimized_run_id = Column(String(64), index=True, nullable=False)  # FK to evaluation_runs
+
+    # Baseline metrics
+    baseline_version = Column(String(64), nullable=True)
+    baseline_sample_size = Column(Integer, default=0)
+    baseline_avg_quality = Column(Float, nullable=True)
+    baseline_avg_tool_use = Column(Float, nullable=True)
+    baseline_avg_model_judge = Column(Float, nullable=True)
+    baseline_pass_rate = Column(Float, nullable=True)
+    baseline_avg_cost = Column(Float, nullable=True)
+    baseline_avg_latency = Column(Float, nullable=True)
+
+    # Optimized metrics
+    optimized_version = Column(String(64), nullable=True)
+    optimized_sample_size = Column(Integer, default=0)
+    optimized_avg_quality = Column(Float, nullable=True)
+    optimized_avg_tool_use = Column(Float, nullable=True)
+    optimized_avg_model_judge = Column(Float, nullable=True)
+    optimized_pass_rate = Column(Float, nullable=True)
+    optimized_avg_cost = Column(Float, nullable=True)
+    optimized_avg_latency = Column(Float, nullable=True)
+
+    # Deltas
+    quality_change_abs = Column(Float, nullable=True)
+    quality_change_pct = Column(Float, nullable=True)
+    cost_change_pct = Column(Float, nullable=True)
+    latency_change_pct = Column(Float, nullable=True)
+    pass_rate_change_abs = Column(Float, nullable=True)
+
+    # Recommendation
+    recommendation = Column(String(16), index=True)  # DEPLOY, INVESTIGATE, REJECT, NEUTRAL
+    confidence = Column(String(16))  # High, Medium, Low
+    reason = Column(Text, nullable=True)
+    summary = Column(Text, nullable=True)
+
+    # Evaluation economics
+    total_eval_cost = Column(Float, default=0.0)
+    eval_overhead_pct = Column(Float, nullable=True)
+
+    # Metadata (JSON)
+    metadata_json = Column(Text, nullable=True)
+
+    # Timestamp
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_comparison_experiment', 'experiment_name', 'timestamp'),
+    )
 
 
 # Singleton instance for easy access

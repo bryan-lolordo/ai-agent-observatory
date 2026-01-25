@@ -2,36 +2,54 @@
 AI Agent Observatory - Complete SDK Package
 Location: observatory/__init__.py
 
-Comprehensive monitoring and optimization toolkit for AI/LLM applications.
+Comprehensive monitoring, optimization, and evaluation toolkit for AI/LLM applications.
 
 Core Components:
 - Observatory: Main tracking interface
-- LLMJudge: Quality evaluation with LLM-as-judge
+- LLMJudge: Quality evaluation with LLM-as-judge (production monitoring)
 - CacheManager: Response caching with tracking
 - ModelRouter: Intelligent model selection
 - PromptManager: Template versioning and A/B testing
 - OptimizationTracker: Compare baseline vs optimized phases
 
+V2 Evaluation System (NEW):
+- ToolUseEvaluator: FREE AST-based function call validation
+- ModelJudgeEvaluator: Cheap Haiku-based semantic evaluation
+- EvaluationPipeline: Orchestrates multiple evaluators
+- ComparisonService: Baseline vs optimized comparison with recommendations
+
+Integration Strategy:
+- LLMJudge: Production quality monitoring (sampling, gpt-4o)
+- V2 Evaluators: Optimization validation (test suites, Haiku)
+
 Usage:
     from observatory import (
+        # Core
         Observatory,
+        observe,
+        # Production monitoring
         LLMJudge,
-        CacheManager,
-        ModelRouter,
-        PromptManager,
-        OptimizationTracker,
+        # V2 Evaluation
+        ToolUseEvaluator,
+        ModelJudgeEvaluator,
+        EvaluationPipeline,
+        ComparisonService,
     )
 
-    # Initialize
+    # Production monitoring (existing)
     obs = Observatory(project_name="My App")
-    judge = LLMJudge(observatory=obs, operations={"chat", "analyze"})
-    cache = CacheManager(observatory=obs, operations={"search": {"ttl": 3600}})
-    router = ModelRouter(observatory=obs, default_model="gpt-4o-mini")
-    prompts = PromptManager(observatory=obs)
-    tracker = OptimizationTracker(observatory=obs)
+    judge = LLMJudge(observatory=obs, operations={"chat"}, sample_rate=0.2)
+
+    # V2 Optimization validation (new)
+    pipeline = EvaluationPipeline.create_default()
+    result = await pipeline.evaluate(trace, expected)
+
+    # Compare versions
+    comparison = ComparisonService()
+    report = comparison.compare(baseline_results, optimized_results, ...)
 """
 
-__version__ = "0.4.0"  # Added production hardening features
+__version__ = "0.5.0"  # Added V2 evaluation system
 
 # =============================================================================
 # CORE IMPORTS
@@ -53,7 +71,6 @@ from observatory.utils import (
     estimate_tokens,
     # Hashing functions
     compute_content_hash,
-    generate_content_hash,
     generate_prompt_hash,
     # Text normalization
     normalize_prompt,
@@ -80,25 +97,25 @@ from observatory.models import (
     Session,
     LLMCall,
     SessionReport,
-    
+
     # Enums
     ModelProvider,
     AgentRole,
     CallType,
-    
+
     # Tracking metadata (existing)
     RoutingDecision,
     CacheMetadata,
     QualityEvaluation,
     PromptBreakdown,
     PromptMetadata,
-    
+
     # NEW: Additional tracking models
     ModelConfig,
     StreamingMetrics,
     ExperimentMetadata,
     ErrorDetails,
-    
+
     # Breakdown models
     CostBreakdown,
     LatencyBreakdown,
@@ -107,6 +124,27 @@ from observatory.models import (
     RoutingMetrics,
     CacheMetrics,
     OptimizationSuggestion,
+
+    # V2 Evaluation System - Enums
+    TestCaseCategory,
+    TestDifficulty,
+    EvaluationStatus,
+    Recommendation,
+
+    # V2 Evaluation System - Test Infrastructure
+    TestCase,
+    TestCaseExpected,
+    TestCaseGroundTruth,
+    TestSuite,
+    TestSuiteConfig,
+
+    # V2 Evaluation System - Results
+    EvaluationRun,
+    EvaluationRunMetrics,
+    EvaluationResultRecord,
+    ComparisonRecord,
+    VersionMetrics,
+    ComparisonDeltas,
 )
 
 # =============================================================================
@@ -178,15 +216,6 @@ from observatory.optimization_tracker import (
     OptimizationTracker,
 )
 
-# =============================================================================
-# TRACKED LLM CALL - Context Manager for 10-step optimization pattern
-# =============================================================================
-
-from observatory.tracked_call import (
-    TrackedLLMCall,
-    TrackedLLMCallResult,
-    create_tracked_call,
-)
 
 # =============================================================================
 # @observe DECORATOR - THE PRIMARY PUBLIC INTERFACE
@@ -196,6 +225,9 @@ from observatory.observe import (
     observe,
     extract_response,
     ExtractedResponse,
+    # ContextVar helpers for conversation context propagation
+    set_conversation_context,
+    get_conversation_context,
 )
 
 # =============================================================================
@@ -235,6 +267,43 @@ from observatory.health import (
     check_router_health,
     check_async_writer_health,
     check_circuit_breaker_health,
+)
+
+# =============================================================================
+# V2 EVALUATION SYSTEM (NEW)
+# =============================================================================
+
+from observatory.evaluators import (
+    # Base classes
+    BaseEvaluator,
+    EvaluationResult,
+    # Evaluators
+    ToolUseEvaluator,
+    ModelJudgeEvaluator,
+)
+
+from observatory.evaluation import (
+    # Pipeline
+    EvaluationPipeline,
+    AggregatedResult,
+    # Comparison
+    ComparisonService,
+    ComparisonResult,
+    # Test Suites
+    TestSuiteLoader,
+    TestSuiteBuilder,
+    TestSuiteValidator,
+    TestSuiteWriter,
+    # Storage
+    EvaluationStore,
+    # Runner
+    TestRunner,
+    RunnerConfig,
+    # Reporting
+    ConsoleReporter,
+    MarkdownReporter,
+    JSONReporter,
+    ReportBuilder,
 )
 
 # =============================================================================
@@ -517,15 +586,12 @@ __all__ = [
     # Optimization tracking
     "OptimizationTracker",
 
-    # Tracked LLM Call - Context Manager (legacy)
-    "TrackedLLMCall",
-    "TrackedLLMCallResult",
-    "create_tracked_call",
-
     # @observe decorator - THE PRIMARY PUBLIC INTERFACE
     "observe",
     "extract_response",
     "ExtractedResponse",
+    "set_conversation_context",
+    "get_conversation_context",
 
     # Models (existing)
     "Session",
@@ -552,6 +618,27 @@ __all__ = [
     "ExperimentMetadata",
     "ErrorDetails",
     "CallType",
+
+    # V2 Evaluation Models - Enums
+    "TestCaseCategory",
+    "TestDifficulty",
+    "EvaluationStatus",
+    "Recommendation",
+
+    # V2 Evaluation Models - Test Infrastructure
+    "TestCase",
+    "TestCaseExpected",
+    "TestCaseGroundTruth",
+    "TestSuite",
+    "TestSuiteConfig",
+
+    # V2 Evaluation Models - Results
+    "EvaluationRun",
+    "EvaluationRunMetrics",
+    "EvaluationResultRecord",
+    "ComparisonRecord",
+    "VersionMetrics",
+    "ComparisonDeltas",
     
     # Convenience functions
     "track_llm_call",
@@ -565,7 +652,6 @@ __all__ = [
     # Utility functions (from utils.py)
     "estimate_tokens",
     "compute_content_hash",
-    "generate_content_hash",
     "generate_prompt_hash",
     "normalize_prompt",
     "calculate_cost",
@@ -606,4 +692,35 @@ __all__ = [
     "check_router_health",
     "check_async_writer_health",
     "check_circuit_breaker_health",
+
+    # V2 Evaluation System - Base
+    "BaseEvaluator",
+    "EvaluationResult",
+    "ToolUseEvaluator",
+    "ModelJudgeEvaluator",
+
+    # V2 Evaluation System - Pipeline
+    "EvaluationPipeline",
+    "AggregatedResult",
+    "ComparisonService",
+    "ComparisonResult",
+
+    # V2 Evaluation System - Test Suites
+    "TestSuiteLoader",
+    "TestSuiteBuilder",
+    "TestSuiteValidator",
+    "TestSuiteWriter",
+
+    # V2 Evaluation System - Storage
+    "EvaluationStore",
+
+    # V2 Evaluation System - Runner
+    "TestRunner",
+    "RunnerConfig",
+
+    # V2 Evaluation System - Reporting
+    "ConsoleReporter",
+    "MarkdownReporter",
+    "JSONReporter",
+    "ReportBuilder",
 ]

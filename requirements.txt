@@ -41,6 +41,11 @@ pytest-cov>=4.1.0            # Coverage reports
 httpx>=0.25.0                # Async HTTP client (for testing FastAPI)
 
 # =============================================================================
+# MCP SERVER
+# =============================================================================
+mcp>=1.0.0                   # Model Context Protocol SDK
+
+# =============================================================================
 # OPTIONAL DEPENDENCIES
 # =============================================================================
 # chromadb>=0.4.0            # Uncomment for SemanticCache (vector similarity)

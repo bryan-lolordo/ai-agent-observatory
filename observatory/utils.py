@@ -77,25 +77,6 @@ def compute_content_hash(content: str, length: int = 16) -> str:
     return hashlib.md5(content.encode()).hexdigest()[:length]
 
 
-def generate_content_hash(text: str, length: int = 8) -> str:
-    """
-    Generate deterministic hash from text prefix.
-
-    Alias for compute_content_hash with default length of 8.
-    Kept for backwards compatibility.
-
-    Args:
-        text: Text to hash
-        length: Length of hash to return (default 8 characters)
-
-    Returns:
-        Hex string hash
-    """
-    if not text:
-        return ""
-    return hashlib.md5(text[:500].encode()).hexdigest()[:length]
-
-
 def generate_prompt_hash(prompt: str, prefix_length: int = 500) -> str:
     """
     Generate a short hash from prompt prefix for version detection.

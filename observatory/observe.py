@@ -25,6 +25,24 @@ Features:
     - Handles sync and async functions
     - Full error tracking with classification
     - Conversation linking via conversation_id and turn_number parameters
+    - ContextVar propagation: nested @observe calls automatically inherit conversation context
+
+Conversation Context Propagation:
+    When you pass conversation_id and turn_number to an @observe decorated function,
+    these values are stored in ContextVars and automatically propagate to all nested
+    @observe calls. This means plugin calls don't need to explicitly pass these parameters.
+
+    Example:
+        @observe(operation="chat", agent_name="ChatBot")
+        async def chat(prompt: str, conversation_id: str, turn_number: int):
+            # These nested calls will automatically have conversation_id/turn_number
+            result = await plugin_call(prompt)  # No need to pass conv context
+            return result
+
+    You can also set context manually:
+        from observatory import set_conversation_context
+        set_conversation_context("conv-123", 5)
+        # All @observe calls in this async context will use these values
 
 The decorator wraps your function and:
     1. Times execution
@@ -39,6 +57,8 @@ import functools
 import hashlib
 import logging
 import time
+import uuid
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Union, TYPE_CHECKING
 
@@ -46,6 +66,61 @@ if TYPE_CHECKING:
     from observatory import Observatory
 
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# CONTEXT VARIABLES FOR CONVERSATION TRACKING
+# =============================================================================
+# These allow conversation context to propagate automatically through nested
+# @observe calls without requiring explicit parameter passing.
+#
+# Usage in your entrypoint:
+#     @observe(operation="chat", agent_name="ChatBot")
+#     async def chat(prompt: str, conversation_id: str, turn_number: int):
+#         # conversation_id and turn_number automatically propagate to nested calls
+#         result = await plugin_call(prompt)  # No need to pass conv context
+#         return result
+#
+# Or set manually:
+#     from observatory.observe import set_conversation_context
+#     set_conversation_context("conv-123", 5)
+#     # All @observe calls in this async context will use these values
+
+_conversation_id_ctx: ContextVar[Optional[str]] = ContextVar('conversation_id', default=None)
+_turn_number_ctx: ContextVar[Optional[int]] = ContextVar('turn_number', default=None)
+_user_id_ctx: ContextVar[Optional[str]] = ContextVar('user_id', default=None)
+
+
+def set_conversation_context(
+    conversation_id: Optional[str] = None,
+    turn_number: Optional[int] = None,
+    user_id: Optional[str] = None
+) -> None:
+    """
+    Set conversation context for all nested @observe calls.
+
+    This is useful when you want to set context once at an entrypoint
+    and have it propagate to all nested LLM calls automatically.
+
+    Args:
+        conversation_id: Unique ID for this conversation
+        turn_number: Current turn number in the conversation
+        user_id: ID of the user making the request
+    """
+    if conversation_id is not None:
+        _conversation_id_ctx.set(conversation_id)
+    if turn_number is not None:
+        _turn_number_ctx.set(turn_number)
+    if user_id is not None:
+        _user_id_ctx.set(user_id)
+
+
+def get_conversation_context() -> Dict[str, Any]:
+    """Get current conversation context from ContextVars."""
+    return {
+        'conversation_id': _conversation_id_ctx.get(),
+        'turn_number': _turn_number_ctx.get(),
+        'user_id': _user_id_ctx.get(),
+    }
 
 
 # =============================================================================
@@ -408,6 +483,7 @@ def observe(
     # Dependency injection (typically from config file)
     obs: 'Observatory' = None,
     cache: Any = None,
+    persistent_cache: Any = None,
     semantic_cache: Any = None,
     router: Any = None,
     prefix_cache: Any = None,
@@ -458,7 +534,8 @@ def observe(
 
         # Injected by config (typically not set by user):
         obs: Observatory instance
-        cache: CacheManager instance
+        cache: CacheManager instance (in-memory)
+        persistent_cache: PersistentCacheManager instance (SQLite-backed)
         semantic_cache: SemanticCache instance
         router: ModelRouter instance
         prefix_cache: PrefixCacheDetector instance
@@ -515,7 +592,7 @@ def observe(
                 conversation_id=conversation_id, turn_number=turn_number, user_id=user_id,
                 cache_key=cache_key, skip_cache=skip_cache, skip_quality_eval=skip_quality_eval,
                 complexity=complexity, skip_routing=skip_routing, metadata=metadata,
-                obs=obs, cache=cache, semantic_cache=semantic_cache, router=router,
+                obs=obs, cache=cache, persistent_cache=persistent_cache, semantic_cache=semantic_cache, router=router,
                 prefix_cache=prefix_cache, streaming_detector=streaming_detector,
                 batch_detector=batch_detector, context_growth_detector=context_growth_detector,
                 token_efficiency_detector=token_efficiency_detector, judge=judge,
@@ -539,7 +616,7 @@ def observe(
                         conversation_id=conversation_id, turn_number=turn_number, user_id=user_id,
                         cache_key=cache_key, skip_cache=skip_cache, skip_quality_eval=skip_quality_eval,
                         complexity=complexity, skip_routing=skip_routing, metadata=metadata,
-                        obs=obs, cache=cache, semantic_cache=semantic_cache, router=router,
+                        obs=obs, cache=cache, persistent_cache=persistent_cache, semantic_cache=semantic_cache, router=router,
                         prefix_cache=prefix_cache, streaming_detector=streaming_detector,
                         batch_detector=batch_detector, context_growth_detector=context_growth_detector,
                         token_efficiency_detector=token_efficiency_detector, judge=judge,
@@ -597,6 +674,7 @@ async def _execute_with_tracking(
     metadata: dict,
     obs: Any,
     cache: Any,
+    persistent_cache: Any,
     semantic_cache: Any,
     router: Any,
     prefix_cache: Any,
@@ -625,10 +703,21 @@ async def _execute_with_tracking(
     messages = extracted_args['messages']
     model_from_args = extracted_args['model']
 
-    # Extract conversation context from kwargs if not provided at decorator level
-    conv_id = conversation_id or kwargs.get('conversation_id')
-    turn_num = turn_number or kwargs.get('turn_number')
-    uid = user_id or kwargs.get('user_id')
+    # Extract conversation context with fallback chain:
+    # 1. Explicit decorator parameter
+    # 2. Value passed in kwargs
+    # 3. ContextVar (set by parent @observe call or set_conversation_context())
+    conv_id = conversation_id or kwargs.get('conversation_id') or _conversation_id_ctx.get()
+    turn_num = turn_number or kwargs.get('turn_number') or _turn_number_ctx.get()
+    uid = user_id or kwargs.get('user_id') or _user_id_ctx.get()
+
+    # Set ContextVars so nested @observe calls inherit this context
+    if conv_id:
+        _conversation_id_ctx.set(conv_id)
+    if turn_num:
+        _turn_number_ctx.set(turn_num)
+    if uid:
+        _user_id_ctx.set(uid)
 
     # Build full prompt for caching
     full_prompt = ""
@@ -695,6 +784,55 @@ async def _execute_with_tracking(
                 return cached_value
         except Exception as e:
             logger.debug(f"Cache check failed: {e}")
+
+    # =========================================================================
+    # STEP 1.5: Check persistent cache (if enabled)
+    # =========================================================================
+    if not skip_cache and persistent_cache and full_prompt:
+        try:
+            # Build key_data for persistent cache
+            pcache_key_data = cache_key.copy() if cache_key else {}
+            if not pcache_key_data:
+                pcache_key_data = {"prompt_hash": hashlib.sha256(full_prompt.encode()).hexdigest()[:16]}
+
+            # Check if operation is configured for persistent caching
+            cached_value, pcache_meta = persistent_cache.get(
+                operation=op_name,
+                key_data=pcache_key_data,
+                prompt=full_prompt,
+            )
+
+            # Track detection in baseline, return cached value in optimized
+            if is_optimized_phase and cached_value is not None and pcache_meta and pcache_meta.cache_hit:
+                latency_ms = (time.perf_counter() - start_time) * 1000
+
+                if track_llm_call_fn:
+                    track_llm_call_fn(
+                        model_name=routed_model,
+                        prompt_tokens=0,
+                        completion_tokens=0,
+                        latency_ms=latency_ms,
+                        operation=op_name,
+                        agent_name=agent_name,
+                        agent_role=agent_role,
+                        success=True,
+                        user_message=user_message,
+                        system_prompt=system_prompt,
+                        response_text=str(cached_value),
+                        cache_metadata=pcache_meta,
+                        conversation_id=conv_id,
+                        turn_number=turn_num,
+                        user_id=uid,
+                        metadata={**(metadata or {}), "persistent_cache_return": True},
+                    )
+
+                return cached_value
+
+            # Update cache_metadata for tracking
+            if pcache_meta:
+                cache_metadata = pcache_meta
+        except Exception as e:
+            logger.debug(f"Persistent cache check failed: {e}")
 
     # =========================================================================
     # STEP 2: Check semantic cache (if enabled)
@@ -878,6 +1016,21 @@ async def _execute_with_tracking(
                 except Exception as e:
                     logger.debug(f"Cache storage failed: {e}")
 
+        # Persistent cache - store in both phases (detection + actual caching)
+        if persistent_cache:
+            try:
+                pcache_key_data = cache_key.copy() if cache_key else {}
+                if not pcache_key_data:
+                    pcache_key_data = {"prompt_hash": hashlib.sha256(full_prompt.encode()).hexdigest()[:16]}
+
+                persistent_cache.set(
+                    operation=op_name,
+                    key_data=pcache_key_data,
+                    value=extracted.response_text,
+                )
+            except Exception as e:
+                logger.debug(f"Persistent cache storage failed: {e}")
+
         # Semantic cache - only store in optimized mode (embedding generation is slow)
         if semantic_cache and is_optimized_phase:
             sem_config = op_optimizations.get('semantic_cache', {})
@@ -894,25 +1047,33 @@ async def _execute_with_tracking(
                     logger.debug(f"Semantic cache storage failed: {e}")
 
     # =========================================================================
-    # STEP 9: Quality evaluation (fire-and-forget)
+    # STEP 9: Generate call_id for linking judge evaluation to tracked call
+    # =========================================================================
+    call_id = str(uuid.uuid4())
+
+    # =========================================================================
+    # STEP 10: Quality evaluation (fire-and-forget, will update call async)
     # =========================================================================
     if not skip_quality_eval and judge and not error and extracted.response_text:
         try:
             # Fire and forget - don't await
+            # Judge uses self-contained OpenAI client (no llm_client needed)
+            # Judge will update the call's quality_evaluation after completion
             asyncio.create_task(
-                judge.maybe_evaluate(
+                judge.evaluate_async(
                     operation=op_name,
                     prompt=full_prompt,
                     response=extracted.response_text,
                     conversation_id=conv_id,
                     turn_number=turn_num,
+                    call_id=call_id,  # Link evaluation to this call
                 )
             )
         except Exception as e:
             logger.debug(f"Quality evaluation failed: {e}")
 
     # =========================================================================
-    # STEP 10: Track the call
+    # STEP 11: Track the call (with call_id for judge linking)
     # =========================================================================
     if track_llm_call_fn:
         try:
@@ -959,8 +1120,12 @@ async def _execute_with_tracking(
                 cached_prompt_tokens=extracted.cached_prompt_tokens,
                 cached_token_savings=extracted.cached_token_savings,
 
+                # Use call_id as request_id so judge can update this call
+                request_id=call_id,
+
                 metadata={
                     **(metadata or {}),
+                    "phase": current_phase,
                     "finish_reason": extracted.finish_reason,
                     "cache_creation_tokens": extracted.cache_creation_tokens,
                     "cache_read_tokens": extracted.cache_read_tokens,
@@ -1022,10 +1187,21 @@ def _execute_sync_with_tracking(
     messages = extracted_args['messages']
     model_from_args = extracted_args['model']
 
-    # Extract conversation context from kwargs
-    conv_id = conversation_id or kwargs.get('conversation_id')
-    turn_num = turn_number or kwargs.get('turn_number')
-    uid = user_id or kwargs.get('user_id')
+    # Extract conversation context with fallback chain:
+    # 1. Explicit decorator parameter
+    # 2. Value passed in kwargs
+    # 3. ContextVar (set by parent @observe call or set_conversation_context())
+    conv_id = conversation_id or kwargs.get('conversation_id') or _conversation_id_ctx.get()
+    turn_num = turn_number or kwargs.get('turn_number') or _turn_number_ctx.get()
+    uid = user_id or kwargs.get('user_id') or _user_id_ctx.get()
+
+    # Set ContextVars so nested calls inherit this context
+    if conv_id:
+        _conversation_id_ctx.set(conv_id)
+    if turn_num:
+        _turn_number_ctx.set(turn_num)
+    if uid:
+        _user_id_ctx.set(uid)
 
     full_prompt = ""
     if system_prompt:

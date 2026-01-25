@@ -5,17 +5,21 @@ Location: observatory/judge.py
 Configurable LLM-as-a-judge for evaluating response quality.
 Applications configure which operations to judge and domain-specific criteria.
 
-UPDATED: Added phase tracking, confidence filtering, and adaptive sampling.
+UPDATED v0.5:
+  - Self-contained client: Creates own OpenAI client from env vars (no llm_client required)
+  - Renamed maybe_evaluate() → evaluate_async() for clarity
+  - Added evaluate_sync() as renamed maybe_evaluate_sync()
+  - Legacy methods preserved with deprecation warnings
 
-Supports multiple client types:
-  - OpenAI / Azure OpenAI clients
-  - Semantic Kernel
-  - Generic async/sync callables
+Supports:
+  - Self-contained mode (default): Uses OPENAI_API_KEY from environment
+  - Pass-through mode: Use provided llm_client if preferred
 """
 
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import random
 import time
@@ -31,6 +35,8 @@ from observatory.utils import ClientType, detect_client_type
 
 if TYPE_CHECKING:
     from observatory.collector import Observatory
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -61,34 +67,45 @@ PHASE_DESCRIPTIONS = {
 class LLMJudge:
     """
     Configurable LLM-as-a-Judge for quality evaluation.
-    
-    Supports multiple client types:
+
+    Self-Contained Mode (v0.5+):
+      - Creates its own OpenAI client using OPENAI_API_KEY env var
+      - No need to pass llm_client - just call evaluate_async()
+      - Uses gpt-4o by default for higher quality evaluation (recommended: use different model than your app)
+
+    Also supports pass-through mode with custom clients:
       - OpenAI / Azure OpenAI: client.chat.completions.create()
       - Semantic Kernel: kernel.invoke_prompt()
       - Generic callable: async def my_llm(prompt) -> str
-    
-    NEW Features:
+
+    Features:
       - Phase tracking for baseline/optimized comparison
       - Confidence filtering (min_confidence threshold)
       - Configurable prompt/response truncation
       - Adaptive sampling by phase
       - Cost tracking and statistics
-    
-    Usage:
+
+    Usage (Self-Contained - Recommended):
         judge = LLMJudge(
             observatory=obs,
             operations={"chat", "analyze", "generate"},
-            sample_rate=1.0 if CURRENT_PHASE == "baseline" else 0.2,
-            min_confidence=0.7,  # NEW
+            sample_rate=0.2,
             domain_context="career advice and resume optimization"
         )
-        
-        # In your code - works with any client type
-        quality = await judge.maybe_evaluate(
+
+        # No llm_client needed - uses OPENAI_API_KEY from environment
+        quality = await judge.evaluate_async(
             operation="chat",
             prompt=user_query,
             response=llm_response,
-            llm_client=kernel  # or openai_client, or callable
+        )
+
+    Usage (Custom Client):
+        quality = await judge.evaluate_async(
+            operation="chat",
+            prompt=user_query,
+            response=llm_response,
+            llm_client=my_custom_client,  # Override self-contained client
         )
     """
     
@@ -100,17 +117,23 @@ class LLMJudge:
         sample_rate: float = DEFAULT_SAMPLE_RATE,
         criteria: Optional[Dict[str, float]] = None,
         domain_context: str = "AI assistant responses",
-        judge_model: str = "gpt-4o-mini",
+        judge_model: str = "gpt-4o",
         track_judge_calls: bool = True,
         enabled: bool = True,
         # NEW parameters
         min_confidence: float = 0.0,
         max_prompt_chars: int = 1000,
         max_response_chars: int = 1500,
+        # API key for self-contained client (optional - uses env var if not provided)
+        api_key: Optional[str] = None,
+        api_base: Optional[str] = None,
+        # Azure OpenAI support
+        provider: Optional[str] = None,  # "openai" or "azure" (auto-detected if not specified)
+        api_version: Optional[str] = None,  # Required for Azure (e.g., "2024-02-15-preview")
     ):
         """
         Initialize LLM Judge.
-        
+
         Args:
             observatory: Observatory instance for tracking judge calls
             operations: Set of operations to evaluate (if None, evaluates all)
@@ -124,6 +147,10 @@ class LLMJudge:
             min_confidence: Minimum confidence score to accept (0.0-1.0, default 0.0 = accept all)
             max_prompt_chars: Max characters of prompt to send to judge (default 1000)
             max_response_chars: Max characters of response to send to judge (default 1500)
+            api_key: API key (optional - uses OPENAI_API_KEY or AZURE_OPENAI_API_KEY env var)
+            api_base: Optional API base URL / Azure endpoint
+            provider: "openai" or "azure" (auto-detected from api_base if not specified)
+            api_version: Azure API version (default: "2024-02-15-preview")
         """
         self.observatory = observatory
         self.operations = operations or set()
@@ -134,21 +161,119 @@ class LLMJudge:
         self.judge_model = judge_model
         self.track_judge_calls = track_judge_calls
         self.enabled = enabled
-        
+
         # NEW: Confidence and truncation settings
         self.min_confidence = max(0.0, min(1.0, min_confidence))
         self.max_prompt_chars = max_prompt_chars
         self.max_response_chars = max_response_chars
-        
+
+        # NEW: Self-contained client configuration
+        self._api_key = api_key
+        self._api_base = api_base
+        self._provider = provider  # "openai" or "azure" (auto-detected if not specified)
+        self._api_version = api_version or "2024-02-15-preview"  # Default Azure API version
+        self._client = None  # Lazy-initialized
+
         # Get current phase from environment (most reliable)
         self.current_phase = os.getenv("OBSERVATORY_PHASE", "baseline")
-        
+
         # Statistics
         self._total_evaluated = 0
         self._total_skipped = 0
         self._total_hallucinations = 0
         self._score_sum = 0.0
         self._low_confidence_rejected = 0
+
+    # =========================================================================
+    # SELF-CONTAINED CLIENT
+    # =========================================================================
+
+    def _get_client(self):
+        """
+        Get or create the OpenAI/Azure client for judge evaluations.
+
+        Uses lazy initialization to avoid import errors if openai not installed.
+        Falls back to environment variables if no explicit api_key provided.
+
+        Supports:
+          - OpenAI (default): Uses OPENAI_API_KEY
+          - Azure OpenAI: Uses AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT
+        """
+        if self._client is not None:
+            return self._client
+
+        # Auto-detect provider if not specified
+        provider = self._provider
+        if not provider:
+            # If api_base contains "azure", use Azure; otherwise use OpenAI
+            if self._api_base and "azure" in self._api_base.lower():
+                provider = "azure"
+            elif os.getenv("AZURE_OPENAI_ENDPOINT") and not os.getenv("OPENAI_API_KEY"):
+                provider = "azure"
+            else:
+                provider = "openai"
+
+        if provider == "azure":
+            return self._create_azure_client()
+        else:
+            return self._create_openai_client()
+
+    def _create_openai_client(self):
+        """Create standard OpenAI client."""
+        try:
+            from openai import AsyncOpenAI
+        except ImportError:
+            logger.warning("openai package not installed - judge will be disabled")
+            return None
+
+        api_key = self._api_key or os.getenv("OPENAI_API_KEY")
+
+        if not api_key:
+            logger.warning("No OpenAI API key found - judge will be disabled. "
+                          "Set OPENAI_API_KEY environment variable or pass api_key to LLMJudge()")
+            return None
+
+        client_kwargs = {"api_key": api_key}
+        if self._api_base:
+            client_kwargs["base_url"] = self._api_base
+
+        self._client = AsyncOpenAI(**client_kwargs)
+        logger.debug(f"LLMJudge: Created OpenAI client for {self.judge_model}")
+        return self._client
+
+    def _create_azure_client(self):
+        """Create Azure OpenAI client."""
+        try:
+            from openai import AsyncAzureOpenAI
+        except ImportError:
+            logger.warning("openai package not installed - judge will be disabled")
+            return None
+
+        api_key = self._api_key or os.getenv("AZURE_OPENAI_API_KEY")
+        azure_endpoint = self._api_base or os.getenv("AZURE_OPENAI_ENDPOINT")
+
+        if not api_key:
+            logger.warning("No Azure API key found - judge will be disabled. "
+                          "Set AZURE_OPENAI_API_KEY environment variable or pass api_key to LLMJudge()")
+            return None
+
+        if not azure_endpoint:
+            logger.warning("No Azure endpoint found - judge will be disabled. "
+                          "Set AZURE_OPENAI_ENDPOINT environment variable or pass api_base to LLMJudge()")
+            return None
+
+        self._client = AsyncAzureOpenAI(
+            api_key=api_key,
+            azure_endpoint=azure_endpoint,
+            api_version=self._api_version,
+        )
+        logger.debug(f"LLMJudge: Created Azure OpenAI client for {self.judge_model} (endpoint: {azure_endpoint})")
+        return self._client
+
+    @property
+    def has_client(self) -> bool:
+        """Check if judge has a working client available."""
+        return self._get_client() is not None
     
     # =========================================================================
     # CONFIGURATION
@@ -216,52 +341,75 @@ class LLMJudge:
     # =========================================================================
     # MAIN EVALUATION METHODS
     # =========================================================================
-    
-    async def maybe_evaluate(
+
+    async def evaluate_async(
         self,
         operation: str,
         prompt: str,
         response: str,
-        llm_client: Any,
+        llm_client: Any = None,
         context: Optional[Dict] = None,
         force: bool = False,
         # Conversation tracking
         conversation_id: Optional[str] = None,
         turn_number: Optional[int] = None,
         parent_call_id: Optional[str] = None,
+        # Call linking - attach evaluation to original call
+        call_id: Optional[str] = None,
     ) -> Optional[QualityEvaluation]:
         """
         Async evaluation with sampling.
-        
+
+        Uses self-contained OpenAI client by default. Pass llm_client to override.
+
         Args:
             operation: Operation name
             prompt: Original prompt
             response: LLM response to evaluate
-            llm_client: LLM client (OpenAI, Semantic Kernel, or callable)
+            llm_client: Optional LLM client (uses self-contained client if None)
             context: Optional additional context
             force: Bypass sampling if True
             conversation_id: Conversation identifier for linking
             turn_number: Turn number in conversation
             parent_call_id: Parent call ID for linking
-        
+            call_id: ID of the original LLM call to attach evaluation to
+
         Returns:
-            QualityEvaluation or None if skipped/rejected
+            QualityEvaluation or None if skipped/rejected/no client available
         """
         if not self.should_evaluate(operation, force):
             return None
-        
-        return await self._evaluate_async(
-            operation, prompt, response, llm_client, context,
+
+        # Use provided client or self-contained client
+        client = llm_client or self._get_client()
+        if client is None:
+            logger.debug(f"Judge skipped for {operation}: no client available")
+            return None
+
+        evaluation = await self._evaluate_async(
+            operation, prompt, response, client, context,
             conversation_id=conversation_id, turn_number=turn_number,
             parent_call_id=parent_call_id,
         )
-    
-    def maybe_evaluate_sync(
+
+        # Attach evaluation to original call if call_id provided
+        if evaluation and call_id and self.observatory:
+            try:
+                self.observatory.storage.update_call_quality_evaluation(
+                    call_id=call_id,
+                    quality_evaluation=evaluation,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to attach evaluation to call {call_id}: {e}")
+
+        return evaluation
+
+    def evaluate_sync(
         self,
         operation: str,
         prompt: str,
         response: str,
-        llm_client: Any,
+        llm_client: Any = None,
         context: Optional[Dict] = None,
         force: bool = False,
         # Conversation tracking
@@ -271,30 +419,36 @@ class LLMJudge:
     ) -> Optional[QualityEvaluation]:
         """
         Sync evaluation with sampling.
-        
+
+        Note: Self-contained client is async-only. For sync, you must provide llm_client.
+
         Args:
             operation: Operation name
             prompt: Original prompt
             response: LLM response to evaluate
-            llm_client: Sync LLM client (OpenAI/Azure)
+            llm_client: Sync LLM client (required for sync evaluation)
             context: Optional additional context
             force: Bypass sampling if True
             conversation_id: Conversation identifier for linking
             turn_number: Turn number in conversation
             parent_call_id: Parent call ID for linking
-        
+
         Returns:
             QualityEvaluation or None if skipped/rejected
         """
         if not self.should_evaluate(operation, force):
             return None
-        
+
+        if llm_client is None:
+            logger.warning("evaluate_sync requires llm_client parameter (self-contained client is async-only)")
+            return None
+
         return self._evaluate_sync(
             operation, prompt, response, llm_client, context,
             conversation_id=conversation_id, turn_number=turn_number,
-            parent_call_id=parent_call_id, 
+            parent_call_id=parent_call_id,
         )
-    
+
     # =========================================================================
     # INTERNAL EVALUATION LOGIC
     # =========================================================================

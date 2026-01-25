@@ -363,6 +363,11 @@ class LLMCall(BaseModel):
     prompt_normalized: Optional[str] = None
     content_hash: Optional[str] = None  # Hash of prompt for deduplication
     response_text: Optional[str] = None
+
+    # Separate prompt components (for detailed tracking)
+    system_prompt: Optional[str] = None
+    user_message: Optional[str] = None
+
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
@@ -608,3 +613,367 @@ class SessionReport(BaseModel):
 
 # Rebuild models to resolve forward references
 Session.model_rebuild()
+
+
+# =============================================================================
+# V2 EVALUATION SYSTEM - ENUMS
+# =============================================================================
+
+class TestCaseCategory(str, Enum):
+    """Categories for test cases"""
+    STRONG_MATCH = "strong_match"
+    WEAK_MATCH = "weak_match"
+    EDGE_CASE = "edge_case"
+    ERROR_HANDLING = "error_handling"
+    PERFORMANCE = "performance"
+    REGRESSION = "regression"
+    CUSTOM = "custom"
+
+
+class TestDifficulty(str, Enum):
+    """Test case difficulty levels"""
+    EASY = "easy"
+    NORMAL = "normal"
+    HARD = "hard"
+
+
+class EvaluationStatus(str, Enum):
+    """Status of an evaluation run"""
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class EvaluatorType(str, Enum):
+    """Types of evaluators"""
+    TOOL_USE = "tool_use"
+    MODEL_JUDGE = "model_judge"
+    LLM_JUDGE = "llm_judge"
+    SCHEMA = "schema"
+    RANGE = "range"
+    CUSTOM = "custom"
+
+
+class Recommendation(str, Enum):
+    """Deployment recommendations from comparison"""
+    DEPLOY = "DEPLOY"
+    INVESTIGATE = "INVESTIGATE"
+    REJECT = "REJECT"
+    NEUTRAL = "NEUTRAL"
+
+
+# =============================================================================
+# V2 EVALUATION SYSTEM - TEST INFRASTRUCTURE
+# =============================================================================
+
+class TestCaseExpected(BaseModel):
+    """Expected behavior for a test case"""
+    # Tool use expectations
+    tool_called: Optional[str] = None
+    required_args: List[str] = Field(default_factory=list)
+    optional_args: List[str] = Field(default_factory=list)
+    arg_types: Dict[str, str] = Field(default_factory=dict)
+
+    # Evaluation criteria for model judge
+    evaluation_criteria: Optional[str] = None
+
+    # Score expectations (for scoring operations)
+    score_range: Optional[List[float]] = None  # [min, max]
+
+
+class TestCaseGroundTruth(BaseModel):
+    """Ground truth for validating test results"""
+    # For scoring operations
+    ideal_score_range: Optional[List[float]] = None  # [min, max]
+    ideal_score: Optional[float] = None
+
+    # For content validation
+    key_matches: List[str] = Field(default_factory=list)
+    key_mismatches: List[str] = Field(default_factory=list)
+    required_content: List[str] = Field(default_factory=list)
+    forbidden_content: List[str] = Field(default_factory=list)
+
+    # Custom ground truth data
+    custom: Dict[str, Any] = Field(default_factory=dict)
+
+
+class TestCase(BaseModel):
+    """
+    A single test case for evaluation.
+
+    Contains input, expected behavior, and ground truth.
+    """
+    id: str
+    category: str = TestCaseCategory.CUSTOM.value
+    description: str = ""
+    difficulty: str = TestDifficulty.NORMAL.value
+    tags: List[str] = Field(default_factory=list)
+
+    # Input to the agent
+    input: Dict[str, Any] = Field(default_factory=dict)
+
+    # Expected behavior
+    expected: TestCaseExpected = Field(default_factory=TestCaseExpected)
+
+    # Ground truth for scoring
+    ground_truth: Optional[TestCaseGroundTruth] = None
+
+    # Metadata
+    timeout_seconds: Optional[int] = None
+    enabled: bool = True
+
+    @field_validator('category')
+    @classmethod
+    def validate_category(cls, v):
+        # Allow enum values or custom strings
+        return v
+
+
+class TestSuiteConfig(BaseModel):
+    """Configuration for a test suite"""
+    pass_threshold: float = 75.0
+    evaluators: List[str] = Field(default_factory=lambda: ["tool_use", "model_judge"])
+    timeout_seconds: int = 30
+    parallel: bool = True
+    max_concurrent: int = 5
+    retry_failed: bool = False
+    retry_count: int = 1
+
+    # Evaluator weights for overall score
+    evaluator_weights: Dict[str, float] = Field(
+        default_factory=lambda: {"tool_use": 0.4, "model_judge": 0.6}
+    )
+
+    @field_validator('pass_threshold')
+    @classmethod
+    def threshold_must_be_valid(cls, v):
+        if v < 0 or v > 100:
+            raise ValueError('Pass threshold must be between 0 and 100')
+        return v
+
+
+class TestSuite(BaseModel):
+    """
+    A collection of test cases for evaluation.
+
+    Loaded from YAML/JSON files or created programmatically.
+    """
+    id: str
+    name: str
+    version: str = "1.0"
+    description: str = ""
+    agent_name: str = ""
+
+    # Configuration
+    config: TestSuiteConfig = Field(default_factory=TestSuiteConfig)
+
+    # Test cases
+    test_cases: List[TestCase] = Field(default_factory=list)
+
+    # Metadata
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = None
+    author: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+
+    def get_enabled_tests(self) -> List[TestCase]:
+        """Get only enabled test cases"""
+        return [tc for tc in self.test_cases if tc.enabled]
+
+    def get_tests_by_category(self, category: str) -> List[TestCase]:
+        """Get test cases by category"""
+        return [tc for tc in self.test_cases if tc.category == category]
+
+    def get_tests_by_tag(self, tag: str) -> List[TestCase]:
+        """Get test cases by tag"""
+        return [tc for tc in self.test_cases if tag in tc.tags]
+
+
+# =============================================================================
+# V2 EVALUATION SYSTEM - EVALUATION RESULTS
+# =============================================================================
+
+class EvaluationResultRecord(BaseModel):
+    """
+    Record of a single evaluation result.
+
+    Stored in database for history and analysis.
+    """
+    id: str = Field(default_factory=lambda: "")
+    run_id: str
+    test_case_id: str
+    trace_id: Optional[str] = None  # Links to LLMCall if captured
+
+    # Evaluator info
+    evaluator: str
+    evaluator_version: Optional[str] = None
+
+    # Results
+    score: float
+    passed: bool
+    reasoning: str = ""
+    details: Dict[str, Any] = Field(default_factory=dict)
+    issues: List[str] = Field(default_factory=list)
+
+    # Costs
+    cost: float = 0.0
+    latency_ms: float = 0.0
+    confidence: Optional[float] = None
+
+    # Timestamps
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+    @field_validator('score')
+    @classmethod
+    def score_must_be_valid(cls, v):
+        if v < 0 or v > 100:
+            raise ValueError('Score must be between 0 and 100')
+        return v
+
+
+class EvaluationRunMetrics(BaseModel):
+    """Aggregated metrics for an evaluation run"""
+    total_tests: int = 0
+    passed_tests: int = 0
+    failed_tests: int = 0
+    skipped_tests: int = 0
+
+    # Scores
+    avg_quality_score: float = 0.0
+    min_quality_score: Optional[float] = None
+    max_quality_score: Optional[float] = None
+
+    # Per-evaluator scores
+    avg_tool_use_score: Optional[float] = None
+    avg_model_judge_score: Optional[float] = None
+
+    # Rates
+    pass_rate: float = 0.0
+
+    # Performance (of the agent being tested)
+    total_agent_cost: float = 0.0
+    total_agent_latency_ms: float = 0.0
+    avg_agent_cost: float = 0.0
+    avg_agent_latency_ms: float = 0.0
+
+    # Evaluation overhead
+    total_eval_cost: float = 0.0
+    total_eval_latency_ms: float = 0.0
+
+
+class EvaluationRun(BaseModel):
+    """
+    A complete evaluation run against a test suite.
+
+    Tracks execution of all test cases and aggregated results.
+    """
+    id: str = Field(default_factory=lambda: "")
+    run_id: str
+    test_suite_id: str
+    test_suite_name: Optional[str] = None
+
+    # Experiment tracking
+    experiment_name: Optional[str] = None
+    experiment_version: str = ""
+    phase: str = "baseline"  # "baseline" or "optimized"
+
+    # Status
+    status: str = EvaluationStatus.PENDING.value
+    error_message: Optional[str] = None
+
+    # Timing
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    duration_seconds: Optional[float] = None
+
+    # Metrics
+    metrics: EvaluationRunMetrics = Field(default_factory=EvaluationRunMetrics)
+
+    # Individual results (for in-memory use)
+    results: List[EvaluationResultRecord] = Field(default_factory=list)
+
+    # Metadata
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    def is_complete(self) -> bool:
+        return self.status in [EvaluationStatus.COMPLETED.value, EvaluationStatus.FAILED.value]
+
+
+# =============================================================================
+# V2 EVALUATION SYSTEM - COMPARISON RESULTS
+# =============================================================================
+
+class VersionMetrics(BaseModel):
+    """Metrics for a single version in a comparison"""
+    version: str
+    run_id: str
+    sample_size: int = 0
+
+    # Quality
+    avg_quality_score: float = 0.0
+    avg_tool_use_score: float = 0.0
+    avg_model_judge_score: float = 0.0
+    pass_rate: float = 0.0
+
+    # Performance
+    avg_cost: float = 0.0
+    avg_latency_ms: float = 0.0
+    avg_tokens: int = 0
+    p95_latency_ms: Optional[float] = None
+
+    # Evaluation overhead
+    eval_cost: float = 0.0
+    eval_latency_ms: float = 0.0
+
+
+class ComparisonDeltas(BaseModel):
+    """Delta calculations between baseline and optimized"""
+    quality_change_abs: float = 0.0
+    quality_change_pct: float = 0.0
+    cost_change_pct: float = 0.0
+    latency_change_pct: float = 0.0
+    pass_rate_change_abs: float = 0.0
+
+    # Per-evaluator deltas
+    tool_use_change_abs: Optional[float] = None
+    model_judge_change_abs: Optional[float] = None
+
+
+class ComparisonRecord(BaseModel):
+    """
+    Record of a baseline vs optimized comparison.
+
+    Contains recommendation and supporting data.
+    """
+    id: str = Field(default_factory=lambda: "")
+    comparison_id: str
+    experiment_name: str
+
+    # Linked runs
+    baseline_run_id: str
+    optimized_run_id: str
+
+    # Version info
+    baseline: VersionMetrics
+    optimized: VersionMetrics
+
+    # Deltas
+    deltas: ComparisonDeltas = Field(default_factory=ComparisonDeltas)
+
+    # Recommendation
+    recommendation: str = Recommendation.NEUTRAL.value
+    confidence: str = "Medium"
+    reason: str = ""
+    summary: str = ""
+
+    # Evaluation economics
+    total_eval_cost: float = 0.0
+    eval_overhead_pct: float = 0.0
+
+    # Timing
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+    # Metadata
+    metadata: Dict[str, Any] = Field(default_factory=dict)
