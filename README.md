@@ -42,6 +42,84 @@ Most teams discover their LLM costs are 10x higher than expected, but have no vi
 
 ---
 
+## Visual Walkthrough
+
+### 1. Dashboard - Select an Agent Operation
+
+Start at the dashboard to see overall performance across all your AI applications. Click on any operation to drill in.
+
+![Dashboard](docs/images/dashboard.png)
+
+---
+
+### 2. Layer 1 - Issues by Category
+
+See issues grouped by **latency**, **caching**, **cost**, and **token usage**. Each category shows optimization opportunities with estimated savings.
+
+![Layer 1 - Category Overview](docs/images/layer_1.png)
+
+---
+
+### 3. Layer 2 - Drill Into a Category
+
+Click into any category to see which specific operations are causing problems and their impact.
+
+![Layer 2 - Category Details](docs/images/layer_2.png)
+
+---
+
+### 4. Layer 3 - Exact Code Causing the Problem
+
+Drill down to the individual call level to see the exact code and parameters causing inefficiencies.
+
+![Layer 3 - Call Details](docs/images/layer_3.png)
+
+---
+
+### 5. Trace Tab - Full Request Timeline
+
+View the complete trace of an LLM call, including timing breakdown and all context passed to the model.
+
+![Trace View](docs/images/trace.jpg)
+
+---
+
+### 6. Fix Tab - Apply Fixes with Impact Estimates
+
+Get actionable fixes with real code changes. Each fix shows **effort** and **impact** estimates so you can prioritize.
+
+![Fix Suggestion - Part 1](docs/images/fix_1.png)
+
+![Fix Suggestion - Part 2](docs/images/fix_2.png)
+
+---
+
+### 7. Optimization Queue - Prioritize Improvements
+
+View all optimization opportunities across your stories in one place. Sort by impact, effort, or category to decide what to tackle first.
+
+![Optimization Queue](docs/images/optimization_queue.png)
+
+---
+
+### 8. Code View with AI Assistant
+
+See the exact code that needs changing. The built-in AI chatbot explains **why** each fix works for your specific operation.
+
+![Code View](docs/images/code_view.jpg)
+
+![AI Assistant](docs/images/ai_assistant.jpg)
+
+---
+
+### 9. Optimization Impact - Before & After
+
+After applying fixes, see the real impact on your AI system. Compare baseline vs optimized metrics to measure improvements.
+
+![Optimization Impact](docs/images/optimization_impact.jpg)
+
+---
+
 ## Key Features
 
 | Feature | Description |

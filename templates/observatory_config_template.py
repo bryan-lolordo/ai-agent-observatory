@@ -581,7 +581,7 @@ def create_eval_runner(pipeline=None, storage=None):
         config=RunnerConfig(
             parallel=EVALUATION_CONFIG.get("parallel", True),
             max_concurrent=EVALUATION_CONFIG.get("max_concurrent", 5),
-            timeout_seconds=EVALUATION_CONFIG.get("timeout_seconds", 30),
+            test_timeout_seconds=EVALUATION_CONFIG.get("timeout_seconds", 30),
         )
     )
 

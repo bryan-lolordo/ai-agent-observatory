@@ -26,11 +26,16 @@ Usage:
 """
 
 import json
+import sys
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 from dataclasses import dataclass
 from pathlib import Path
 from io import StringIO
+
+# Check if we're on Windows with limited encoding
+_USE_ASCII = os.name == 'nt' and not os.environ.get('WT_SESSION')  # Windows but not Windows Terminal
 
 from observatory.models import (
     EvaluationRun,
@@ -80,35 +85,58 @@ class Colors:
 # =============================================================================
 
 class Symbols:
-    """Unicode symbols for terminal output"""
-    CHECK = "✓"
-    CROSS = "✗"
-    WARNING = "⚠"
-    INFO = "ℹ"
-    ARROW_RIGHT = "→"
-    ARROW_UP = "↑"
-    ARROW_DOWN = "↓"
-    BULLET = "•"
-    STAR = "★"
-    CIRCLE = "○"
-    FILLED_CIRCLE = "●"
-
-    # Progress
-    BAR_EMPTY = "░"
-    BAR_FILLED = "█"
-
-    # Box drawing
-    HORIZONTAL = "─"
-    VERTICAL = "│"
-    TOP_LEFT = "┌"
-    TOP_RIGHT = "┐"
-    BOTTOM_LEFT = "└"
-    BOTTOM_RIGHT = "┘"
-    T_DOWN = "┬"
-    T_UP = "┴"
-    T_RIGHT = "├"
-    T_LEFT = "┤"
-    CROSS_LINE = "┼"
+    """Unicode symbols for terminal output (with ASCII fallbacks for Windows)"""
+    # Use ASCII on Windows cmd.exe, Unicode elsewhere
+    if _USE_ASCII:
+        CHECK = "[OK]"
+        CROSS = "[X]"
+        WARNING = "[!]"
+        INFO = "[i]"
+        ARROW_RIGHT = "->"
+        ARROW_UP = "^"
+        ARROW_DOWN = "v"
+        BULLET = "*"
+        STAR = "*"
+        CIRCLE = "o"
+        FILLED_CIRCLE = "@"
+        BAR_EMPTY = "."
+        BAR_FILLED = "#"
+        HORIZONTAL = "-"
+        VERTICAL = "|"
+        TOP_LEFT = "+"
+        TOP_RIGHT = "+"
+        BOTTOM_LEFT = "+"
+        BOTTOM_RIGHT = "+"
+        T_DOWN = "+"
+        T_UP = "+"
+        T_RIGHT = "+"
+        T_LEFT = "+"
+        CROSS_LINE = "+"
+    else:
+        CHECK = "✓"
+        CROSS = "✗"
+        WARNING = "⚠"
+        INFO = "ℹ"
+        ARROW_RIGHT = "→"
+        ARROW_UP = "↑"
+        ARROW_DOWN = "↓"
+        BULLET = "•"
+        STAR = "★"
+        CIRCLE = "○"
+        FILLED_CIRCLE = "●"
+        BAR_EMPTY = "░"
+        BAR_FILLED = "█"
+        HORIZONTAL = "─"
+        VERTICAL = "│"
+        TOP_LEFT = "┌"
+        TOP_RIGHT = "┐"
+        BOTTOM_LEFT = "└"
+        BOTTOM_RIGHT = "┘"
+        T_DOWN = "┬"
+        T_UP = "┴"
+        T_RIGHT = "├"
+        T_LEFT = "┤"
+        CROSS_LINE = "┼"
 
 
 # =============================================================================
@@ -143,7 +171,11 @@ class ConsoleReporter:
     def print_run(self, run: EvaluationRun) -> None:
         """Print evaluation run summary to console"""
         output = self.format_run(run)
-        print(output)
+        try:
+            print(output)
+        except UnicodeEncodeError:
+            # Fallback for Windows consoles with limited encoding
+            print(output.encode('ascii', errors='replace').decode('ascii'))
 
     def format_run(self, run: EvaluationRun) -> str:
         """Format evaluation run as string"""
@@ -221,7 +253,11 @@ class ConsoleReporter:
     def print_comparison(self, comparison: Union[ComparisonRecord, Dict[str, Any]]) -> None:
         """Print comparison summary to console"""
         output = self.format_comparison(comparison)
-        print(output)
+        try:
+            print(output)
+        except UnicodeEncodeError:
+            # Fallback for Windows consoles with limited encoding
+            print(output.encode('ascii', errors='replace').decode('ascii'))
 
     def format_comparison(self, comparison: Union[ComparisonRecord, Dict[str, Any]]) -> str:
         """Format comparison as string"""
