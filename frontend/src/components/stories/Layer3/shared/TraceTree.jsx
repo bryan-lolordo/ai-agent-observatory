@@ -198,7 +198,7 @@ const GroupedCallNode = ({ group, depth = 0, storyType = null }) => {
       {/* Group header */}
       <div
         className={`
-          flex items-center gap-2 py-2.5 px-3
+          flex items-center gap-1 md:gap-2 py-2.5 px-2 md:px-3
           ${BASE_THEME.state.hover}
           cursor-pointer
           transition-colors
@@ -210,55 +210,55 @@ const GroupedCallNode = ({ group, depth = 0, storyType = null }) => {
         {/* Expand/collapse chevron */}
         {count > 1 ? (
           showAll ? (
-            <ChevronDown className={`w-5 h-5 ${BASE_THEME.text.secondary} flex-shrink-0`} />
+            <ChevronDown className={`w-4 h-4 md:w-5 md:h-5 ${BASE_THEME.text.secondary} flex-shrink-0`} />
           ) : (
-            <ChevronRight className={`w-5 h-5 ${BASE_THEME.text.secondary} flex-shrink-0`} />
+            <ChevronRight className={`w-4 h-4 md:w-5 md:h-5 ${BASE_THEME.text.secondary} flex-shrink-0`} />
           )
         ) : (
-          <div className="w-5 h-5 flex-shrink-0" />
+          <div className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
         )}
 
         {/* Severity indicator */}
-        {severity === 'critical' && <Flame className={`w-5 h-5 ${BASE_THEME.status.error.text} flex-shrink-0`} />}
-        {severity === 'warning' && <AlertTriangle className={`w-5 h-5 ${BASE_THEME.status.warning.text} flex-shrink-0`} />}
-        {severity === 'info' && <CheckCircle className={`w-5 h-5 ${BASE_THEME.status.success.text} flex-shrink-0`} />}
+        {severity === 'critical' && <Flame className={`w-4 h-4 md:w-5 md:h-5 ${BASE_THEME.status.error.text} flex-shrink-0`} />}
+        {severity === 'warning' && <AlertTriangle className={`w-4 h-4 md:w-5 md:h-5 ${BASE_THEME.status.warning.text} flex-shrink-0`} />}
+        {severity === 'info' && <CheckCircle className={`w-4 h-4 md:w-5 md:h-5 ${BASE_THEME.status.success.text} flex-shrink-0`} />}
 
         {/* Agent role icon */}
         <AgentRoleIcon role={group.agent_role} />
 
         {/* Agent name & operation */}
-        <span className={`font-semibold ${BASE_THEME.text.primary}`}>
+        <span className={`font-semibold text-sm md:text-base ${BASE_THEME.text.primary} truncate`}>
           {group.agent_name || 'Unknown'}
         </span>
-        <span className={BASE_THEME.text.muted}>→</span>
-        <span className={BASE_THEME.text.secondary}>{group.operation}</span>
+        <span className={`hidden sm:inline ${BASE_THEME.text.muted}`}>→</span>
+        <span className={`hidden sm:inline text-sm md:text-base ${BASE_THEME.text.secondary} truncate`}>{group.operation}</span>
 
         {/* Call count badge */}
         {count > 1 && (
-          <span className={`ml-2 px-2.5 py-1 text-sm rounded border ${severityTheme.text} ${severityTheme.bg} ${severityTheme.border}`}>
+          <span className={`ml-1 md:ml-2 px-1.5 md:px-2.5 py-0.5 md:py-1 text-xs md:text-sm rounded border ${severityTheme.text} ${severityTheme.bg} ${severityTheme.border}`}>
             ×{count}
           </span>
         )}
 
         {/* Error indicator */}
         {group.has_errors && (
-          <span className={`ml-2 px-2.5 py-1 ${BASE_THEME.status.error.bg} ${BASE_THEME.status.error.text} text-sm rounded border ${BASE_THEME.status.error.border}`}>
+          <span className={`ml-1 md:ml-2 px-1.5 md:px-2.5 py-0.5 md:py-1 ${BASE_THEME.status.error.bg} ${BASE_THEME.status.error.text} text-xs md:text-sm rounded border ${BASE_THEME.status.error.border}`}>
             ERRORS
           </span>
         )}
 
         {/* Metrics (right-aligned) */}
-        <div className={`ml-auto flex items-center gap-6 text-sm ${BASE_THEME.text.secondary} flex-shrink-0`}>
-          <span className="w-14 text-center" title="Number of calls">
+        <div className={`ml-auto flex items-center gap-2 md:gap-6 text-xs md:text-sm ${BASE_THEME.text.secondary} flex-shrink-0`}>
+          <span className="hidden md:block w-14 text-center" title="Number of calls">
             {count}
           </span>
-          <span className="w-16 text-right" title="Total Latency">
+          <span className="w-12 md:w-16 text-right" title="Total Latency">
             {latencySeconds}s
           </span>
-          <span className="w-20 text-right" title="Total Cost">
+          <span className="w-14 md:w-20 text-right" title="Total Cost">
             ${cost}
           </span>
-          <span className="w-16 text-center" title="Total Tokens">
+          <span className="hidden md:block w-16 text-center" title="Total Tokens">
             {tokens}
           </span>
         </div>
@@ -349,11 +349,11 @@ const IndividualCallNode = ({ nodeData, depth = 0, index = null }) => {
       </span>
 
       {/* Metrics */}
-      <div className="flex items-center gap-6 flex-shrink-0">
-        <span className="w-14 text-center">-</span>
-        <span className="w-16 text-right">{latencySeconds}s</span>
-        <span className="w-20 text-right">${cost}</span>
-        <span className="w-16 text-center">{tokens}</span>
+      <div className="flex items-center gap-2 md:gap-6 flex-shrink-0 text-xs md:text-sm">
+        <span className="hidden md:block w-14 text-center">-</span>
+        <span className="w-12 md:w-16 text-right">{latencySeconds}s</span>
+        <span className="w-14 md:w-20 text-right">${cost}</span>
+        <span className="hidden md:block w-16 text-center">{tokens}</span>
       </div>
     </div>
   );
@@ -444,25 +444,25 @@ export default function TraceTree({ callId, conversationId, storyType = null }) 
     return (
       <div className="space-y-4">
         {/* Column Headers */}
-        <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg px-3 py-2.5`}>
-          <div className={`flex items-center gap-2 text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide`}>
-            <div className="flex-1 flex items-center gap-2">
-              <div className="w-5" />
-              <div className="w-5" />
-              <div className="w-5" />
+        <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg px-2 md:px-3 py-2.5`}>
+          <div className={`flex items-center gap-1 md:gap-2 text-xs md:text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide`}>
+            <div className="flex-1 flex items-center gap-1 md:gap-2 min-w-0">
+              <div className="w-4 md:w-5 flex-shrink-0" />
+              <div className="w-4 md:w-5 flex-shrink-0" />
+              <div className="w-4 md:w-5 flex-shrink-0" />
               <span>Call Chain</span>
             </div>
-            <div className="flex items-center gap-6 flex-shrink-0">
-              <span className="w-14 text-center">Calls</span>
-              <span className="flex items-center gap-1 w-16 justify-center">
-                <Clock className="w-4 h-4" />
+            <div className="flex items-center gap-2 md:gap-6 flex-shrink-0">
+              <span className="hidden md:block w-14 text-center">Calls</span>
+              <span className="flex items-center gap-1 w-12 md:w-16 justify-end md:justify-center">
+                <Clock className="w-3 h-3 md:w-4 md:h-4" />
                 Time
               </span>
-              <span className="flex items-center gap-1 w-20 justify-center">
-                <DollarSign className="w-4 h-4" />
+              <span className="flex items-center gap-1 w-14 md:w-20 justify-end md:justify-center">
+                <DollarSign className="w-3 h-3 md:w-4 md:h-4" />
                 Cost
               </span>
-              <span className="w-16 text-center">🪙 Tokens</span>
+              <span className="hidden md:block w-16 text-center">Tokens</span>
             </div>
           </div>
         </div>
@@ -497,32 +497,32 @@ export default function TraceTree({ callId, conversationId, storyType = null }) 
             return (
               <div key={turn.turn_number} className={`border ${BASE_THEME.border.default} rounded-lg overflow-hidden ${BASE_THEME.container.primary}`}>
                 {/* Turn header */}
-                <div className={`${BASE_THEME.container.secondary} px-3 py-3 border-b ${BASE_THEME.border.default}`}>
-                  <div className="flex items-center gap-2">
+                <div className={`${BASE_THEME.container.secondary} px-2 md:px-3 py-3 border-b ${BASE_THEME.border.default}`}>
+                  <div className="flex items-center gap-1 md:gap-2">
                     {/* Left side - matches the spacing of grouped calls */}
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <div className="w-5 flex-shrink-0" /> {/* Chevron spacer */}
-                      <div className="w-5 flex-shrink-0" /> {/* Severity spacer */}
-                      <div className="w-5 flex-shrink-0" /> {/* Icon spacer */}
-                      <span className={`${BASE_THEME.status.info.bg} text-white text-sm font-bold px-2.5 py-1 rounded flex-shrink-0`}>
+                    <div className="flex items-center gap-1 md:gap-2 flex-1 min-w-0">
+                      <div className="w-4 md:w-5 flex-shrink-0" /> {/* Chevron spacer */}
+                      <div className="w-4 md:w-5 flex-shrink-0" /> {/* Severity spacer */}
+                      <div className="w-4 md:w-5 flex-shrink-0" /> {/* Icon spacer */}
+                      <span className={`${BASE_THEME.status.info.bg} text-white text-xs md:text-sm font-bold px-2 md:px-2.5 py-1 rounded flex-shrink-0`}>
                         Turn {turn.turn_number}
                       </span>
-                      <span className={`text-base ${BASE_THEME.text.secondary} font-medium truncate`}>
+                      <span className={`hidden sm:block text-sm md:text-base ${BASE_THEME.text.secondary} font-medium truncate`}>
                         "{displayMessage}"
                       </span>
                       {hasExpensiveCalls && (
-                        <span className={`flex items-center gap-1 text-sm ${BASE_THEME.status.error.text}`}>
-                          <Flame className="w-4 h-4" />
-                          EXPENSIVE
+                        <span className={`flex items-center gap-1 text-xs md:text-sm ${BASE_THEME.status.error.text} flex-shrink-0`}>
+                          <Flame className="w-3 h-3 md:w-4 md:h-4" />
+                          <span className="hidden sm:inline">EXPENSIVE</span>
                         </span>
                       )}
                     </div>
                     {/* Right side - matches column widths exactly */}
-                    <div className={`flex items-center gap-6 text-sm ${BASE_THEME.text.secondary} font-medium flex-shrink-0`}>
-                      <span className="w-14 text-center">{turn.total_calls}</span>
-                      <span className="w-16 text-right">{turnTimeSeconds}s</span>
-                      <span className="w-20 text-right">${(turn.total_cost || 0).toFixed(4)}</span>
-                      <span className="w-16 text-center">{turn.total_tokens || '-'}</span>
+                    <div className={`flex items-center gap-2 md:gap-6 text-xs md:text-sm ${BASE_THEME.text.secondary} font-medium flex-shrink-0`}>
+                      <span className="hidden md:block w-14 text-center">{turn.total_calls}</span>
+                      <span className="w-12 md:w-16 text-right">{turnTimeSeconds}s</span>
+                      <span className="w-14 md:w-20 text-right">${(turn.total_cost || 0).toFixed(4)}</span>
+                      <span className="hidden md:block w-16 text-center">{turn.total_tokens || '-'}</span>
                     </div>
                   </div>
                 </div>
@@ -585,25 +585,25 @@ export default function TraceTree({ callId, conversationId, storyType = null }) 
         )}
 
         {/* Column Headers */}
-        <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg px-3 py-2.5`}>
-          <div className={`flex items-center gap-2 text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide`}>
-            <div className="flex-1 flex items-center gap-2">
-              <div className="w-5" />
-              <div className="w-5" />
-              <div className="w-5" />
+        <div className={`${BASE_THEME.container.secondary} border ${BASE_THEME.border.default} rounded-lg px-2 md:px-3 py-2.5`}>
+          <div className={`flex items-center gap-1 md:gap-2 text-xs md:text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide`}>
+            <div className="flex-1 flex items-center gap-1 md:gap-2 min-w-0">
+              <div className="w-4 md:w-5 flex-shrink-0" />
+              <div className="w-4 md:w-5 flex-shrink-0" />
+              <div className="w-4 md:w-5 flex-shrink-0" />
               <span>Call Chain</span>
             </div>
-            <div className="flex items-center gap-6 flex-shrink-0">
-              <span className="w-14 text-center">Calls</span>
-              <span className="flex items-center gap-1 w-16 justify-center">
-                <Clock className="w-4 h-4" />
+            <div className="flex items-center gap-2 md:gap-6 flex-shrink-0">
+              <span className="hidden md:block w-14 text-center">Calls</span>
+              <span className="flex items-center gap-1 w-12 md:w-16 justify-end md:justify-center">
+                <Clock className="w-3 h-3 md:w-4 md:h-4" />
                 Time
               </span>
-              <span className="flex items-center gap-1 w-20 justify-center">
-                <DollarSign className="w-4 h-4" />
+              <span className="flex items-center gap-1 w-14 md:w-20 justify-end md:justify-center">
+                <DollarSign className="w-3 h-3 md:w-4 md:h-4" />
                 Cost
               </span>
-              <span className="w-16 text-center">🪙 Tokens</span>
+              <span className="hidden md:block w-16 text-center">Tokens</span>
             </div>
           </div>
         </div>

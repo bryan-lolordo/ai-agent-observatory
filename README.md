@@ -48,7 +48,7 @@ Most teams discover their LLM costs are 10x higher than expected, but have no vi
 
 Start at the dashboard to see overall performance across all your AI applications. Click on any operation to drill in.
 
-![Dashboard](docs/images/dashboard.png)
+![Dashboard](docs/images/dashboard_1.png)
 
 ---
 
@@ -76,15 +76,7 @@ Drill down to the individual call level to see the exact code and parameters cau
 
 ---
 
-### 5. Trace Tab - Full Request Timeline
-
-View the complete trace of an LLM call, including timing breakdown and all context passed to the model.
-
-![Trace View](docs/images/trace.jpg)
-
----
-
-### 6. Fix Tab - Apply Fixes with Impact Estimates
+### 5. Fix Tab - Apply Fixes with Impact Estimates
 
 Get actionable fixes with real code changes. Each fix shows **effort** and **impact** estimates so you can prioritize.
 
@@ -94,7 +86,7 @@ Get actionable fixes with real code changes. Each fix shows **effort** and **imp
 
 ---
 
-### 7. Optimization Queue - Prioritize Improvements
+### 6. Optimization Queue - Prioritize Improvements
 
 View all optimization opportunities across your stories in one place. Sort by impact, effort, or category to decide what to tackle first.
 
@@ -102,7 +94,7 @@ View all optimization opportunities across your stories in one place. Sort by im
 
 ---
 
-### 8. Code View with AI Assistant
+### 7. Code View with AI Assistant
 
 See the exact code that needs changing. The built-in AI chatbot explains **why** each fix works for your specific operation.
 
@@ -112,7 +104,7 @@ See the exact code that needs changing. The built-in AI chatbot explains **why**
 
 ---
 
-### 9. Optimization Impact - Before & After
+### 8. Optimization Impact - Before & After
 
 After applying fixes, see the real impact on your AI system. Compare baseline vs optimized metrics to measure improvements.
 

@@ -95,8 +95,8 @@ export default function TracePanel({
           </div>
         )}
 
-        {/* Side-by-side panels */}
-        <div className="grid grid-cols-2 gap-6">
+        {/* Side-by-side panels - stack on narrow screens */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* Left: Chat History */}
           <div>
             <h3 className={`text-sm font-medium ${BASE_THEME.text.secondary} uppercase tracking-wide mb-4`}>

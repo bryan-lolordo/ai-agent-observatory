@@ -41,8 +41,9 @@ export default function SeverityBadge({ severity }) {
   const style = SEVERITY_STYLES[severity] || SEVERITY_STYLES.info;
 
   return (
-    <span className={`px-3 py-1 rounded text-sm border ${style.bg} ${style.text} ${style.border} font-semibold`}>
-      {style.icon} {severity.toUpperCase()}
+    <span className={`inline-flex items-center gap-1 px-2 md:px-3 py-1 rounded text-xs md:text-sm border ${style.bg} ${style.text} ${style.border} font-semibold whitespace-nowrap`}>
+      <span>{style.icon}</span>
+      <span className="hidden sm:inline">{severity.toUpperCase()}</span>
     </span>
   );
 }
