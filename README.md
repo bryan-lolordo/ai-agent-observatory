@@ -127,41 +127,13 @@ After applying fixes, see the real impact on your AI system. Compare baseline vs
 
 ### 9. MCP Server - Query Metrics from AI Assistants
 
-Observatory includes a **Model Context Protocol (MCP) server** with **27 tools**, **5 live resources**, and **8 analysis prompts** that let AI assistants like Claude query your LLM metrics directly from your IDE.
-
-| Category | Tools | What You Can Ask |
-|----------|-------|------------------|
-| **Cost** | 3 | *"What are my most expensive operations?"* *"Show cost trends over the last month"* |
-| **Optimization** | 2 | *"Find all optimization opportunities"* *"How much could I save with caching?"* |
-| **Routing** | 3 | *"Which operations should use cheaper models?"* *"Show routing savings"* |
-| **Cache** | 3 | *"What's my cache hit rate?"* *"Find duplicate prompts I could cache"* |
-| **Sessions** | 4 | *"Compare these two sessions"* *"Show active sessions"* |
-| **Quality** | 3 | *"Find calls with hallucinations"* *"Show quality scores by agent"* |
-| **Comparison** | 3 | *"Compare baseline vs optimized phases"* *"Which model performs best?"* |
-
-**Live Resources:** Active sessions, system health, daily summary, optimization stories, cost alerts
-
-**Analysis Prompts:** Weekly reports, daily summaries, cost analysis, cache audits, routing audits
+Query your LLM metrics directly from Claude or any AI assistant right from your IDE.
 
 ![MCP Server - Query Interface](docs/images/mcp_1.png)
 
 ![MCP Server - Results](docs/images/mcp_2.png)
 
----
-
-## Key Features
-
-| Feature | Description |
-|---------|-------------|
-| **139 Metrics per Call** | Tokens, cost, latency, quality, cache, routing - comprehensive tracking |
-| **7 Analytics Stories** | Cost, Latency, Tokens, Quality, Prompts, Cache, Routing |
-| **3-Layer Drill-Down** | KPIs → Operations → Individual Calls |
-| **Simple Integration** | One decorator: `@observe` |
-| **Two-Phase Workflow** | Baseline (detect) → Optimized (apply fixes) |
-| **V2 Evaluation System** | YAML test suites, pluggable evaluators, version comparison |
-| **MCP Server** | Query metrics from AI assistants (Claude, GPT) via Model Context Protocol |
-| **Framework Agnostic** | Works with LangChain, AutoGen, Semantic Kernel, or raw OpenAI/Anthropic |
-| **Full Stack** | Python SDK + FastAPI Backend + React Dashboard |
+See [MCP Server details](#mcp-server-model-context-protocol) for full capabilities and setup.
 
 ---
 
@@ -311,7 +283,7 @@ Each story provides KPIs, operation-level breakdown, and individual call inspect
 
 ## Production Features
 
-Observatory v0.5.0 includes enterprise-ready features:
+Observatory includes enterprise-ready features:
 
 | Feature | Description |
 |---------|-------------|
@@ -321,14 +293,18 @@ Observatory v0.5.0 includes enterprise-ready features:
 | **SafeWrapper** | Graceful degradation - tracking failures never break your app |
 | **HealthChecks** | `/health` endpoint for all SDK components |
 | **Two-Phase Optimization** | Baseline detection → Optimized execution with A/B comparison |
-| **MCP Server** | Model Context Protocol server for AI assistant integration |
-| **V2 Evaluation System** | Test suites, evaluators, and comparison workflows |
 
 ---
 
 ## MCP Server (Model Context Protocol)
 
-Observatory includes an MCP server that allows AI assistants (Claude, GPT, etc.) to query your LLM metrics and provide optimization insights directly in your IDE or chat interface.
+Observatory includes an MCP server with **27 tools**, **5 live resources**, and **8 analysis prompts** that let AI assistants (Claude, GPT, etc.) query your LLM metrics directly from your IDE.
+
+**Example questions you can ask:**
+- *"What are my most expensive operations?"*
+- *"Find duplicate prompts I could cache"*
+- *"Compare baseline vs optimized phases"*
+- *"Which operations should use cheaper models?"*
 
 ### Available Tools
 
@@ -341,6 +317,10 @@ Observatory includes an MCP server that allows AI assistants (Claude, GPT, etc.)
 | **Sessions** | `list_sessions`, `get_session_details` |
 | **Quality** | `get_quality_scores`, `find_low_quality_calls` |
 | **Comparison** | `compare_phases`, `get_ab_test_results` |
+
+**Live Resources:** Active sessions, system health, daily summary, optimization stories, cost alerts
+
+**Analysis Prompts:** Weekly reports, daily summaries, cost analysis, cache audits, routing audits
 
 ### Setup
 
