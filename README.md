@@ -42,6 +42,19 @@ Most teams discover their LLM costs are 10x higher than expected, but have no vi
 
 ---
 
+## Capabilities at a Glance
+
+| Category | What You Get |
+|----------|--------------|
+| **Tracking** | 139 metrics per LLM call - tokens, cost, latency, quality, cache, routing |
+| **Analytics** | 7 stories (Cost, Latency, Tokens, Quality, Prompts, Cache, Routing) with 3-layer drill-down |
+| **Optimization** | Actionable fixes with code changes, effort/impact estimates, and before/after comparison |
+| **MCP Server** | 27 tools, 5 live resources, 8 prompts - query metrics from Claude or any AI assistant |
+| **Evaluation** | YAML test suites, pluggable evaluators, version comparison with DEPLOY/REJECT recommendations |
+| **Integration** | One decorator (`@observe`) - works with LangChain, AutoGen, Semantic Kernel, or raw OpenAI/Anthropic |
+
+---
+
 ## Visual Walkthrough
 
 ### 1. Dashboard - Select an Agent Operation
