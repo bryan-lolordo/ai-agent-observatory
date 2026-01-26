@@ -1,3 +1,0 @@
-"""
-Alert service (future use).
-"""

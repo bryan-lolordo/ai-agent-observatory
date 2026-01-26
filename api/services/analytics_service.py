@@ -1,3 +1,0 @@
-"""
-Analytics service (future use).
-"""

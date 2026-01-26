@@ -112,6 +112,30 @@ After applying fixes, see the real impact on your AI system. Compare baseline vs
 
 ---
 
+### 9. MCP Server - Query Metrics from AI Assistants
+
+Observatory includes a **Model Context Protocol (MCP) server** with **27 tools**, **5 live resources**, and **8 analysis prompts** that let AI assistants like Claude query your LLM metrics directly from your IDE.
+
+| Category | Tools | What You Can Ask |
+|----------|-------|------------------|
+| **Cost** | 3 | *"What are my most expensive operations?"* *"Show cost trends over the last month"* |
+| **Optimization** | 2 | *"Find all optimization opportunities"* *"How much could I save with caching?"* |
+| **Routing** | 3 | *"Which operations should use cheaper models?"* *"Show routing savings"* |
+| **Cache** | 3 | *"What's my cache hit rate?"* *"Find duplicate prompts I could cache"* |
+| **Sessions** | 4 | *"Compare these two sessions"* *"Show active sessions"* |
+| **Quality** | 3 | *"Find calls with hallucinations"* *"Show quality scores by agent"* |
+| **Comparison** | 3 | *"Compare baseline vs optimized phases"* *"Which model performs best?"* |
+
+**Live Resources:** Active sessions, system health, daily summary, optimization stories, cost alerts
+
+**Analysis Prompts:** Weekly reports, daily summaries, cost analysis, cache audits, routing audits
+
+![MCP Server - Query Interface](docs/images/mcp_1.png)
+
+![MCP Server - Results](docs/images/mcp_2.png)
+
+---
+
 ## Key Features
 
 | Feature | Description |
